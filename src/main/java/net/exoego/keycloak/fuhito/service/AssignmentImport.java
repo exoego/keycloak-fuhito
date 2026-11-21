@@ -16,6 +16,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition.Target;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -37,6 +38,7 @@ final class AssignmentImport {
     private final PeopleImport document;
     private final ListIds ids;
     private final AssignmentService service;
+    private final AttributeRules rules;
     private final AssignmentService.NewAssignments added;
     private final Map<String, Optional<AssignmentView>> stored = new HashMap<>();
     private final Map<String, Boolean> units = new HashMap<>();
@@ -50,6 +52,7 @@ final class AssignmentImport {
         this.document = document;
         this.ids = new ListIds(document.externalIds);
         this.service = document.people.assignmentService().remembering();
+        this.rules = service.attributeRules();
         this.added = service.newAssignments(
                 (source, value) -> ids.resourceOf(ExternalId.Kind.ASSIGNMENT, source, value));
     }
@@ -141,8 +144,8 @@ final class AssignmentImport {
             AssignmentValues values = new AssignmentValues(employmentId, orgUnitId,
                     row.validFrom() == null ? document.effectiveDate : row.validFrom(), row.validTo(), row.jobTitle(),
                     row.occupation(), row.kind(), row.workLocation(), row.costCenter(), row.head(), row.primary(),
-                    false, row.allocationPercent(), row.displayOrder(), Merged.attributes(row, row.attributes(), null),
-                    row.externalId(), source);
+                    false, row.allocationPercent(), row.displayOrder(),
+                    Merged.attributes(row, row.attributes(), null, rules, Target.ASSIGNMENT), row.externalId(), source);
             String id = ids.create(ExternalId.Kind.ASSIGNMENT, source, row.externalId(),
                     () -> added.add(values, continues), Function.identity());
             writes.add(() -> new Write.OfAssignment(true, "", views.get(id)));
@@ -210,7 +213,8 @@ final class AssignmentImport {
                 row.or("head", row.head(), stored.head()), row.or("primary", row.primary(), stored.primary()), false,
                 row.or("allocationPercent", row.allocationPercent(), stored.allocationPercent()),
                 row.or("displayOrder", row.displayOrder(), stored.displayOrder()),
-                Merged.attributes(row, row.attributes(), stored.attributes()), null, null);
+                Merged.attributes(row, row.attributes(), stored.attributes(), rules, Target.ASSIGNMENT), null,
+                null);
     }
 
     // An assignment that another one continues must end by the start of that one. Its rows end when its employment

@@ -15,8 +15,9 @@ public interface AttributeRules {
     AttributeRules NONE = (target, attributes) -> AttributeSize.require(StoredAttributes.of(attributes));
 
     /**
-     * Checks the attributes of one write, in the form that a write stores them. A name with null has no value, so
-     * the stored attributes leave it out, and it needs no definition. A required name with null is missing.
+     * Checks the attributes of one write. Each name needs a definition, also a name with null, as
+     * {@link #requireDefined} checks. A name with null has no value, so the stored attributes leave it out, and a
+     * required name with null is missing.
      *
      * @param target the kind of resource
      * @param attributes the attributes of the write, or null for none
@@ -25,6 +26,18 @@ public interface AttributeRules {
      *         name has no definition, a value does not fit its definition, or a required one is missing
      */
     Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes);
+
+    /**
+     * Requires a definition for each name of the attributes of a write, also for a name with null. An import merges
+     * a row into the stored attributes, and a row that changes nothing is not checked again. So the import checks the
+     * names of the row first. The default accepts every name, as {@link #NONE} does.
+     *
+     * @param target the kind of resource
+     * @param attributes the attributes of the write, or null for none
+     * @throws FuhitoException when a name has no definition
+     */
+    default void requireDefined(AttributeDefinition.Target target, Map<String, Object> attributes) {
+    }
 
     /**
      * Lists the definitions of the type {@code REF_ITEM} whose values are codes of items of a kind.

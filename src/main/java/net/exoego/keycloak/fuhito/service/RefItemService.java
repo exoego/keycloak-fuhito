@@ -85,6 +85,15 @@ public class RefItemService {
     }
 
     /**
+     * Returns the check of free attributes of these operations, so that an import checks the names of a row with it.
+     *
+     * @return the check
+     */
+    AttributeRules attributeRules() {
+        return attributeRules;
+    }
+
+    /**
      * Lists a page of the items of a kind, with the names of today.
      *
      * @param kind the kind

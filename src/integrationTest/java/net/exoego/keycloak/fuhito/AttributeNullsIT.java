@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,7 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * A name with null in {@code attributes} has no value. Every write stores the attributes without it.
+ * A name with null in {@code attributes} has no value. Every write stores the attributes without it. The name still
+ * needs a definition.
  */
 class AttributeNullsIT {
 
@@ -162,6 +164,49 @@ class AttributeNullsIT {
 
         assertEquals("{\"rank\":\"a\"}", attributesOf("fuhito_person", written));
         assertEquals(attributesOf("fuhito_person", written), attributesOf("fuhito_person", imported));
+    }
+
+    // One resource of each kind. The second part goes into each row.
+    private static final String ROWS = """
+            {"effectiveDate": "2020-04-01",
+             "refItems": [{"externalId": "L", "kind": "QUALIFICATION", "code": "license", %1$s%2$s}],
+             "orgUnits": [{"externalId": "U", "validFrom": "2020-04-01", %1$s%2$s}],
+             "people": [{"externalId": "P", %1$s%2$s}],
+             "qualifications": [{"externalId": "Q", "personExternalId": "P", "kind": "license"%2$s}],
+             "employments": [{"externalId": "E", "personExternalId": "P", "validFrom": "2020-04-01"%2$s}],
+             "assignments": [{"externalId": "A", "employmentExternalId": "E", "orgUnitExternalId": "U",
+               "validFrom": "2020-04-01"%2$s}]}
+            """;
+
+    @Test
+    void aNameWithNoDefinitionFailsAlsoWithNullInARestWriteAndAnImport() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("attribute-nulls-unknown");
+        Api api = realm.api;
+        realm.attribute("PERSON", "note", "STRING");
+        String typo = ", \"attributes\": {\"typo\": null}";
+        String names = NAMES.formatted("名");
+        ok(api.post("/imports", ROWS.formatted(names, "")));
+        String person = Api.json(api.get("/people")).get(0).get("id").asText();
+
+        assertEquals("attribute.unknown", error(api.post("/people", "{" + names + typo + "}")));
+        assertEquals("attribute.unknown", error(api.putWithVersion("/people/" + person, "{" + names + typo + "}")));
+        // Each row changes nothing else, so only the check of its names finds the name.
+        HttpResponse<String> stored = api.post("/imports", ROWS.formatted(names, typo));
+        assertEquals(List.of("refItems", "orgUnits", "people", "qualifications", "employments", "assignments"),
+                Api.json(stored).get("errors").findValuesAsText("list"), stored.body());
+        assertEquals(List.of("attribute.unknown"), Api.json(stored).get("errors").findValuesAsText("error").stream()
+                .distinct().toList(), stored.body());
+        HttpResponse<String> added = api.post("/imports", "{\"effectiveDate\": \"2020-04-01\", \"people\": [{"
+                + "\"externalId\": \"P2\", " + names + ", \"attributes\": {\"note\": null, \"typo\": null}}]}");
+        assertEquals(400, added.statusCode(), added.body());
+        assertEquals("attribute.unknown typo", Api.json(added).at("/errors/0/error").asText() + " "
+                + Api.json(added).at("/errors/0/params/name").asText(), added.body());
+        // A CSV file has a column for each name, and a column of a name with no definition fails the file.
+        HttpResponse<String> csv = api.postBytes("/imports/csv/people?effectiveDate=2020-04-01",
+                "text/csv; charset=UTF-8", "externalId,attributes.typo\nP,#CLEAR\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals("csv.bad_column", error(csv));
+        assertEquals("1", KeycloakEnvironment.sql("select count(*) from fuhito_person where realm_id = '"
+                + realm.id() + "'"));
     }
 
     // A write before the rule of null kept the name with null. Such a row has no value.

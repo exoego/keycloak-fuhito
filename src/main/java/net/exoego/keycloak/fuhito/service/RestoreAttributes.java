@@ -36,7 +36,7 @@ final class RestoreAttributes {
      *         the write in {@code rule}. A size names the field {@code attributes} and {@code attribute.too_large}.
      *         Another rule names the attribute in the field, such as {@code attributes.beds}, and
      *         {@code attribute.unknown}, {@code attribute.bad_value}, or {@code attribute.required}. A name with null
-     *         names the attribute in the field and has no rule.
+     *         and a definition names the attribute in the field and has no rule.
      */
     static void require(RealmExport document) {
         Map<String, Set<String>> codes = new HashMap<>();

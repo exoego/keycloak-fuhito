@@ -9,9 +9,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -283,11 +286,17 @@ public class AttributeDefinitionService implements AttributeRules {
     }
 
     @Override
+    public void requireDefined(AttributeDefinition.Target target, Map<String, Object> attributes) {
+        if (attributes != null && !attributes.isEmpty()) {
+            requireDefined(target, attributes, store.list(target));
+        }
+    }
+
+    @Override
     public AttributeRules remembering() {
         Map<AttributeDefinition.Target, List<AttributeDefinition>> read =
                 new EnumMap<>(AttributeDefinition.Target.class);
-        return (target, attributes) -> check(target, attributes, read.computeIfAbsent(target, store::list),
-                this::hasItem);
+        return new Rules(target -> read.computeIfAbsent(target, store::list), this::hasItem);
     }
 
     /**
@@ -302,25 +311,49 @@ public class AttributeDefinitionService implements AttributeRules {
         Map<AttributeDefinition.Target, List<AttributeDefinition>> byTarget =
                 new EnumMap<>(AttributeDefinition.Target.class);
         definitions.forEach(d -> byTarget.computeIfAbsent(d.target(), target -> new ArrayList<>()).add(d));
-        return (target, attributes) -> check(target, attributes, byTarget.getOrDefault(target, List.of()), items);
+        return new Rules(target -> byTarget.getOrDefault(target, List.of()), items);
+    }
+
+    // Rules against the definitions that a function gives for each kind of resource.
+    private record Rules(Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions,
+            BiPredicate<String, String> items) implements AttributeRules {
+
+        @Override
+        public Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes) {
+            return AttributeDefinitionService.check(target, attributes, definitions.apply(target), items);
+        }
+
+        @Override
+        public void requireDefined(AttributeDefinition.Target target, Map<String, Object> attributes) {
+            if (attributes != null && !attributes.isEmpty()) {
+                AttributeDefinitionService.requireDefined(target, attributes, definitions.apply(target));
+            }
+        }
     }
 
     private boolean hasItem(String kind, String code) {
         return refItems.findByCode(kind, code).isPresent();
     }
 
+    private static void requireDefined(AttributeDefinition.Target target, Map<String, Object> attributes,
+            List<AttributeDefinition> definitions) {
+        Set<String> names = definitions.stream().map(AttributeDefinition::name).collect(Collectors.toSet());
+        attributes.keySet().stream().filter(name -> !names.contains(name)).findFirst().ifPresent(name -> {
+            throw FuhitoException.invalid("attribute.unknown", Map.of("target", target.name(), "name", name));
+        });
+    }
+
     private static Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes,
             List<AttributeDefinition> definitions, BiPredicate<String, String> items) {
-        Map<String, Object> values = AttributeSize.require(StoredAttributes.of(attributes));
+        Map<String, Object> given = AttributeSize.require(attributes == null ? Map.of() : attributes);
         // A CSV cell cannot hold an empty text or an empty list, so a stored value must not be one either.
-        EmptyValues.rejectEmptyValues("attributes", values);
+        EmptyValues.rejectEmptyValues("attributes", given);
+        requireDefined(target, given, definitions);
+        Map<String, Object> values = StoredAttributes.of(given);
         Map<String, AttributeDefinition> byName = new HashMap<>();
         definitions.forEach(definition -> byName.put(definition.name(), definition));
         values.forEach((name, value) -> {
             AttributeDefinition definition = byName.get(name);
-            if (definition == null) {
-                throw FuhitoException.invalid("attribute.unknown", Map.of("target", target.name(), "name", name));
-            }
             if (!fitsAll(definition, value, items)) {
                 throw FuhitoException.invalid("attribute.bad_value", Map.of("name", name, "type", typeOf(definition)));
             }

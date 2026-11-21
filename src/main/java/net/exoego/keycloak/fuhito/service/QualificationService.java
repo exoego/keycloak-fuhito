@@ -73,6 +73,15 @@ public class QualificationService {
     }
 
     /**
+     * Returns the check of free attributes of these operations, so that an import checks the names of a row with it.
+     *
+     * @return the check
+     */
+    AttributeRules attributeRules() {
+        return attributeRules;
+    }
+
+    /**
      * Adds a qualification of a person. A person can hold many, and the same kind more than once.
      *
      * @param request the values of the request. The qualification keeps the source as the system that made it.

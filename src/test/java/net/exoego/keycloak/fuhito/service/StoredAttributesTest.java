@@ -54,16 +54,26 @@ class StoredAttributesTest {
         defined.create("PERSON", "badge", "STRING", null, null, true, null);
         Map<String, Object> given = withNull("note", Map.of("badge", "a"));
 
+        Map<String, Object> free = withNull("free", Map.of("badge", "a"));
+
         for (AttributeRules rules : List.of(AttributeRules.NONE, defined, defined.remembering(),
                 AttributeDefinitionService.of(defined.list(null), (kind, code) -> false))) {
             assertEquals(Map.of("badge", "a"), rules.check(Target.PERSON, given));
-            // A name with null needs no definition, because it has no value.
-            assertEquals(Map.of("badge", "a"), rules.check(Target.PERSON, withNull("free", Map.of("badge", "a"))));
         }
+        assertEquals(Map.of("badge", "a"), AttributeRules.NONE.check(Target.PERSON, free));
+        AttributeRules.NONE.requireDefined(Target.PERSON, free);
         for (AttributeRules rules : List.of(defined, defined.remembering(),
                 AttributeDefinitionService.of(defined.list(null), (kind, code) -> false))) {
             assertEquals("attribute.required", assertThrows(FuhitoException.class,
                     () -> rules.check(Target.PERSON, withNull("badge", new HashMap<>()))).code());
+            // A name with null has no value, but it still needs a definition.
+            FuhitoException unknown = assertThrows(FuhitoException.class, () -> rules.check(Target.PERSON, free));
+            assertEquals("attribute.unknown", unknown.code());
+            assertEquals(Map.of("target", "PERSON", "name", "free"), unknown.params());
+            assertEquals("attribute.unknown", assertThrows(FuhitoException.class,
+                    () -> rules.requireDefined(Target.PERSON, withNull("free", Map.of()))).code());
+            rules.requireDefined(Target.PERSON, given);
+            rules.requireDefined(Target.PERSON, null);
         }
     }
 }

@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
@@ -71,14 +72,20 @@ final class Merged {
             field.of("phoneticName", given.phoneticName(), stored == null ? null : stored.phoneticName()));
 
     /**
-     * Merges the attributes of a row with the stored ones.
+     * Merges the attributes of a row with the stored ones. Each name of the row needs a definition, also a name with
+     * null, as in a REST write.
      *
      * @param row the row
      * @param given the attributes of the row, or null
      * @param stored the stored attributes, or null for a new thing
+     * @param rules the rules of the attributes of the realm
+     * @param target the kind of resource of the row
      * @return the attributes after the row, or null for a new thing with none
+     * @throws FuhitoException when a name of the row has no definition
      */
-    static Map<String, Object> attributes(ImportRow row, Map<String, Object> given, Map<String, Object> stored) {
+    static Map<String, Object> attributes(ImportRow row, Map<String, Object> given, Map<String, Object> stored,
+            AttributeRules rules, AttributeDefinition.Target target) {
+        rules.requireDefined(target, given);
         if (given == null) {
             return stored == null || !row.nulls().contains("attributes") ? stored : Map.of();
         }

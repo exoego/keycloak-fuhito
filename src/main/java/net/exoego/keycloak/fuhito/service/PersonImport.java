@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import net.exoego.keycloak.fuhito.domain.AttributeDefinition.Target;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -28,6 +29,7 @@ final class PersonImport {
     private final PeopleImport document;
     private final ListIds ids;
     private final PersonService service;
+    private final AttributeRules rules;
     private final PersonService.NewPeople created;
     private final Map<String, Optional<Person>> stored = new HashMap<>();
 
@@ -35,6 +37,7 @@ final class PersonImport {
         this.document = document;
         this.ids = new ListIds(document.externalIds);
         this.service = document.people.personService().remembering();
+        this.rules = service.attributeRules();
         this.created = service.newPeople((source, value) -> ids.resourceOf(ExternalId.Kind.PERSON, source, value));
     }
 
@@ -94,7 +97,7 @@ final class PersonImport {
             }
             PersonValues values = new PersonValues(userId, row.primaryLanguage(),
                     Merged.names(row, row.names(), null, Merged.PERSON_NAMES),
-                    Merged.attributes(row, row.attributes(), null), row.externalId(), source);
+                    Merged.attributes(row, row.attributes(), null, rules, Target.PERSON), row.externalId(), source);
             PersonView view = ids.create(ExternalId.Kind.PERSON, source, row.externalId(),
                     () -> created.create(values), made -> made.person().id());
             document.report.write(new Write.OfPerson(true, view));
@@ -108,7 +111,8 @@ final class PersonImport {
         PersonValues wanted = new PersonValues(linked,
                 row.or("primaryLanguage", row.primaryLanguage(), names == null ? null : names.primaryLanguage()),
                 Merged.names(row, row.names(), names == null ? Map.of() : names.byLanguage(), Merged.PERSON_NAMES),
-                Merged.attributes(row, row.attributes(), person.attributes()), row.externalId(), source);
+                Merged.attributes(row, row.attributes(), person.attributes(), rules, Target.PERSON), row.externalId(),
+                source);
         boolean same = Objects.equals(linked, person.userId())
                 && Objects.equals(PersonName.check(wanted.primaryLanguage(), wanted.names()), person.names())
                 && (wanted.attributes() == null ? Map.of() : wanted.attributes()).equals(person.attributes());
