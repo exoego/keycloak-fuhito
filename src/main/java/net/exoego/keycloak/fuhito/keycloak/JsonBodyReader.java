@@ -26,23 +26,23 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.MessageBodyReader;
 import jakarta.ws.rs.ext.Provider;
-import net.exoego.keycloak.fuhito.service.ImportDocument;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.util.ObjectMapperResolver;
 import org.keycloak.utils.KeycloakSessionUtil;
 
 /**
  * Reads the JSON body of a request to the extension as Keycloak reads a body, but a key that one object gives twice
- * fails with 400 and {@code invalid.duplicate_key}. Keycloak would keep the last value. A key that an import document
- * does not have fails with 400 and {@code import.unknown_key}. Every body of the extension is a record of the
- * extension, and only such a record is read here. So the endpoints of Keycloak read their bodies as before.
+ * fails with 400 and {@code invalid.duplicate_key}. Keycloak would keep the last value. A key that the body does not
+ * have fails with 400 and {@code invalid.unknown_key}. Keycloak would name a Java type and a line in place of the
+ * path of the key. Every body of the extension is a record of the extension, and only such a record is read here. So
+ * the endpoints of Keycloak read their bodies as before.
  */
 @Provider
 @Consumes(MediaType.APPLICATION_JSON)
 public class JsonBodyReader implements MessageBodyReader<Record> {
 
     private static final String DUPLICATE_KEY = "invalid.duplicate_key";
-    private static final String UNKNOWN_KEY = "import.unknown_key";
+    private static final String UNKNOWN_KEY = "invalid.unknown_key";
     private static final String EXTENSION = "net.exoego.keycloak.fuhito.";
 
     private static final ObjectReader READER = new ObjectMapperResolver().getContext(Record.class).reader()
@@ -72,8 +72,7 @@ public class JsonBodyReader implements MessageBodyReader<Record> {
                 if (key.isPresent()) {
                     throw error(DUPLICATE_KEY, key.get());
                 }
-                // A JSON import names the key, as a CSV import names a column that its list does not have.
-                if (e instanceof UnrecognizedPropertyException unknown && ImportDocument.class.equals(type)) {
+                if (e instanceof UnrecognizedPropertyException unknown) {
                     throw error(UNKNOWN_KEY, path(unknown.getPath()));
                 }
                 // As Keycloak reads a body, so that its error handlers answer as before.

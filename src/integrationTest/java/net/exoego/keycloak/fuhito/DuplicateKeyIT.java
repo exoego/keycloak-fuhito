@@ -71,9 +71,6 @@ class DuplicateKeyIT {
 
         assertError(api.post("/hierarchies", "{\"code\": \"c\", \"name\": "),
                 "{\"error\":\"invalid_request\",\"error_description\":\"Cannot parse the JSON\"}");
-        assertError(api.post("/hierarchies", "{\"code\": \"c\", \"name\": \"n\", \"unknown\": 1}"),
-                "{\"error\":\"Invalid json representation for HierarchyRepresentation. Unrecognized field "
-                        + "\\\"unknown\\\" at line 1 column 41.\"}");
         assertError(api.post("/org-units", unit("{\"name\": \"甲\"}", ", \"displayOrder\": \"x\"")),
                 "{\"error\":\"unknown_error\",\"error_description\":\"Cannot parse the JSON\"}");
         assertError(api.post("/hierarchies", ""),

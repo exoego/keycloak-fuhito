@@ -13,7 +13,6 @@ import static net.exoego.keycloak.fuhito.ImportIT.lookup;
 import static net.exoego.keycloak.fuhito.ImportIT.ok;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * An end reason comes only with the end of an employment, in an import and in REST.
@@ -163,7 +162,8 @@ class EndReasonIT {
             HttpResponse<String> response = api.putWithVersion(path + "/end",
                     "{\"validTo\": \"2027-04-01\", \"endReason\": \"resignation\"}");
             assertEquals(400, response.statusCode(), path + " " + response.body());
-            assertTrue(response.body().contains("Unrecognized field \\\"endReason\\\""), response.body());
+            assertEquals("invalid.unknown_key", Api.json(response).get("error").asText(), response.body());
+            assertEquals("endReason", Api.json(response).get("params").get("field").asText(), response.body());
         }
         assertEquals(before, RealmExportIT.export(api));
     }
