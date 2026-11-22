@@ -166,7 +166,7 @@ public class PeopleResource {
             summary = "Replaces the names, the attributes, and the link to a Keycloak user.",
             description = "A body with no `userId` removes the link. The person keeps `source`. With `source` and "
                     + "`externalId`, the person gets that ID of that system. Another `source` with no `externalId` "
-                    + "fails with 400 and `invalid.value_fixed`. Another `userId` changes the read of each "
+                    + "fails with 400 and `invalid.value_fixed`. A change of the link changes the read of each "
                     + "employment, assignment, qualification, and role over org units of the person, and of each "
                     + "reporting line where the person is the manager. Each of them gets a new version and a "
                     + "propagated change in the change log.")
