@@ -169,9 +169,9 @@ class PermissionsIT {
             }
             assertTrue(names(admin.realm(realm.name).clients().get(management).roles().get("realm-admin")
                     .getRoleComposites()).contains("fuhito-manage"));
-            assertTrue(admin.realm(REALM).roles().get("admin").getRoleComposites().stream()
-                    .anyMatch(role -> role.getName().equals("fuhito-manage")
-                            && masterClient.equals(role.getContainerId())));
+            // The admin role of master holds the roles of every realm, so the check reads one client only.
+            assertTrue(names(admin.realm(REALM).roles().get("admin").getClientRoleComposites(masterClient))
+                    .contains("fuhito-manage"));
 
             // An administrator of the realm itself may do everything.
             Api realmAdmin = administrator(admin, realm.name, "realm-management", "realm-admin", "realm-admin");

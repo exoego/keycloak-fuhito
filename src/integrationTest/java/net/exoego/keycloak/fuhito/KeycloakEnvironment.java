@@ -46,7 +46,7 @@ final class KeycloakEnvironment {
                     // The timer would run the realms of the tests at times that they cannot know.
                     .withEnv("KC_SPI_ADMIN_REALM_RESTAPI_EXTENSION__FUHITO__PROJECTION_TIMER_ENABLED", "false")
                     // The cleanup of the change log removes only what a test made old, so a test can wait for it.
-                    .withEnv("KC_SPI_ADMIN_REALM_RESTAPI_EXTENSION__FUHITO__CHANGE_LOG_CLEANUP_INTERVAL", "5");
+                    .withEnv("KC_SPI_ADMIN_REALM_RESTAPI_EXTENSION__FUHITO__CHANGE_LOG_CLEANUP_INTERVAL", "2");
 
     static {
         POSTGRES.start();

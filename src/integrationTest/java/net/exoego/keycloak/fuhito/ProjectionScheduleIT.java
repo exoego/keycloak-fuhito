@@ -39,11 +39,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A Keycloak of its own with the timer on. The shared one turns the timer off, so that its tests see no
- * rebuild that they did not ask for. The timer checks once a minute, so this test takes about two minutes.
+ * rebuild that they did not ask for. The timer checks every two seconds here, not once a minute.
  */
 class ProjectionScheduleIT {
 
     private static final HttpClient HTTP = HttpClient.newHttpClient();
+
+    private static final int CHECK_SECONDS = 2;
 
     // The projection stays off until the realm is ready. A run of half a realm would count as its daily run.
     private static void createRealm(Keycloak admin, String name, String timeZone) {
@@ -90,7 +92,7 @@ class ProjectionScheduleIT {
         return json.has("id") ? json.get("id").asText() : "";
     }
 
-    // The test runs longer than a token lasts, so each call asks for one. The admin client renews it.
+    // The test can run longer than a token lasts, so each call asks for one. The admin client renews it.
     private static String token(Keycloak admin) {
         return admin.tokenManager().getAccessTokenString();
     }
@@ -116,25 +118,24 @@ class ProjectionScheduleIT {
         return run.get("state").asText().equals("RUNNING") ? null : run;
     }
 
-    // The first wait can be up to two checks of the timer, when it checked just before the realm was ready.
+    // Waits for up to a minute, which is many checks of the timer also on a slow machine.
     private static JsonNode waitForRun(KeycloakContainer keycloak, Keycloak admin, String realm) throws Exception {
-        for (int i = 0; i < 300; i++) {
+        for (int i = 0; i < 600; i++) {
             JsonNode run = lastRun(keycloak, admin, realm);
             if (run != null) {
                 return run;
             }
-            Thread.sleep(500);
+            Thread.sleep(100);
         }
         return null;
     }
 
-    // Waits for up to two and a half minutes, which is more than two checks of the timer.
     private static boolean waitFor(Callable<Boolean> condition) throws Exception {
-        for (int i = 0; i < 300; i++) {
+        for (int i = 0; i < 600; i++) {
             if (condition.call()) {
                 return true;
             }
-            Thread.sleep(500);
+            Thread.sleep(100);
         }
         return false;
     }
@@ -265,6 +266,8 @@ class ProjectionScheduleIT {
                                 .withEnv("KC_DB_URL", "jdbc:postgresql://schedule-postgres:5432/keycloak")
                                 .withEnv("KC_DB_USERNAME", "keycloak")
                                 .withEnv("KC_DB_PASSWORD", "keycloak")
+                                .withEnv("KC_SPI_ADMIN_REALM_RESTAPI_EXTENSION__FUHITO__PROJECTION_TIMER_INTERVAL",
+                                        Integer.toString(CHECK_SECONDS))
                                 // The timer logs a realm that it leaves for the next check at the debug level.
                                 .withEnv("KC_LOG_LEVEL",
                                         "info,net.exoego.keycloak.fuhito.keycloak.ProjectionSchedule:debug")) {
@@ -282,8 +285,8 @@ class ProjectionScheduleIT {
             for (String realm : List.of("a-broken", "a-failing", "a-crashing")) {
                 turnOnTheProjection(admin, realm);
             }
-            // The timer ran this realm a moment ago. A new date starts so that the run is due in a few seconds.
-            Instant due = Instant.now().plusSeconds(5).truncatedTo(ChronoUnit.SECONDS);
+            // The timer ran this realm a moment ago. A new date starts so that the run is due after a few checks.
+            Instant due = Instant.now().plusSeconds(3 * CHECK_SECONDS).truncatedTo(ChronoUnit.SECONDS);
             KeycloakEnvironment.run(postgres, "insert into fuhito_job_run (id, realm_id, job, state, started_at,"
                     + " ended_at) values ('earlier-run', 'b-working', 'projection-timer', 'DONE', "
                     + utc(due.minusSeconds(15)) + ", " + utc(due.minusSeconds(14)) + ")");
