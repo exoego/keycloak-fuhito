@@ -85,7 +85,7 @@ class UnitDaysTest {
         // After 13:00 the date changes, so 12:00 on March 31 in New York is still March 30.
         orgUnits.setTime(sales, null, "13:00");
         // 01:00 on April 1 in Tokyo is March 31 with the day start of 13:00 from above.
-        orgUnits.setTime(team, " Asia/Tokyo ", null);
+        orgUnits.setTime(team, "Asia/Tokyo", null);
 
         UnitDays days = days();
 
@@ -156,6 +156,23 @@ class UnitDaysTest {
         assertEquals("org_unit.day_start_invalid", start.code());
         assertEquals("org_unit.not_found",
                 assertThrows(FuhitoException.class, () -> orgUnits.setTime("nope", null, null)).code());
+        assertEquals("America/New_York", store.units.get(america).timeZone());
+        assertEquals("04:00", store.units.get(america).dayStart());
+    }
+
+    @Test
+    void rejectsSettingsWithSpacesAroundThem() {
+        String america = unit("America", null);
+        orgUnits.setTime(america, "America/New_York", "04:00");
+
+        for (String zone : List.of(" Asia/Tokyo", "Asia/Tokyo　", "Asia/Tokyo\n")) {
+            FuhitoException e = assertThrows(FuhitoException.class, () -> orgUnits.setTime(america, zone, null));
+            assertEquals("invalid.surrounding_space", e.code());
+            assertEquals(Map.of("field", "timeZone"), e.params());
+        }
+        FuhitoException start = assertThrows(FuhitoException.class, () -> orgUnits.setTime(america, null, "04:00\t"));
+        assertEquals("invalid.surrounding_space", start.code());
+        assertEquals(Map.of("field", "dayStart"), start.params());
         assertEquals("America/New_York", store.units.get(america).timeZone());
         assertEquals("04:00", store.units.get(america).dayStart());
     }

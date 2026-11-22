@@ -37,9 +37,8 @@ import net.exoego.keycloak.fuhito.domain.ReportingLine;
  * never links to the rows of another realm, and fails with a clear error and not in the database. A row has no empty
  * value and no text that cannot be stored, as a row of an import, each of its texts fits its column, each of its
  * choices and names is one that a write takes, and its period ends after it starts. A write stores some values in one
- * form, such as a name with no spaces around it, and a restore stores a value as the export has it. So such a value
- * must be in that form already. A time must be in the form that an export gives, because a restore stores the moment
- * and not the text.
+ * form, and a restore stores a value as the export has it. So such a value must be in that form already. A time
+ * must be in the form that an export gives, because a restore stores the moment and not the text.
  */
 final class RestoreCheck {
 
@@ -87,9 +86,9 @@ final class RestoreCheck {
     /**
      * Requires every row of an export and every value that the table of a row needs, and requires that no value is an
      * empty text, a text of only spaces, an empty list, or a text that cannot be stored, as in a row of an import. A
-     * text must fit its column, and a value that a write checks by a rule of its own, such as a code or a date, must
-     * pass the rule. A choice, such as the status of terms, and the names of a row must be ones that a write takes.
-     * A value that a write would store in another form, such as a name with spaces around it or the language tag
+     * text must fit its column, and a value that a write checks by a rule of its own, such as a code, a date, or a
+     * name with no spaces around it, must pass the rule. A choice, such as the status of terms, and the names of a row
+     * must be ones that a write takes. A value that a write would store in another form, such as the language tag
      * {@code JA} for {@code ja}, fails too. So does a time in another form than an export gives, such as a time with
      * an offset. A version must be from 1 to {@link RealmExport#LARGEST_VERSION}, so that a write can count it up.
      * The {@code validTo} of a row must be after its {@code validFrom}, as in a write. A row inside a row,
@@ -274,16 +273,16 @@ final class RestoreCheck {
                     Checks.name(field, (String) value);
             case "attribute-definitions.name" -> AttributeDefinitionService.name((String) value);
             case "external-ids.externalId" -> ExternalIdService.value((String) value);
+            case "change-orders.externalReference" -> Checks.unpadded(field, (String) value);
             case "employment-terms.workPercent", "assignments.allocationPercent" ->
                     Checks.optionalPercent(field, (BigDecimal) value);
-            // A write strips the time settings.
             case "org-units.timeZone" -> {
-                ANY_DAY.with((String) value, null);
-                yield ((String) value).strip();
+                ANY_DAY.with(Checks.unpadded(field, (String) value), null);
+                yield value;
             }
             case "org-units.dayStart" -> {
-                ANY_DAY.with(null, (String) value);
-                yield ((String) value).strip();
+                ANY_DAY.with(null, Checks.unpadded(field, (String) value));
+                yield value;
             }
             default -> value;
         };

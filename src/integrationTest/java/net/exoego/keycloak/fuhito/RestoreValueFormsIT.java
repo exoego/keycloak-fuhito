@@ -28,25 +28,31 @@ class RestoreValueFormsIT {
         return breaks(list, id, field, null, at(at, "{\"" + field + "\": \"" + time + "\"}"));
     }
 
-    // A write strips the spaces around these values. U+3000 is the space of Japanese text.
+    // A write rejects the spaces around these values. U+3000 is the space of Japanese text.
     @Test
     void aValueWithSpacesAroundItFailsTheRestoreAndNothingIsWritten() throws Exception {
+        String space = "invalid.surrounding_space";
         assertEachBreaks("restore-spaces", List.of(
                 breaks("hierarchies", "h-1", "name", null, at("/hierarchies/0", "{\"name\": \" Project \"}")),
                 breaks("change-orders", "o-1", "title", null, at("/changeOrders/0", "{\"title\": \"異動　\"}")),
+                breaks("change-orders", "o-1", "externalReference", null,
+                        at("/changeOrders/0", "{\"externalReference\": \"DOC-9\\n\"}")),
                 breaks("qualifications", "q-1", "number", null, at("/refItems", item("license", "QUALIFICATION", "")),
                         at("", QUALIFICATION)),
                 breaks("org-units", "u-1", "timeZone", null, at("/orgUnits/0", "{\"timeZone\": \" Asia/Tokyo \"}")),
                 breaks("org-units", "u-1", "dayStart", null, at("/orgUnits/0", "{\"dayStart\": \"04:00 \"}")),
-                breaks("people", "p-1", "names.ja.name", null,
+                breaks("external-ids", "x-1", "externalId", null, at("/externalIds/0", "{\"externalId\": \"H-1 \"}")),
+                breaks("people", "p-1", "names.ja.name", space,
                         at("/people/0", names("{\"ja\": {\"name\": \"　山田\"}}"))),
-                breaks("people", "p-1", "names.ja.phoneticName", null,
+                breaks("people", "p-1", "names.ja.phoneticName", space,
                         at("/people/0", names("{\"ja\": {\"name\": \"山田\", \"phoneticName\": \"やまだ \"}}"))),
-                breaks("org-unit-versions", "v-1", "names.ja.shortName", null, at("/orgUnits/0/versions/0",
+                breaks("people", "p-1", "attributes.note", space,
+                        at("/people/0", "{\"attributes\": {\"note\": \"line 1\\nline 2\\n\"}}")),
+                breaks("org-unit-versions", "v-1", "names.ja.shortName", space, at("/orgUnits/0/versions/0",
                         names("{\"ja\": {\"name\": \"本社\", \"shortName\": \" 本社\"}}"))),
-                breaks("ref-item-names", "n-1", "names.ja.name", null,
+                breaks("ref-item-names", "n-1", "names.ja.name", space,
                         at("/refItems/0/versions/0", names("{\"ja\": {\"name\": \"承認者\\t\"}}"))),
-                breaks("ref-kinds", "k-1", "names.ja.name", null,
+                breaks("ref-kinds", "k-1", "names.ja.name", space,
                         at("/refKinds/0", names("{\"ja\": {\"name\": \" 拠点\"}}")))));
     }
 

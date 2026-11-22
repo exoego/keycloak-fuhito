@@ -23,7 +23,8 @@ public interface AttributeRules {
      * @param attributes the attributes of the write, or null for none
      * @return the attributes to store, without the names with null, never null
      * @throws FuhitoException when the attributes are larger than 64 KB as JSON, a text is empty or only spaces, a
-     *         name has no definition, a value does not fit its definition, or a required one is missing
+     *         name has no definition, a value does not fit its definition, a value of the type {@code STRING} has
+     *         spaces around it, or a required one is missing
      */
     Map<String, Object> check(AttributeDefinition.Target target, Map<String, Object> attributes);
 

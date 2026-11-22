@@ -115,7 +115,7 @@ class RealmKindServiceTest {
         kinds.create("site", "ja", japanese("拠点"));
 
         RealmKindService.View renamed = kinds.rename("site", "en",
-                Map.of("en", new RefKindName(" Site "), "ja", new RefKindName("拠点")));
+                Map.of("en", new RefKindName("Site"), "ja", new RefKindName("拠点")));
 
         assertEquals(new Localized<>("en", Map.of("en", new RefKindName("Site"), "ja", new RefKindName("拠点"))),
                 renamed.names());

@@ -60,6 +60,9 @@ class HierarchyServiceTest {
         String id = service.list(Page.of(1, 1)).getFirst().id();
         assertEquals(FuhitoException.Reason.INVALID, rejected(() -> service.rename(id, null)).reason());
         assertEquals(FuhitoException.Reason.NOT_FOUND, rejected(() -> service.rename("nope", "x")).reason());
+        assertEquals("invalid.surrounding_space", rejected(() -> service.create("ok", " Projects")).code());
+        assertEquals("invalid.surrounding_space", rejected(() -> service.rename(id, "Projects\n")).code());
+        assertEquals("Matrix", service.get(id).name());
     }
 
     @Test

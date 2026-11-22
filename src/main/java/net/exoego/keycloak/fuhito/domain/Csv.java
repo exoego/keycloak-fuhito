@@ -23,7 +23,8 @@ public final class Csv {
     }
 
     /**
-     * Reads all rows. A byte order mark at the start and rows with no content are left out.
+     * Reads all rows. A byte order mark at the start and rows whose cells are all empty are left out. A cell keeps
+     * the spaces around it.
      *
      * @param text the text
      * @return the rows
@@ -79,7 +80,7 @@ public final class Csv {
     }
 
     private static void addRow(List<Row> rows, int line, List<String> cells) {
-        if (cells.stream().anyMatch(cell -> !cell.isBlank())) {
+        if (cells.stream().anyMatch(cell -> !cell.isEmpty())) {
             rows.add(new Row(line, List.copyOf(cells)));
         }
     }

@@ -24,8 +24,8 @@ public record OrgUnitName(
      * Checks the names of a request.
      *
      * @param field the name of the field, for the error
-     * @return the names without spaces around them
-     * @throws FuhitoException when the name is missing, or a name is blank or too long
+     * @return the same names
+     * @throws FuhitoException when the name is missing, or a name is blank, too long, or has spaces around it
      */
     public OrgUnitName checked(String field) {
         return new OrgUnitName(Checks.name(field + ".name", name), Checks.optionalName(field + ".shortName",

@@ -190,7 +190,7 @@ class ImportServiceTest {
     void importsReferenceItemsAndIsIdempotent() {
         List<RefItemRow> rows = List.of(
                 new RefItemRow("hospital", "UNIT_TYPE", "hospital", "ja",
-                        Map.of("ja", new RefItemName(" 病院 "), "en", new RefItemName("Hospital")), 1,
+                        Map.of("ja", new RefItemName("病院"), "en", new RefItemName("Hospital")), 1,
                         Map.of("k", "v"), null),
                 new RefItemRow("nurse", "OCCUPATION", "nurse", "ja", ItemNames.japanese("看護師"), null, null,
                         false));
@@ -622,7 +622,7 @@ class ImportServiceTest {
     @Test
     void theSameDocumentTwiceChangesNothing() {
         OrgUnitRow[] rows = {
-            new OrgUnitRow("hr", "H", "hq", "EN", Map.of("en", new OrgUnitName(" Hospital ", "H", null),
+            new OrgUnitRow("hr", "H", "hq", "EN", Map.of("en", new OrgUnitName("Hospital", "H", null),
                     "JA", new OrgUnitName("病院", "病", "びょういん")), null, null, null, 2, Map.of("beds", 100), null,
                     null, null),
             new OrgUnitRow("hr", "N", null, "ja", ja("Nursing"), null, "H", null, null, null, null, null, null)};
@@ -817,17 +817,18 @@ class ImportServiceTest {
                 "orgUnits[2] invalid.required",
                 "orgUnits[3] import.duplicate_row",
                 "orgUnits[5] invalid.blank",
+                "orgUnits[9] invalid.code",
                 "orgUnits[4] import.parent_unknown",
                 "orgUnits[6] import.parent_failed",
                 "orgUnits[8] import.parent_cycle",
                 "orgUnits[7] import.parent_failed",
-                "orgUnits[9] invalid.code",
                 "orgUnits[10] org_unit.unit_type_unknown",
                 "orgUnits[11] import.parent_twice",
                 "orgUnits[12] import.parent_id_unknown"), errors(report));
         assertEquals(new Counts(1, 0, 0), report.counts().get("orgUnits"));
         assertEquals(Map.of("field", "names.ja.name"), report.errors().get(3).error().params());
-        assertEquals(Map.of("parentExternalId", "NOPE"), report.errors().get(4).error().params());
+        assertEquals(Map.of("field", "source"), report.errors().get(4).error().params());
+        assertEquals(Map.of("parentExternalId", "NOPE"), report.errors().get(5).error().params());
     }
 
     @Test
@@ -1462,6 +1463,55 @@ class ImportServiceTest {
                         new ExternalIdRow("ORG_UNIT", "nope", "payroll", "P-5"),
                         new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null),
                         new ExternalIdRow("ORG_UNIT", "u-1", "audit", " "))));
+    }
+
+    @Test
+    void aTextWithSpacesAroundItFailsItsRow() {
+        externalIdStore.resource(ExternalId.Kind.ORG_UNIT, "u-1", "hr");
+
+        ImportReport units = importUnits("2026-04-01", unit("A", "内科 ", null), unit("B\n", "外科", null),
+                timed("C", "　Asia/Tokyo", null), timed("D", null, "05:00\t"));
+        ImportReport orders = importOrders(order(null, "O-1", null, " April", null, null),
+                new ChangeOrderRow(null, null, "O-2", null, null, "April", null, null, null, null, null, null, null,
+                        "DOC-9 "));
+        ImportReport ids = importExternalIds(new ExternalIdRow("ORG_UNIT", "u-1", "payroll", "P-1 "));
+
+        // A bad key fails before the import reads stored data, so its row comes first.
+        assertEquals(List.of("orgUnits[1] invalid.surrounding_space", "orgUnits[0] invalid.surrounding_space",
+                "orgUnits[2] invalid.surrounding_space", "orgUnits[3] invalid.surrounding_space"), errors(units));
+        assertEquals(List.of("invalid.surrounding_space externalId", "invalid.surrounding_space names.ja.name",
+                "invalid.surrounding_space timeZone", "invalid.surrounding_space dayStart"), fields(units));
+        assertEquals(List.of("invalid.surrounding_space title", "invalid.surrounding_space externalReference"),
+                fields(orders));
+        assertEquals(List.of("invalid.surrounding_space externalId"), fields(ids));
+    }
+
+    // A row names stored things by these keys. A key in a form that a write never stores would find nothing.
+    @Test
+    void aKeyWithSpacesAroundItFailsBeforeTheImportLooksItUp() {
+        importUnits("2026-04-01", unit("H", "Hospital", null));
+        String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
+        importOrders(order(null, "O-1", null, "April", null, null));
+        String o = stored(ExternalId.Kind.CHANGE_ORDER, "import", "O-1");
+        service.apply(ImportDocument.of("2026-04-01", false, null, "people",
+                List.of(new PersonRow(null, "P1", null, null, "ja", japanese("山田"), null, null))));
+        String p = stored(ExternalId.Kind.PERSON, "import", "P1");
+
+        ImportReport units = importUnits("2026-05-01",
+                new OrgUnitRow(null, "H ", null, "ja", ja("Hospital"), null, null, null, null, null, null, null, h),
+                unit("W", "Ward", "\tH"),
+                new OrgUnitRow(null, "K", null, "ja", ja("Clinic"), null, null, null, null, null, null, null, null,
+                        List.of("H\n"), null, null, null, null, null, null),
+                new OrgUnitRow("h r", "H", null, "ja", ja("Hospital"), null, null, null, null, null, null, null, h));
+        ImportReport orders = importOrders(order(o, "O-1　", null, "April", null, null));
+        ImportReport people = service.apply(ImportDocument.of("2026-05-01", false, null, "people",
+                List.of(new PersonRow(null, " P1", null, null, "ja", japanese("山田"), null, p))));
+
+        assertEquals(List.of("invalid.surrounding_space externalId", "invalid.surrounding_space parentExternalId",
+                "invalid.surrounding_space successorExternalIds", "invalid.code source"), fields(units));
+        assertEquals(List.of("invalid.surrounding_space externalId"), fields(orders));
+        assertEquals(List.of("invalid.surrounding_space externalId"), fields(people));
+        assertEquals("Hospital", orgUnits.get(h, "2026-05-01").version().names().primary().name());
     }
 
     @Test

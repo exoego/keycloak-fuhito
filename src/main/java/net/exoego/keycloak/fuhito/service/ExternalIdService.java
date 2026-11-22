@@ -124,13 +124,13 @@ public class ExternalIdService {
      *
      * @param externalId the ID, or null for none
      * @return the same ID
-     * @throws FuhitoException when the ID is blank or too long
+     * @throws FuhitoException when the ID is blank, too long, or has spaces around it
      */
     static String value(String externalId) {
         if (externalId != null && (externalId.isBlank() || !Checks.fits(externalId, MAX_EXTERNAL_ID_LENGTH))) {
             throw FuhitoException.invalid("external_id.bad_value", Map.of("externalId", externalId));
         }
-        return externalId;
+        return Checks.unpadded("externalId", externalId);
     }
 
     /**

@@ -247,7 +247,7 @@ class AttributeDefinitionsIT {
         TestRealm realm = TestRealm.create("ref-kind-names");
         Api api = realm.api;
         JsonNode kind = created(api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"JA\", "
-                + "\"names\": {\"JA\": {\"name\": \" 拠点 \"}, \"en-us\": {\"name\": \"Site\"}}}"));
+                + "\"names\": {\"JA\": {\"name\": \"拠点\"}, \"en-us\": {\"name\": \"Site\"}}}"));
         assertEquals("拠点", kind.get("name").asText());
         assertEquals("ja", kind.get("primaryLanguage").asText());
         assertEquals("拠点", kind.get("names").get("ja").get("name").asText());

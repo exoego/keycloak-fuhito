@@ -19,8 +19,8 @@ public record RefKindName(
      * Checks the name of a request.
      *
      * @param field the name of the field, for the error
-     * @return the name without spaces around it
-     * @throws FuhitoException when the name is missing, blank, or too long
+     * @return the same name
+     * @throws FuhitoException when the name is missing, blank, too long, or has spaces around it
      */
     public RefKindName checked(String field) {
         return new RefKindName(Checks.name(field + ".name", name));

@@ -24,9 +24,10 @@ class ListCellTest {
     }
 
     @Test
-    void removesTheSpacesAroundAnItem() {
-        assertEquals(List.of("W1", "night shift"), ListCell.read("successorIds", "  W1 |\tnight shift  "));
-        assertEquals(List.of("a |"), ListCell.read("successorIds", " a \\| "));
+    void keepsTheSpacesAroundAnItem() {
+        assertEquals(List.of("  W1 ", "\tnight shift  "), ListCell.read("successorIds", "  W1 |\tnight shift  "));
+        assertEquals(List.of(" a | "), ListCell.read("successorIds", " a \\| "));
+        assertEquals(List.of("W1", " ", "W2"), ListCell.read("successorIds", "W1| |W2"));
     }
 
     @Test
@@ -57,16 +58,14 @@ class ListCellTest {
         assertEquals(Map.of("field", "successorExternalIds", "value", "W1||W2"), e.params());
         assertEquals("csv.empty_item", failure("|W1").code());
         assertEquals("csv.empty_item", failure("W1|").code());
-        assertEquals("csv.empty_item", failure("W1| |W2").code());
         assertEquals("csv.empty_item", failure("|").code());
     }
 
     @Test
-    void aBlankCellAndClearHaveNoItems() {
+    void anEmptyCellAndClearHaveNoItems() {
         assertNull(ListCell.read("successorIds", ""));
-        assertNull(ListCell.read("successorIds", "  "));
         assertNull(ListCell.read("successorIds", "#CLEAR"));
-        assertNull(ListCell.read("successorIds", " #CLEAR "));
+        assertEquals(List.of(" #CLEAR "), ListCell.read("successorIds", " #CLEAR "));
     }
 
     @Test

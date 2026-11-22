@@ -145,20 +145,37 @@ public final class Checks {
     }
 
     /**
-     * Requires a name that is not blank and not too long. Length counts characters, not bytes.
+     * Requires a name that is not blank and not too long, with no spaces around it. Length counts characters, not
+     * bytes.
      *
      * @param field the name of the field, for the error
      * @param value the name
-     * @return the name without spaces around it
-     * @throws FuhitoException when the name is missing, blank, or too long
+     * @return the same name
+     * @throws FuhitoException when the name is missing, blank, too long, or has spaces around it
      */
     public static String name(String field, String value) {
         required(field, value);
-        String trimmed = value.strip();
-        if (trimmed.isEmpty() || !fits(trimmed, MAX_NAME_LENGTH)) {
+        if (value.isBlank() || !fits(value, MAX_NAME_LENGTH)) {
             throw FuhitoException.invalid("invalid.name", Map.of("field", field));
         }
-        return trimmed;
+        return unpadded(field, value);
+    }
+
+    /**
+     * Requires a text with no white space at its start or at its end, as {@link String#strip()} finds it. So a tab,
+     * a line break, and the full-width space count. A write stores a text as it is sent, so that a read gives back
+     * the same text.
+     *
+     * @param field the name of the field, for the error
+     * @param value the text, or null
+     * @return the text, or null
+     * @throws FuhitoException when the text starts or ends with white space
+     */
+    public static String unpadded(String field, String value) {
+        if (value != null && value.strip().length() != value.length()) {
+            throw FuhitoException.invalid("invalid.surrounding_space", Map.of("field", field));
+        }
+        return value;
     }
 
     /**
@@ -260,8 +277,8 @@ public final class Checks {
      *
      * @param field the name of the field, for the error
      * @param value the name, or null
-     * @return the name without spaces around it, or null
-     * @throws FuhitoException when the name is blank or too long
+     * @return the same name, or null
+     * @throws FuhitoException when the name is blank, too long, or has spaces around it
      */
     public static String optionalName(String field, String value) {
         return value == null ? null : name(field, value);
