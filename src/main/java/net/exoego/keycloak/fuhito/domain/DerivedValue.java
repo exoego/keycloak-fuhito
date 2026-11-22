@@ -31,7 +31,27 @@ public enum DerivedValue {
 
     /** The Keycloak user of the manager of a reporting line. */
     REPORTING_LINE_MANAGER_USER_ID(ResourceType.FUHITO_REPORTING_LINE, "reporting-lines", "managerUserId",
-            "The user that the manager is linked to", "A link or an unlink of the user of the manager");
+            "The user that the manager is linked to", "A link or an unlink of the user of the manager"),
+
+    /** The work location that applies to an org unit on a date. */
+    ORG_UNIT_EFFECTIVE_WORK_LOCATION(ResourceType.FUHITO_ORG_UNIT, "org-units", "effectiveWorkLocation",
+            "The work location of the nearest unit above in the default hierarchy that has one",
+            "A change of the work location of a unit above, and a move of a unit above"),
+
+    /** The cost center that applies to an org unit on a date. */
+    ORG_UNIT_EFFECTIVE_COST_CENTER(ResourceType.FUHITO_ORG_UNIT, "org-units", "effectiveCostCenter",
+            "The cost center of the nearest unit above in the default hierarchy that has one",
+            "A change of the cost center of a unit above, and a move of a unit above"),
+
+    /** The work location that applies to each period of an assignment. */
+    ASSIGNMENT_EFFECTIVE_WORK_LOCATION(ResourceType.FUHITO_ASSIGNMENT, "assignments", "effectiveWorkLocation",
+            "The work location of the org unit, or of the nearest unit above it in the default hierarchy",
+            "A change of the work location of the org unit or of a unit above, and a move of either"),
+
+    /** The cost center that applies to each period of an assignment. */
+    ASSIGNMENT_EFFECTIVE_COST_CENTER(ResourceType.FUHITO_ASSIGNMENT, "assignments", "effectiveCostCenter",
+            "The cost center of the org unit, or of the nearest unit above it in the default hierarchy",
+            "A change of the cost center of the org unit or of a unit above, and a move of either");
 
     private final ResourceType resourceType;
     private final String collection;

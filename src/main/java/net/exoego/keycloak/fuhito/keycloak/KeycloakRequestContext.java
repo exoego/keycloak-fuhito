@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.OptionalInt;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.ForbiddenException;
@@ -136,6 +137,13 @@ final class KeycloakRequestContext implements RequestContext {
     @Override
     public void requireBulkWrite() {
         requireWrite(true);
+    }
+
+    @Override
+    public void requireWrite(BooleanSupplier changesOtherReads) {
+        requireRole(FuhitoRoles.MANAGE);
+        requireTimeSettings();
+        requireWrite(changesOtherReads.getAsBoolean());
     }
 
     private void requireWrite(boolean alone) {
@@ -262,11 +270,15 @@ final class KeycloakRequestContext implements RequestContext {
         List<ChangeLogEntry> writes = log.appendAll(entries);
         // The entries of the writes need their numbers first, so that each propagated change can name its cause.
         Map<List<Object>, ChangeLogEntry> propagated = new LinkedHashMap<>();
+        Set<List<Object>> written = new HashSet<>();
+        changes.forEach(change -> written.add(List.of(change.resourceType(), change.resourceId())));
         for (int i = 0; i < changes.size(); i++) {
             ChangeLogEntry write = writes.get(i);
             for (PropagatedChange read : changes.get(i).propagated()) {
-                propagated.computeIfAbsent(List.of(read.value().resourceType(), read.resourceId()),
-                        resource -> write.causing(UUID.randomUUID().toString(), read));
+                List<Object> resource = List.of(read.value().resourceType(), read.resourceId());
+                if (!written.contains(resource)) {
+                    propagated.computeIfAbsent(resource, any -> write.causing(UUID.randomUUID().toString(), read));
+                }
             }
         }
         if (!propagated.isEmpty()) {

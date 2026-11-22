@@ -59,7 +59,8 @@ final class DerivedReads {
      * Reads the resources with a derived value before a write.
      *
      * @param api the API of the realm
-     * @param asOf the dates to read each resource on. With none, each resource is read on today.
+     * @param asOf the dates to read each resource on. With none, each resource is read on today. A resource whose
+     *         read takes no date, such as an assignment, is read once.
      * @return the reads, to compare after the write
      */
     static DerivedReads before(Api api, String... asOf) throws Exception {
@@ -114,6 +115,11 @@ final class DerivedReads {
         for (Resource resource : resources) {
             for (String query : dates.isEmpty() ? List.of("") : dates.stream().map(date -> "?asOf=" + date).toList()) {
                 HttpResponse<String> response = api.get(resource.path() + query);
+                if (response.statusCode() == 400 && Api.json(response).path("error").asText()
+                        .equals("invalid.unknown_parameter")) {
+                    query = "";
+                    response = api.get(resource.path());
+                }
                 // A deleted resource answers 404. Any other error is a mistake of the test.
                 assertTrue(response.statusCode() == 200 || response.statusCode() == 404,
                         resource.path() + query + " " + response.body());

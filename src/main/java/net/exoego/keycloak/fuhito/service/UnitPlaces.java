@@ -1,17 +1,23 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.UnitDefaults;
+import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
@@ -46,6 +52,64 @@ final class UnitPlaces {
                     code.apply(state.version().costCenterId()), code.apply(effective.workLocationId()),
                     code.apply(effective.costCenterId())));
         }).toList();
+    }
+
+    /**
+     * Gives the work location and the cost center that apply to one unit on every date of a period. They change only
+     * where the details or the parent of the unit or of a unit above change. So the unit is read on the first date
+     * of the period and on each such date in it.
+     *
+     * @param store the storage of org units of the realm
+     * @param id the ID of the unit, which exists on every date of the period
+     * @param period the dates
+     * @return the values by the date from which they apply, until the next date
+     */
+    static NavigableMap<LocalDate, UnitDefaults> applying(OrgUnitStore store, String id, ValidPeriod period) {
+        String hierarchyId = store.defaultHierarchyId();
+        Set<LocalDate> changes = new HashSet<>(List.of(period.from()));
+        Deque<Map.Entry<String, ValidPeriod>> line = new ArrayDeque<>(List.of(Map.entry(id, period)));
+        while (!line.isEmpty()) {
+            Map.Entry<String, ValidPeriod> unit = line.pop();
+            ValidPeriod dates = unit.getValue();
+            store.versions(unit.getKey()).stream()
+                    .map(version -> version.period().from())
+                    .filter(dates::contains)
+                    .forEach(changes::add);
+            for (OrgUnitLink link : store.parentLinks(hierarchyId, unit.getKey())) {
+                link.period().intersection(dates).ifPresent(shared -> {
+                    changes.add(shared.from());
+                    Optional.ofNullable(shared.to()).filter(dates::contains).ifPresent(changes::add);
+                    line.push(Map.entry(link.parentId(), shared));
+                });
+            }
+        }
+        NavigableMap<LocalDate, UnitDefaults> applying = new TreeMap<>();
+        for (LocalDate date : changes) {
+            applying.put(date, store.defaultsOn(List.of(id), date).getOrDefault(id, UnitDefaults.NONE));
+        }
+        return applying;
+    }
+
+    /**
+     * Gives the work location and the cost center that a unit takes from above on every date of a period. They are
+     * the ones that apply to its parent in the default hierarchy, or none on a date with no parent.
+     *
+     * @param store the storage of org units of the realm
+     * @param id the ID of the unit
+     * @param period the dates
+     * @return the values by the date from which they apply, until the next date
+     */
+    static NavigableMap<LocalDate, UnitDefaults> above(OrgUnitStore store, String id, ValidPeriod period) {
+        NavigableMap<LocalDate, UnitDefaults> above = new TreeMap<>(Map.of(period.from(), UnitDefaults.NONE));
+        for (OrgUnitLink link : store.parentLinks(store.defaultHierarchyId(), id)) {
+            link.period().intersection(period).ifPresent(shared -> {
+                if (shared.to() != null) {
+                    above.putIfAbsent(shared.to(), UnitDefaults.NONE);
+                }
+                above.putAll(applying(store, link.parentId(), shared));
+            });
+        }
+        return above;
     }
 
     /**

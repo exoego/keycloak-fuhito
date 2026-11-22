@@ -20,7 +20,7 @@ class TreeWalkPlanIT {
 
     private static final String LINK_OF_CHILD = "uk_fuhito_org_unit_link_from";
 
-    private static final String VERSION_OF_UNIT = "uk_fuhito_org_unit_version_from";
+    static final String VERSION_OF_UNIT = "uk_fuhito_org_unit_version_from";
 
     private static final String IDS = "any('{ex-new-unit-2999,ex-new-unit-777}')";
 
@@ -185,7 +185,7 @@ class TreeWalkPlanIT {
     // An index scan with only the realm or only the hierarchy reads every row of the new realm, or every link of its
     // hierarchy. The indexes of the exclusion constraints on the versions and the links are slower than their unique
     // keys.
-    private static String walk(Statement statement, String query) throws Exception {
+    static String walk(Statement statement, String query) throws Exception {
         // Without analyze, PostgreSQL does not show the lookups in the recursive part.
         String plan = plan(statement, "explain (analyze, costs off) " + query);
         String onlyOne = "Index Cond: \\(+\\((realm|hierarchy)_id\\)::text = '[^']*'::text\\)"
@@ -196,13 +196,13 @@ class TreeWalkPlanIT {
         return plan;
     }
 
-    private static void assertIndexFinds(String plan, String index, String... parts) {
+    static void assertIndexFinds(String plan, String index, String... parts) {
         if (!indexFinds(plan, index, parts)) {
             fail(plan);
         }
     }
 
-    private static void assertIndexOrHashFinds(String plan, String index, String... parts) {
+    static void assertIndexOrHashFinds(String plan, String index, String... parts) {
         if (!indexFinds(plan, index, parts) && plan.lines().map(String::strip)
                 .noneMatch(line -> line.startsWith("Hash Cond:") && hasAll(line, parts))) {
             fail(plan);

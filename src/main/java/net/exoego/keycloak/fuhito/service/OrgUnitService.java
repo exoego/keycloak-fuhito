@@ -4,16 +4,15 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -34,6 +33,7 @@ import net.exoego.keycloak.fuhito.domain.OrgUnitLink;
 import net.exoego.keycloak.fuhito.domain.OrgUnitSuccession;
 import net.exoego.keycloak.fuhito.domain.OrgUnitVersion;
 import net.exoego.keycloak.fuhito.domain.PlacedOrgUnit;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.UnitDefaults;
@@ -41,6 +41,7 @@ import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
+import net.exoego.keycloak.fuhito.store.PlaceStore;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 /**
@@ -56,6 +57,7 @@ public class OrgUnitService {
     private final RefItemStore refItems;
     private final Items items;
     private final Today today;
+    private final DerivedPlaces places;
 
     /**
      * Creates the service.
@@ -86,7 +88,8 @@ public class OrgUnitService {
     }
 
     /**
-     * Creates the service with a check of free attributes.
+     * Creates the service with a check of free attributes. A write of it finds no read of another resource that it
+     * changed.
      *
      * @param store the storage of the realm
      * @param externalIds the storage of the IDs that systems have for the resources of the realm
@@ -97,11 +100,30 @@ public class OrgUnitService {
      */
     public OrgUnitService(OrgUnitStore store, ExternalIdStore externalIds, AssignmentStore assignments,
             RefItemStore refItems, Today today, AttributeRules attributeRules) {
-        this(store, externalIds, assignments, refItems, today, attributeRules, Items.of(refItems));
+        this(store, externalIds, assignments, refItems, today, attributeRules, PlaceStore.NONE);
+    }
+
+    /**
+     * Creates the service that also finds the units and the assignments whose work location or cost center that
+     * applies a write changed, and counts up their versions. The service of a request needs it.
+     *
+     * @param store the storage of the realm
+     * @param externalIds the storage of the IDs that systems have for the resources of the realm
+     * @param assignments the storage of assignments of the realm
+     * @param refItems the storage of reference items of the realm
+     * @param today the rule that decides what "today" is for each org unit
+     * @param attributeRules the check of free attributes against the definitions of the realm
+     * @param places the reads of what applies below a unit
+     */
+    public OrgUnitService(OrgUnitStore store, ExternalIdStore externalIds, AssignmentStore assignments,
+            RefItemStore refItems, Today today, AttributeRules attributeRules, PlaceStore places) {
+        this(store, externalIds, assignments, refItems, today, attributeRules, Items.of(refItems),
+                new DerivedPlaces(store, places, today, Set.of()));
     }
 
     private OrgUnitService(OrgUnitStore store, ExternalIdStore externalIds, AssignmentStore assignments,
-            RefItemStore refItems, Today today, AttributeRules attributeRules, Items items) {
+            RefItemStore refItems, Today today, AttributeRules attributeRules, Items items, DerivedPlaces places) {
+        this.places = places;
         this.attributeRules = attributeRules;
         this.store = store;
         this.externalIdStore = externalIds;
@@ -145,7 +167,30 @@ public class OrgUnitService {
      */
     OrgUnitService remembering() {
         return new OrgUnitService(store, externalIdStore, assignments, refItems, today, attributeRules.remembering(),
-                items.remembering());
+                items.remembering(), places);
+    }
+
+    /**
+     * Returns the same operations for a request that also writes some other units, such as a reorganization. A write
+     * here gives those units no propagated change, as each has an entry of its own write.
+     *
+     * @param unitIds the IDs of the units
+     * @return the operations
+     */
+    OrgUnitService writing(Collection<String> unitIds) {
+        return new OrgUnitService(store, externalIdStore, assignments, refItems, today, attributeRules, items,
+                places.writing(unitIds));
+    }
+
+    /**
+     * An org unit after a write of its details or of its parent, and the reads of other resources that the write
+     * changed.
+     *
+     * @param state the unit as it is on the first date of the write
+     * @param propagated the units below and the assignments whose work location or cost center that applies
+     *         changed on a date. Their versions are counted up.
+     */
+    public record Written(OrgUnitState state, List<PropagatedChange> propagated) {
     }
 
     /**
@@ -386,30 +431,64 @@ public class OrgUnitService {
      * @throws FuhitoException when the unit or the hierarchy does not exist, the unit does not exist on the date, a
      *         value is bad, or the ID names another unit
      */
-    public OrgUnitState changeDetails(String id, OrgUnitChange request, String hierarchy, String source,
+    public Written changeDetails(String id, OrgUnitChange request, String hierarchy, String source,
             String externalId) {
         String hierarchyId = hierarchyId(hierarchy);
         ExternalId.Pair pair = externalIds.check(id, source, externalId);
-        OrgUnitState state = changeDetails(id, request, hierarchyId, hierarchy);
+        Written written = changeDetails(id, request, hierarchyId, hierarchy);
         externalIds.store(id, pair);
-        return state;
+        return written;
     }
 
     /**
      * Replaces the details of an org unit from a date. The unit keeps its ID.
      * The change lasts until the next change that is already stored, or has no end.
      * A change on the first date of stored details corrects those details.
+     * Another work location or cost center changes what applies to the units below and to the assignments.
      *
      * @param id the ID
      * @param request the new details and their first date
-     * @return the unit as it is on that date
+     * @return the unit as it is on that date, and the reads that the change changed
      * @throws FuhitoException when the unit does not exist on the date or a value is bad
      */
-    public OrgUnitState changeDetails(String id, OrgUnitChange request) {
+    public Written changeDetails(String id, OrgUnitChange request) {
         return changeDetails(id, request, store.defaultHierarchyId(), null);
     }
 
-    private OrgUnitState changeDetails(String id, OrgUnitChange request, String parentHierarchyId,
+    /**
+     * Tells whether a change of the details can change what applies to other units or to assignments. It can when
+     * it gives the unit another work location or cost center than the details of its first date have. A request
+     * that cannot be read can, and then fails in the write.
+     *
+     * @param id the ID
+     * @param validFrom the first date of the change, as {@code YYYY-MM-DD}
+     * @param workLocation the code of the work location of the change, or null
+     * @param costCenter the code of the cost center of the change, or null
+     * @return true when the change can change other reads
+     */
+    public boolean changesPlaces(String id, String validFrom, String workLocation, String costCenter) {
+        try {
+            OrgUnitVersion current = versionOn(id, Checks.date("validFrom", validFrom));
+            Function<String, String> code = UnitPlaces.codes(refItems);
+            return !Objects.equals(code.apply(current.workLocationId()), workLocation)
+                    || !Objects.equals(code.apply(current.costCenterId()), costCenter);
+        } catch (FuhitoException e) {
+            return true;
+        }
+    }
+
+    /**
+     * Tells whether a move in a hierarchy can change what applies to other units or to assignments. Only the
+     * parents of the default hierarchy pass on the work location and the cost center.
+     *
+     * @param hierarchy the code of the hierarchy, or null for the default one
+     * @return true for the default hierarchy
+     */
+    public static boolean movesPlaces(String hierarchy) {
+        return isDefault(hierarchy);
+    }
+
+    private Written changeDetails(String id, OrgUnitChange request, String parentHierarchyId,
             String hierarchy) {
         Checks.required("body", request);
         LocalDate from = Checks.date("validFrom", request.validFrom());
@@ -437,16 +516,20 @@ public class OrgUnitService {
             requireDefaultLink(link.childId(), natures(link.childId()), id, nature, link.period());
         }
 
-        if (current.period().from().equals(from)) {
-            store.updateVersion(version(current.id(), id, current.period(), request, unitType, current));
+        boolean corrects = current.period().from().equals(from);
+        // Build the new version first, so that a bad value fails before anything is written.
+        OrgUnitVersion next = version(corrects ? current.id() : newId(), id, changed, request, unitType, current);
+        DerivedPlaces.Watch watch = Objects.equals(next.workLocationId(), current.workLocationId())
+                && Objects.equals(next.costCenterId(), current.costCenterId()) ? null
+                : places.watchDetails(id, changed);
+        if (corrects) {
+            store.updateVersion(next);
         } else {
-            List<ValidPeriod> parts = current.period().splitAt(from);
-            // Build the new version first, so that a bad value fails before anything is written.
-            OrgUnitVersion next = version(newId(), id, parts.get(1), request, unitType, current);
-            store.updateVersion(current.withPeriod(parts.getFirst()));
+            store.updateVersion(current.withPeriod(current.period().splitAt(from).getFirst()));
             store.insertVersion(next);
         }
-        return state(id, from, parentHierarchyId, hierarchy);
+        return new Written(state(id, from, parentHierarchyId, hierarchy),
+                watch == null ? List.of() : watch.afterWrite());
     }
 
     /**
@@ -458,23 +541,24 @@ public class OrgUnitService {
      * @return the unit as it is on that date
      * @throws FuhitoException when the unit or the parent is not valid, or the move would make a cycle
      */
-    public OrgUnitState move(String id, String parentId, String validFrom) {
+    public Written move(String id, String parentId, String validFrom) {
         return move(id, parentId, validFrom, null);
     }
 
     /**
      * Gives an org unit a new parent in a hierarchy from a date, or takes its parent away.
      * The change lasts until the next parent change that is already stored, or has no end.
+     * A move in the default hierarchy changes what applies to the unit, to the units below, and to the assignments.
      *
      * @param id the ID
      * @param parentId the ID of the new parent, or null for no parent
      * @param validFrom the first date under the new parent, as {@code YYYY-MM-DD}
      * @param hierarchy the code of the hierarchy, or null for the default one
-     * @return the unit as it is on that date, with its parent in that hierarchy
+     * @return the unit as it is on that date, with its parent in that hierarchy, and the reads that the move changed
      * @throws FuhitoException when the unit, the parent, or the hierarchy is not valid, or the move would make a
      *         cycle
      */
-    public OrgUnitState move(String id, String parentId, String validFrom, String hierarchy) {
+    public Written move(String id, String parentId, String validFrom, String hierarchy) {
         LocalDate from = Checks.date("validFrom", validFrom);
         requireUnit(id);
         versionOn(id, from);
@@ -490,29 +574,31 @@ public class OrgUnitService {
                 .orElse(versions.getLast().period().to());
         ValidPeriod period = new ValidPeriod(from, until);
 
+        boolean inDefault = hierarchyId.equals(store.defaultHierarchyId());
         if (parentId != null) {
             requireParentCovers(parentId, period);
             requireNoCycle(unitId -> store.parentLinks(hierarchyId, unitId), id, parentId, period, new HashSet<>());
-            if (hierarchyId.equals(store.defaultHierarchyId())) {
+            if (inDefault) {
                 requireDefaultLink(id, natures(id), parentId, natures(parentId), period);
             }
         }
+        DerivedPlaces.Watch watch = inDefault ? places.watchMove(id, period) : null;
         if (current != null && current.period().from().equals(from)) {
             if (parentId == null) {
                 store.deleteLink(current.id());
             } else {
                 store.updateLink(new OrgUnitLink(current.id(), hierarchyId, id, parentId, period));
             }
-            return state(id, from, hierarchyId, hierarchy);
+        } else {
+            if (current != null) {
+                store.updateLink(new OrgUnitLink(current.id(), hierarchyId, id, current.parentId(),
+                        current.period().endingAt(from)));
+            }
+            if (parentId != null) {
+                store.insertLink(new OrgUnitLink(newId(), hierarchyId, id, parentId, period));
+            }
         }
-        if (current != null) {
-            store.updateLink(new OrgUnitLink(current.id(), hierarchyId, id, current.parentId(),
-                    current.period().endingAt(from)));
-        }
-        if (parentId != null) {
-            store.insertLink(new OrgUnitLink(newId(), hierarchyId, id, parentId, period));
-        }
-        return state(id, from, hierarchyId, hierarchy);
+        return new Written(state(id, from, hierarchyId, hierarchy), watch == null ? List.of() : watch.afterWrite());
     }
 
     /**
@@ -1084,31 +1170,10 @@ public class OrgUnitService {
                 .filter(link -> link.period().intersection(replaced).isPresent())
                 .map(OrgUnitLink::parentId)
                 .collect(Collectors.toUnmodifiableSet());
-        // The places that apply come from the units above in the default hierarchy. They change only where the
-        // details or the parent of the unit or of a unit above change.
-        String hierarchyId = store.defaultHierarchyId();
-        Set<LocalDate> changes = new HashSet<>(List.of(from));
-        Deque<Map.Entry<String, ValidPeriod>> line = new ArrayDeque<>(List.of(Map.entry(id, replaced)));
-        while (!line.isEmpty()) {
-            Map.Entry<String, ValidPeriod> unit = line.pop();
-            ValidPeriod period = unit.getValue();
-            store.versions(unit.getKey()).stream()
-                    .map(version -> version.period().from())
-                    .filter(period::contains)
-                    .forEach(changes::add);
-            for (OrgUnitLink link : store.parentLinks(hierarchyId, unit.getKey())) {
-                link.period().intersection(period).ifPresent(shared -> {
-                    changes.add(shared.from());
-                    Optional.ofNullable(shared.to()).filter(period::contains).ifPresent(changes::add);
-                    line.push(Map.entry(link.parentId(), shared));
-                });
-            }
-        }
         Function<String, String> code = UnitPlaces.codes(refItems);
         Set<String> workLocations = new HashSet<>();
         Set<String> costCenters = new HashSet<>();
-        for (LocalDate date : changes) {
-            UnitDefaults applying = store.defaultsOn(List.of(id), date).getOrDefault(id, UnitDefaults.NONE);
+        for (UnitDefaults applying : UnitPlaces.applying(store, id, replaced).values()) {
             Optional.ofNullable(code.apply(applying.workLocationId())).ifPresent(workLocations::add);
             Optional.ofNullable(code.apply(applying.costCenterId())).ifPresent(costCenters::add);
         }

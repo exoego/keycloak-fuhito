@@ -227,7 +227,7 @@ class OrgUnitServiceTest {
         assertEquals("org_unit.rollup_has_child",
                 assertThrows(FuhitoException.class, () -> service.move(tokyo, kanto, "2026-07-01")).code());
         // Taking away a parent that it does not have changes nothing.
-        assertNull(service.move(kanto, null, "2026-07-01").parentId());
+        assertNull(service.move(kanto, null, "2026-07-01").state().parentId());
 
         // A unit cannot get a rollup type from a date on which it has a parent or a child.
         assertEquals(Map.of("id", tokyo, "parentId", company, "date", "2026-08-01"), assertThrows(
@@ -247,7 +247,7 @@ class OrgUnitServiceTest {
         assertEquals("2026-10-01", fromLater.params().get("date"));
         service.move(child, null, "2026-10-01");
         assertTrue(service.changeDetails(later, new OrgUnitChange("2026-08-01", null, "ja", ja("Later"), "region",
-                null, null)).rollup());
+                null, null)).state().rollup());
     }
 
     @Test
@@ -258,7 +258,7 @@ class OrgUnitServiceTest {
         Page all = Page.of(null, null);
 
         OrgUnitState left = service.changeDetails(kanto, new OrgUnitChange("2026-10-01", null, "ja", ja("Kanto"),
-                "branch", null, null));
+                "branch", null, null)).state();
 
         assertFalse(left.rollup());
         assertEquals(List.of("Company"), names(service.list(roots("2026-09-30", null, null), all, null)));
@@ -267,7 +267,7 @@ class OrgUnitServiceTest {
         // From that date it can get a parent, but not before.
         assertEquals("org_unit.rollup_has_parent",
                 assertThrows(FuhitoException.class, () -> service.move(kanto, company, "2026-09-01")).code());
-        assertEquals(company, service.move(kanto, company, "2026-10-01").parentId());
+        assertEquals(company, service.move(kanto, company, "2026-10-01").state().parentId());
         assertEquals(List.of("Company", "Kanto"), names(service.subtree(company, "2026-10-01", null, null, all)));
     }
 
@@ -486,7 +486,7 @@ class OrgUnitServiceTest {
     void aChangeSplitsTheDetailsAtItsDate() {
         String id = service.create(named("Old", null, "2026-04-01")).unit().id();
 
-        OrgUnitState changed = service.changeDetails(id, rename("2026-10-01", "New"));
+        OrgUnitState changed = service.changeDetails(id, rename("2026-10-01", "New")).state();
 
         assertEquals(id, changed.unit().id());
         assertEquals("New", changed.version().names().primary().name());
@@ -502,7 +502,7 @@ class OrgUnitServiceTest {
         String id = service.create(named("A", null, "2026-04-01")).unit().id();
         service.changeDetails(id, rename("2027-04-01", "C"));
 
-        OrgUnitState changed = service.changeDetails(id, rename("2026-10-01", "B"));
+        OrgUnitState changed = service.changeDetails(id, rename("2026-10-01", "B")).state();
 
         assertEquals(new ValidPeriod(LocalDate.of(2026, 10, 1), LocalDate.of(2027, 4, 1)), changed.version().period());
         assertEquals("A", service.get(id, "2026-09-30").version().names().primary().name());
@@ -516,7 +516,7 @@ class OrgUnitServiceTest {
         String id = service.create(named("Typo", null, "2026-04-01")).unit().id();
         String versionId = store.versions(id).getFirst().id();
 
-        OrgUnitState changed = service.changeDetails(id, rename("2026-04-01", "Fixed"));
+        OrgUnitState changed = service.changeDetails(id, rename("2026-04-01", "Fixed")).state();
 
         assertEquals(versionId, changed.version().id());
         assertEquals("Fixed", changed.version().names().primary().name());
@@ -534,7 +534,7 @@ class OrgUnitServiceTest {
 
         OrgUnitState changed = service.changeDetails(id, new OrgUnitChange("2026-10-01", "c1", "ja",
                 Map.of("en", new OrgUnitName("Clinic", "C", null), "ja", new OrgUnitName("診療所", "診", "しんりょうじょ")),
-                "clinic", 2, Map.of("rooms", 3)));
+                "clinic", 2, Map.of("rooms", 3))).state();
 
         OrgUnitVersion v = changed.version();
         assertEquals(new Localized<>("ja", Map.of("en", new OrgUnitName("Clinic", "C", null),
@@ -551,7 +551,7 @@ class OrgUnitServiceTest {
         assertEquals("hr", changed.unit().source());
         assertEquals(parentId, changed.parentId());
 
-        OrgUnitState cleared = service.changeDetails(id, rename("2027-04-01", "Bare"));
+        OrgUnitState cleared = service.changeDetails(id, rename("2027-04-01", "Bare")).state();
         assertNull(cleared.version().names().primary().shortName());
         assertNull(cleared.version().names().primary().phoneticName());
         assertNull(cleared.unitType());
@@ -568,7 +568,7 @@ class OrgUnitServiceTest {
         refItems.update(new RefItem(ward.id(), RefKind.UNIT_TYPE, "ward", ItemNames.of("ward"), 0, Map.of(), false));
 
         assertEquals("ward", service.changeDetails(id, new OrgUnitChange("2026-10-01", null, "ja", ja("Ward 2"),
-                "ward", null, null)).unitType());
+                "ward", null, null)).state().unitType());
         for (String unitType : new String[] {"retired", "nope"}) {
             assertEquals("org_unit.unit_type_unknown", assertThrows(FuhitoException.class,
                     () -> service.changeDetails(id, new OrgUnitChange("2027-04-01", null, "ja", ja("x"),
@@ -612,7 +612,7 @@ class OrgUnitServiceTest {
         String b = root("B");
         String unit = child("Unit", a);
 
-        OrgUnitState moved = service.move(unit, b, "2026-10-01");
+        OrgUnitState moved = service.move(unit, b, "2026-10-01").state();
 
         assertEquals(b, moved.parentId());
         assertEquals(a, service.get(unit, "2026-09-30").parentId());
@@ -625,14 +625,14 @@ class OrgUnitServiceTest {
         String a = root("A");
         String unit = child("Unit", a);
 
-        assertNull(service.move(unit, null, "2026-10-01").parentId());
+        assertNull(service.move(unit, null, "2026-10-01").state().parentId());
         assertEquals(a, service.get(unit, "2026-09-30").parentId());
         assertEquals(1, store.links.size());
 
-        assertNull(service.move(unit, null, "2026-11-01").parentId());
+        assertNull(service.move(unit, null, "2026-11-01").state().parentId());
         assertEquals(1, store.links.size());
 
-        assertEquals(a, service.move(unit, a, "2027-04-01").parentId());
+        assertEquals(a, service.move(unit, a, "2027-04-01").state().parentId());
         assertNull(service.get(unit, "2027-03-31").parentId());
     }
 
@@ -671,10 +671,10 @@ class OrgUnitServiceTest {
         String b = root("B");
         String unit = child("Unit", a);
 
-        assertEquals(b, service.move(unit, b, "2026-04-01").parentId());
+        assertEquals(b, service.move(unit, b, "2026-04-01").state().parentId());
         assertEquals(1, store.links.size());
 
-        assertNull(service.move(unit, null, "2026-04-01").parentId());
+        assertNull(service.move(unit, null, "2026-04-01").state().parentId());
         assertTrue(store.links.isEmpty());
     }
 
@@ -740,7 +740,7 @@ class OrgUnitServiceTest {
 
         // B is below A until 2027-04-01, so A can go below B only from that date.
         assertEquals("org_unit.cycle", moveFailure(a, b, "2026-10-01").code());
-        assertEquals(b, service.move(a, b, "2027-04-01").parentId());
+        assertEquals(b, service.move(a, b, "2027-04-01").state().parentId());
         // And now B cannot go back below A.
         assertEquals("org_unit.cycle", moveFailure(b, a, "2028-04-01").code());
     }
@@ -1111,7 +1111,7 @@ class OrgUnitServiceTest {
         String ward = service.create(named("Ward", a, "2026-04-01")).unit().id();
 
         // B is the parent of the ward in the matrix, and A stays its parent in the default hierarchy.
-        assertEquals("matrix", service.move(ward, b, "2026-04-01", "matrix").hierarchy());
+        assertEquals("matrix", service.move(ward, b, "2026-04-01", "matrix").state().hierarchy());
         assertEquals(a, service.get(ward, "2026-04-01").parentId());
         assertEquals(List.of("default-hierarchy", "matrix-id"),
                 store.links.stream().map(OrgUnitLink::hierarchyId).toList());
@@ -1119,7 +1119,7 @@ class OrgUnitServiceTest {
         // A cycle is judged inside one hierarchy. B under the ward is a cycle only in the matrix.
         assertEquals("org_unit.cycle", assertThrows(FuhitoException.class,
                 () -> service.move(b, ward, "2026-04-01", "matrix")).code());
-        assertEquals(ward, service.move(b, ward, "2026-04-01").parentId());
+        assertEquals(ward, service.move(b, ward, "2026-04-01").state().parentId());
         service.move(b, null, "2026-04-01");
 
         OrgUnitHistory history = service.history(ward);
@@ -1133,8 +1133,8 @@ class OrgUnitServiceTest {
         assertEquals(List.of(LocalDate.of(2027, 4, 1), LocalDate.of(2027, 4, 1)),
                 store.links.stream().map(link -> link.period().to()).toList());
 
-        assertEquals(b, service.move(ward, b, "2026-10-01", "matrix").parentId());
-        assertEquals("default", service.move(ward, null, "2026-10-01").hierarchy());
+        assertEquals(b, service.move(ward, b, "2026-10-01", "matrix").state().parentId());
+        assertEquals("default", service.move(ward, null, "2026-10-01").state().hierarchy());
         FuhitoException unknown = assertThrows(FuhitoException.class,
                 () -> service.move(ward, b, "2026-04-01", "nope"));
         assertEquals(FuhitoException.Reason.INVALID, unknown.reason());
@@ -1149,10 +1149,10 @@ class OrgUnitServiceTest {
         String ward = service.create(named("Ward", a, "2026-04-01")).unit().id();
         service.move(ward, b, "2026-04-01", "matrix");
 
-        OrgUnitState changed = service.changeDetails(ward, rename("2026-10-01", "New"), "matrix", null, null);
+        OrgUnitState changed = service.changeDetails(ward, rename("2026-10-01", "New"), "matrix", null, null).state();
         assertEquals("matrix", changed.hierarchy());
         assertEquals(b, changed.parentId());
-        OrgUnitState inDefault = service.changeDetails(ward, rename("2026-10-01", "Newer"), null, null, null);
+        OrgUnitState inDefault = service.changeDetails(ward, rename("2026-10-01", "Newer"), null, null, null).state();
         assertEquals("default", inDefault.hierarchy());
         assertEquals(a, inDefault.parentId());
         // An unknown hierarchy fails before anything is written.
@@ -1427,7 +1427,7 @@ class OrgUnitServiceTest {
         assertEquals(Map.of("kind", "WORK_LOCATION", "code", "chief"), wrongKind.params());
         assertEquals(Map.of("kind", "COST_CENTER", "code", "cc-old"), failure(new NewOrgUnit(null, "ja", ja("A"), null, null, "cc-old", null, "2026-04-01", null, null, null, null)).params());
         assertEquals("closed null closed null", places(service.changeDetails(unit, new OrgUnitChange("2026-05-01",
-                null, "ja", ja("Unit"), null, "closed", null, null, null))));
+                null, "ja", ja("Unit"), null, "closed", null, null, null)).state()));
         assertEquals("ref_item.unknown", assertThrows(FuhitoException.class, () -> service.changeDetails(placed(
                 "B", null, "tokyo", null), new OrgUnitChange("2026-05-01", null, "ja", ja("B"), null,
                 "closed", null, null, null))).code());

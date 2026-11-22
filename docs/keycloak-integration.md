@@ -543,7 +543,7 @@ A restore keeps the versions of the export. It takes a version from 1 to 9007199
 A version never wraps around, because a version that wrapped would be one that a caller read long before.
 A write of a resource whose version is the largest `long` fails with 500 and writes nothing. The extension counts up with `Math.addExact`, and checks the version of an ID of another system before Hibernate counts it up. The removal of an organization in Keycloak counts up its org unit in the database, which fails such a count-up, as PostgreSQL does with `bigint out of range`.
 No write gives such a version, since a restore gives at most 9007199254740991 and each write adds one.
-The work location and the cost center that apply come from other org units, so they are no part of an org unit or of an assignment. A change of a unit above does not count up the version of the units and the assignments below it.
+The work location and the cost center that apply come from other org units. A change of a unit above counts up the version of each unit and assignment below it whose read changes, and records a propagated change of each. See "The work location and the cost center that apply" below.
 
 A write of a stored resource names the version that the caller read. The write goes on only when the resource still has that version.
 So a product cannot overwrite a change that another product made after its read.
@@ -784,6 +784,45 @@ The enum `DerivedValue` lists every value that a read takes from elsewhere, what
 | `keycloakOrganizationId` | Org units | The removal of the organization in Keycloak |
 | `userId` | Employments, assignments, qualifications, and roles over org units | A link or an unlink of the user of the person |
 | `managerUserId` | Reporting lines | A link or an unlink of the user of the manager |
+| `effectiveWorkLocation`, `effectiveCostCenter` | Org units | A change of the values of a unit above, and a move of a unit above in the default hierarchy |
+| `effectiveWorkLocation`, `effectiveCostCenter` of each period | Assignments | The same, and a change of the values or a move of the org unit of the assignment |
+
+A resource that one of the writes of a request writes itself gets no propagated change. The entry of that write names it already. For example, a step of a reorganization moves a unit below another step that gives the unit above a new work location.
+
+#### The work location and the cost center that apply
+
+The value that applies to a unit or an assignment comes from the record, else from the org unit, else from the nearest unit above in the default hierarchy. See [concepts.md](concepts.md).
+These writes can change it for other units and for assignments.
+
+| Write | What it changes below |
+|---|---|
+| `PUT /org-units/{id}` with another work location or cost center | The units below and the assignments of the unit and of the units below, from `validFrom` to the end of the details that the write replaces |
+| `PUT /org-units/{id}/parent` in the default hierarchy, also with no parent | The unit itself, the units below, and their assignments, on the dates of the new parent |
+| A step `change` or `move` of `POST /reorganizations` | The same as the two writes above |
+| A row of `orgUnits` or `orgUnitParents` in `POST /imports`, and the same rows in `POST /imports/csv/org-units` and `POST /imports/csv/org-unit-parents` | The same as the two writes above |
+
+Other writes of org units change no such read.
+
+- A new unit has no unit and no assignment below it yet.
+- The end of a unit and a later end need no unit and no assignment below it after the end. A unit with children or assignments then fails to end. The start of a unit never moves.
+- A rollup unit is not in the default hierarchy. A unit gets a rollup type only when it has no parent and no child there, so nothing below it changes.
+- A move in another hierarchy changes nothing, because the values come down the default hierarchy only.
+- `PUT /org-units/{id}` that keeps the work location and the cost center changes nothing below.
+- A code of a reference item never changes.
+- `POST /restore` replaces every row of the realm, and has its own entry.
+
+The write finds the reads that changed in the database. It reads what applies below the unit on the dates that it changes, before it writes and after.
+The database walks down from the unit, so the change of a small unit reads only its own branch. Only a read that really changed gets a new version and a propagated change.
+A unit below with a value of its own, and its members, keep their versions. So does an assignment with a value of its own.
+
+A read of an org unit is on a date, and a change from a later date changes the read of the unit on that date. So a unit below gets a propagated change at once.
+A read of an assignment gives each period the values on its date nearest to today. So a change from a later date changes only a period that is read on a date of the change, such as a period that starts on or after it. The period of today keeps its read, and keeps its version.
+When that date comes, the read of the period of today changes with the date, with no write and no entry, as every read that depends on today does. A reader that wants the values of a later date reads the org unit on that date.
+With org units in other time zones, today is the date of the org unit of the assignment.
+
+A write that can change the reads of other resources holds the lock of its realm alone, as an import does. These are the writes of the table above, apart from a change of the details that keeps the work location and the cost center. That one shares the lock, as before.
+The write decides before it takes the lock, from its request and the stored details of the unit. Its version check makes that decision hold, because another write of the unit between the two would fail the check.
+There is no threshold of a number of reads. A count before the lock could be wrong by the time the write holds the lock. And a write that shares the lock while it compares the reads below could miss a change of another write that runs at the same time, such as a new work location of an assignment. The change of a small unit holds the realm for a few milliseconds. See [performance.md](performance.md).
 
 ### Keeping the log
 

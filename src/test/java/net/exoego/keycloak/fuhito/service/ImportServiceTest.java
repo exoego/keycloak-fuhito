@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -66,8 +67,9 @@ class ImportServiceTest {
     private final MemoryRefItemStore refItems = new MemoryRefItemStore();
     private final MemoryOrgUnitStore orgUnitStore = new MemoryOrgUnitStore();
     private final MemoryAssignmentStore assignmentStore = new MemoryAssignmentStore();
+    private final MemoryPlaceStore places = new MemoryPlaceStore(orgUnitStore, assignmentStore);
     private final OrgUnitService orgUnits = new OrgUnitService(orgUnitStore, externalIdStore, assignmentStore, refItems,
-            Clock.systemUTC());
+            Today.of(Clock.systemUTC()), AttributeRules.NONE, places);
     private final MemoryEmploymentStore employmentStore = new MemoryEmploymentStore();
     private final Map<String, String> usernames = Map.of("nurse", "user-nurse", "doctor", "user-doctor");
     private final UserDirectory users = new UserDirectory() {
@@ -1634,6 +1636,29 @@ class ImportServiceTest {
 
     private void importTwoUnits() {
         importUnits("2026-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"));
+    }
+
+    @Test
+    void aRowThatGivesAStoredUnitAnotherWorkLocationOrParentGivesTheReadsBelowItThatChanged() {
+        refItems.insert(new RefItem("l", RefKind.WORK_LOCATION, "tokyo", ItemNames.of("x"), 0, Map.of(), true));
+        importUnits("2026-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"), unit("T", "Team", "W"),
+                unit("C", "Clinic", null));
+        String team = stored(ExternalId.Kind.ORG_UNIT, "import", "T");
+
+        ImportReport placed = rows("2026-05-01", "orgUnits", """
+                {"externalId": "H", "workLocation": "tokyo"}
+                """);
+        ImportReport moved = rows("2026-06-01", "orgUnitParents", """
+                {"hierarchy": "default", "orgUnitExternalId": "W", "parentExternalId": "C"}
+                """);
+
+        assertEquals(1, placed.writes().size());
+        assertEquals(Set.of(new PropagatedChange(DerivedValue.ORG_UNIT_EFFECTIVE_WORK_LOCATION,
+                stored(ExternalId.Kind.ORG_UNIT, "import", "W")),
+                new PropagatedChange(DerivedValue.ORG_UNIT_EFFECTIVE_WORK_LOCATION, team)),
+                Set.copyOf(placed.writes().getFirst().propagated()));
+        assertEquals(List.of(List.of(new PropagatedChange(DerivedValue.ORG_UNIT_EFFECTIVE_WORK_LOCATION, team))),
+                moved.writes().stream().map(ImportReport.Write::propagated).toList());
     }
 
     private List<String> assignmentsOf(String employmentExternalId) {
