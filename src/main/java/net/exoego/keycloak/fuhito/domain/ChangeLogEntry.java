@@ -40,7 +40,9 @@ public record ChangeLogEntry(String id, long sequence, Instant recordedAt, Kind 
         /** A write to the API, whose entry the propagated change names. */
         WRITE,
         /** The removal of an organization in Keycloak. */
-        KEYCLOAK_ORGANIZATION_REMOVED
+        KEYCLOAK_ORGANIZATION_REMOVED,
+        /** A change of the first name or the last name of a user in Keycloak. */
+        KEYCLOAK_USER_NAME_CHANGED
     }
 
     /**

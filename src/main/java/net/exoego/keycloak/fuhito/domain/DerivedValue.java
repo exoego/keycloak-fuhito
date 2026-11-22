@@ -11,7 +11,12 @@ public enum DerivedValue {
 
     /** The Keycloak organization that an org unit links. */
     KEYCLOAK_ORGANIZATION_ID(ResourceType.FUHITO_ORG_UNIT, "org-units", "keycloakOrganizationId",
-            "The organizations of Keycloak", "The removal of the organization in Keycloak");
+            "The organizations of Keycloak", "The removal of the organization in Keycloak"),
+
+    /** The name of a person with no names in the record, which is the name of the linked Keycloak user. */
+    PERSON_NAME(ResourceType.FUHITO_PERSON, "people", "name",
+            "The first name and the last name of the linked Keycloak user",
+            "A change of the name of the user in Keycloak, when Keycloak sends an event of it");
 
     private final ResourceType resourceType;
     private final String collection;
