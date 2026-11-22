@@ -87,6 +87,7 @@ public class UserRetirement {
                         && employment.period().endsAfter(today))
                 .map(Employment::id)
                 .toList();
+        // Every assignment of the person that starts today or later goes, so no endedOnStart that stays changes.
         List<EmploymentService.Ended> ended = employmentService.endAll(open, today);
         List<List<Write>> cuts = CutRecords.writes(ended.stream().map(EmploymentService.Ended::cut).toList(),
                 assignmentService);

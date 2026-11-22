@@ -45,9 +45,10 @@ class ChangeLogEntryTest {
     @Test
     void eachDerivedValueSaysWhatItIsReadFromAndWhichWritesChangeIt() {
         assertEquals(List.of("KEYCLOAK_ORGANIZATION_ID", "EMPLOYMENT_USER_ID", "ASSIGNMENT_USER_ID",
-                "QUALIFICATION_USER_ID", "UNIT_ROLE_USER_ID", "REPORTING_LINE_MANAGER_USER_ID", "PERSON_NAME",
-                "ORG_UNIT_EFFECTIVE_WORK_LOCATION", "ORG_UNIT_EFFECTIVE_COST_CENTER",
-                "ASSIGNMENT_EFFECTIVE_WORK_LOCATION", "ASSIGNMENT_EFFECTIVE_COST_CENTER"),
+                "ASSIGNMENT_ENDED_ON_START", "QUALIFICATION_USER_ID", "UNIT_ROLE_USER_ID",
+                "REPORTING_LINE_MANAGER_USER_ID", "PERSON_NAME", "ORG_UNIT_EFFECTIVE_WORK_LOCATION",
+                "ORG_UNIT_EFFECTIVE_COST_CENTER", "ASSIGNMENT_EFFECTIVE_WORK_LOCATION",
+                "ASSIGNMENT_EFFECTIVE_COST_CENTER"),
                 Arrays.stream(DerivedValue.values()).map(Enum::name).toList());
         for (DerivedValue value : DerivedValue.values()) {
             assertFalse(value.field().isBlank(), value.name());
@@ -60,6 +61,9 @@ class ChangeLogEntryTest {
         DerivedValue manager = DerivedValue.REPORTING_LINE_MANAGER_USER_ID;
         assertEquals(List.of("FUHITO_REPORTING_LINE", "fuhito/reporting-lines/l1", "managerUserId"),
                 List.of(manager.resourceType().name(), manager.path("l1"), manager.field()));
+        DerivedValue ended = DerivedValue.ASSIGNMENT_ENDED_ON_START;
+        assertEquals(List.of("FUHITO_ASSIGNMENT", "fuhito/assignments/a1", "endedOnStart"),
+                List.of(ended.resourceType().name(), ended.path("a1"), ended.field()));
         DerivedValue name = DerivedValue.PERSON_NAME;
         assertEquals(List.of("FUHITO_PERSON", "fuhito/people/p1", "name"),
                 List.of(name.resourceType().name(), name.path("p1"), name.field()));

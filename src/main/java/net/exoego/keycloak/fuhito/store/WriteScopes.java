@@ -30,7 +30,8 @@ public interface WriteScopes {
 
     /**
      * Finds an employment with its assignments, the reporting lines of the assignments, and its roles over org
-     * units. An end and a transfer of the employment end them.
+     * units. An end and a transfer of the employment end them. It also finds the assignments of every other
+     * employment of the person, whose {@code endedOnStart} an end can change.
      *
      * @param employmentId the ID of the employment
      * @return the IDs
@@ -47,15 +48,17 @@ public interface WriteScopes {
     Map<String, Set<String>> employer(String employerId);
 
     /**
-     * Finds the assignments of an employment.
+     * Finds the assignments of every employment of the person of an employment. A new assignment can change
+     * {@code endedOnStart} of any of them, and a switch of the primary flag changes the ones of the employment.
      *
      * @param employmentId the ID of the employment
      * @return the IDs
      */
-    Map<String, Set<String>> assignmentsOfEmployment(String employmentId);
+    Map<String, Set<String>> assignmentsOfPerson(String employmentId);
 
     /**
-     * Finds the assignments of the employment of an assignment, with the assignment itself.
+     * Finds the assignments of every employment of the person of an assignment, with the assignment itself. A write
+     * of the assignment can change {@code endedOnStart} of the others.
      *
      * @param assignmentId the ID of the assignment
      * @return the IDs

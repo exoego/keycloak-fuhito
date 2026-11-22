@@ -27,6 +27,7 @@ import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
@@ -661,12 +662,20 @@ public class EmploymentService {
                 gone.computeIfAbsent(kind, any -> new HashMap<>()).putAll(copyIds)));
         externalIds.moveAll(gone);
         String reasonId = reason.map(RefItem::id).orElse(null);
-        Map<String, CutRecords> cuts = writeEnd(olds, date, any -> reasonId, rows);
+        EndedOnStartChanges endings = new EndedOnStartChanges(assignments);
+        Map<String, CutRecords> ended = writeEnd(olds, date, any -> reasonId, rows, endings);
         store.insertAll(copies.stream().map(Copy::started).toList());
         copies.forEach(copy -> copy.terms().forEach(store::insertTerms));
-        assignments.insertAll(copies.stream().flatMap(copy -> copy.rows().stream()).toList());
+        List<Assignment> copiedRows = copies.stream().flatMap(copy -> copy.rows().stream()).toList();
+        assignments.insertAll(copiedRows);
+        endings.noteNew(copiedRows);
         copies.forEach(copy -> copy.lines().forEach(reportingLines::insert));
         unitRoles.insertAll(copies.stream().flatMap(copy -> copy.roles().stream()).toList());
+        // A copy belongs to the transfer of the employment that it copies.
+        Map<String, String> employmentOf = employmentOf(rows);
+        copies.forEach(copy -> copy.rows().forEach(row -> employmentOf.put(row.assignmentId(),
+                copy.started().continuesEmploymentId())));
+        Map<String, CutRecords> cuts = withPropagated(ended, endings.changedBy(), employmentOf);
 
         List<String> both = new ArrayList<>(ids);
         copies.forEach(copy -> both.add(copy.started().id()));
@@ -817,7 +826,30 @@ public class EmploymentService {
         checkEnd(employments, to);
         List<Assignment> rows = to == null ? List.of()
                 : assignments.rowsOfEmployments(employments.stream().map(Employment::id).toList());
-        return writeEnd(employments, to, endReasonId, rows);
+        EndedOnStartChanges endings = new EndedOnStartChanges(assignments);
+        Map<String, CutRecords> cuts = writeEnd(employments, to, endReasonId, rows, endings);
+        return withPropagated(cuts, endings.changedBy(), employmentOf(rows));
+    }
+
+    private static Map<String, String> employmentOf(List<Assignment> rows) {
+        Map<String, String> employmentOf = new HashMap<>();
+        rows.forEach(row -> employmentOf.put(row.assignmentId(), row.employmentId()));
+        return employmentOf;
+    }
+
+    // The records of each end get the propagated changes that the assignments of its employment caused.
+    private static Map<String, CutRecords> withPropagated(Map<String, CutRecords> cuts,
+            Map<String, List<PropagatedChange>> changed, Map<String, String> employmentOf) {
+        if (changed.isEmpty()) {
+            return cuts;
+        }
+        Map<String, List<PropagatedChange>> byEmployment = new HashMap<>();
+        changed.forEach((assignmentId, propagated) -> byEmployment.computeIfAbsent(employmentOf.get(assignmentId),
+                any -> new ArrayList<>()).addAll(propagated));
+        Map<String, CutRecords> all = new HashMap<>();
+        cuts.forEach((id, cut) -> all.put(id, new CutRecords(cut.assignmentIds(), cut.others(),
+                List.copyOf(byEmployment.getOrDefault(id, List.of())))));
+        return all;
     }
 
     // Every check of an end comes before its first write.
@@ -833,7 +865,7 @@ public class EmploymentService {
 
     // The records that the end changed, by the ID of their employment. Without an end, there are none.
     private Map<String, CutRecords> writeEnd(List<Employment> employments, LocalDate to,
-            Function<Employment, String> endReasonId, List<Assignment> rows) {
+            Function<Employment, String> endReasonId, List<Assignment> rows, EndedOnStartChanges endings) {
         for (Employment employment : employments) {
             store.update(new Employment(employment.id(), employment.personId(), employment.userId(),
                     employment.employer(), employment.period().endingAt(to), employment.staffNumber(),
@@ -882,6 +914,7 @@ public class EmploymentService {
                 endedRows.add(row.withPeriod(row.period().endingAt(to)));
             }
         }
+        endings.note(rows);
         assignments.deleteAll(removedRows);
         assignments.updateAll(endedRows);
         // An assignment that had a row on the date or later changed. With no row before the date, it is gone.
@@ -895,7 +928,8 @@ public class EmploymentService {
             }
         });
         Map<String, CutRecords> cuts = new HashMap<>();
-        ids.forEach(id -> cuts.put(id, new CutRecords(cutAssignments.getOrDefault(id, List.of()), others.get(id))));
+        ids.forEach(id -> cuts.put(id, new CutRecords(cutAssignments.getOrDefault(id, List.of()), others.get(id),
+                List.of())));
         return cuts;
     }
 

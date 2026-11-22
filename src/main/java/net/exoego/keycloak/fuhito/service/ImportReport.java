@@ -419,8 +419,21 @@ public final class ImportReport {
          * @param created true for a new employment, false for a change
          * @param suffix the end of the path after the ID, for example {@code /terms}, or an empty text
          * @param state the employment after the write
+         * @param propagated the assignments of the person whose read an end changed
          */
-        record OfEmployment(boolean created, String suffix, EmploymentView state) implements Write {
+        record OfEmployment(boolean created, String suffix, EmploymentView state, List<PropagatedChange> propagated)
+                implements Write {
+
+            /**
+             * Makes the write of an employment that changed no read of another resource.
+             *
+             * @param created true for a new employment, false for a change
+             * @param suffix the end of the path after the ID, for example {@code /terms}, or an empty text
+             * @param state the employment after the write
+             */
+            public OfEmployment(boolean created, String suffix, EmploymentView state) {
+                this(created, suffix, state, List.of());
+            }
 
             @Override
             public ResourceType resourceType() {
@@ -444,8 +457,21 @@ public final class ImportReport {
          * @param created true for a new assignment, false for a change
          * @param suffix the end of the path after the ID, for example {@code /end}, or an empty text
          * @param state the assignment after the write
+         * @param propagated the other assignments of the person whose read the write changed
          */
-        record OfAssignment(boolean created, String suffix, AssignmentView state) implements Write {
+        record OfAssignment(boolean created, String suffix, AssignmentView state, List<PropagatedChange> propagated)
+                implements Write {
+
+            /**
+             * Makes the write of an assignment that changed no read of another resource.
+             *
+             * @param created true for a new assignment, false for a change
+             * @param suffix the end of the path after the ID, for example {@code /end}, or an empty text
+             * @param state the assignment after the write
+             */
+            public OfAssignment(boolean created, String suffix, AssignmentView state) {
+                this(created, suffix, state, List.of());
+            }
 
             @Override
             public ResourceType resourceType() {
@@ -591,8 +617,21 @@ public final class ImportReport {
          * @param resourceType the type of the removed resource, as the event log names it
          * @param resourceId the ID of the removed resource
          * @param path the path that the same removal has in its own endpoint
+         * @param propagated the other resources whose read the removal changed
          */
-        record Removed(ResourceType resourceType, String resourceId, String path) implements Write {
+        record Removed(ResourceType resourceType, String resourceId, String path, List<PropagatedChange> propagated)
+                implements Write {
+
+            /**
+             * Makes the removal of a resource that changed no read of another resource.
+             *
+             * @param resourceType the type of the removed resource, as the event log names it
+             * @param resourceId the ID of the removed resource
+             * @param path the path that the same removal has in its own endpoint
+             */
+            public Removed(ResourceType resourceType, String resourceId, String path) {
+                this(resourceType, resourceId, path, List.of());
+            }
 
             @Override
             public boolean created() {
@@ -609,7 +648,11 @@ public final class ImportReport {
             }
 
             static Removed assignment(String id) {
-                return new Removed(ResourceType.FUHITO_ASSIGNMENT, id, "fuhito/assignments/" + id);
+                return assignment(id, List.of());
+            }
+
+            static Removed assignment(String id, List<PropagatedChange> propagated) {
+                return new Removed(ResourceType.FUHITO_ASSIGNMENT, id, "fuhito/assignments/" + id, propagated);
             }
 
             static Removed employment(String id) {

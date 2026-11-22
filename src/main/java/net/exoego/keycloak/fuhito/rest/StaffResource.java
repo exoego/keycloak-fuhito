@@ -15,6 +15,7 @@ import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.EmploymentView;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.PersonService;
+import net.exoego.keycloak.fuhito.store.WriteScopes;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -35,6 +36,7 @@ public class StaffResource {
     private final AssignmentService assignments;
     private final PersonService people;
     private final ExternalIdService externalIds;
+    private final WriteScopes scopes;
 
     /**
      * Creates the resource for one request.
@@ -44,9 +46,11 @@ public class StaffResource {
      * @param assignments the operations on assignments of the realm
      * @param people the operations on people of the realm
      * @param externalIds the IDs that systems have for the resources of the realm
+     * @param scopes finds the stored resources that a write changes
      */
     public StaffResource(RequestContext context, EmploymentService employments, AssignmentService assignments,
-            PersonService people, ExternalIdService externalIds) {
+            PersonService people, ExternalIdService externalIds, WriteScopes scopes) {
+        this.scopes = scopes;
         this.people = people;
         this.externalIds = externalIds;
         this.context = context;
@@ -79,12 +83,14 @@ public class StaffResource {
                     Writes.personId(context, people, "personId", body.personId(), "userId", body.userId())));
             var employment = EmploymentRepresentation.of(started, externalIds.lists(ExternalId.Kind.EMPLOYMENT,
                     List.of(started.employment().id())));
-            var assignment = AssignmentsResource.represent(
-                    List.of(assignments.add(body.toAssignment(employment.id())).view()), externalIds).getFirst();
+            // A person who comes back has the assignments of the old employments.
+            context.lock(scopes.assignmentsOfPerson(employment.id()));
+            AssignmentService.Written added = assignments.add(body.toAssignment(employment.id()));
+            var assignment = AssignmentsResource.represent(List.of(added.view()), externalIds).getFirst();
             context.recordChange(Change.CREATE, EmploymentsResource.RESOURCE_TYPE, employment.id(),
                     "fuhito/employments/" + employment.id(), employment);
             context.recordChange(Change.CREATE, AssignmentsResource.RESOURCE_TYPE, assignment.id(),
-                    "fuhito/assignments/" + assignment.id(), assignment);
+                    "fuhito/assignments/" + assignment.id(), assignment, added.propagated());
             return Response.status(Response.Status.CREATED)
                     .entity(StaffRepresentation.of(employment, assignment))
                     .build();

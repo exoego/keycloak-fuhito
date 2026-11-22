@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
@@ -19,11 +20,13 @@ import net.exoego.keycloak.fuhito.store.ReportingLineStore;
  * @param assignmentIds the IDs of the assignments that end on the date now
  * @param others the writes of the other records. These are the roles over org units and the reporting lines that end
  *        on the date now, and each removed record. A removed record comes before the records that it refers to.
+ * @param propagated the other assignments of the person whose {@code endedOnStart} the write changed. Their versions
+ *        are counted up already.
  */
-public record CutRecords(List<String> assignmentIds, List<Write> others) {
+public record CutRecords(List<String> assignmentIds, List<Write> others, List<PropagatedChange> propagated) {
 
     /** No record. */
-    static final CutRecords NONE = new CutRecords(List.of(), List.of());
+    static final CutRecords NONE = new CutRecords(List.of(), List.of(), List.of());
 
     /**
      * Returns the writes of the records, for the event log and the change log.

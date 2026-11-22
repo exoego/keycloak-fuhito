@@ -268,17 +268,23 @@ class ReadsByIdPlansIT {
     void theScopesOfAWriteFindTheRowsByTheirIds() throws Exception {
         withOldStatistics(statement -> {
             String ofPerson = "select e.id from fuhito_employment e where e.person_id = " + PERSON;
-            String ofEmployment = "select e.id from fuhito_employment e where e.id = 'ex-new-employment-7'";
             assertIndexes(statement, "select e.realm_id, e.id from fuhito_employment e where e.person_id = " + PERSON,
                     "idx_fuhito_employment_person");
             assertIndexes(statement, "select e.realm_id, e.id from fuhito_employment e"
                     + " where e.employer_id = 'ex-new-unit-2'", "idx_fuhito_employment_employer");
-            assertIndexes(statement, "select distinct a.realm_id, a.assignment_id from fuhito_assignment a"
-                    + " where a.employment_id in (" + ofPerson + ")",
+            // The assignments of every employment of the people of some employments, as JpaWriteScopes.ofPeople.
+            String ofPeople = """
+                    select distinct a.realm_id, a.assignment_id from fuhito_assignment a where a.employment_id in
+                    (select p.id from fuhito_employment p where p.person_id in
+                    (select e.person_id from fuhito_employment e where %s))""";
+            assertIndexes(statement, ofPeople.formatted("e.person_id = " + PERSON),
                     "idx_fuhito_employment_person", "idx_fuhito_assignment_employment");
-            assertIndexes(statement, "select distinct a.realm_id, a.assignment_id from fuhito_assignment a"
-                    + " where a.employment_id in (" + ofEmployment + ")",
-                    "pk_fuhito_employment", "idx_fuhito_assignment_employment");
+            assertIndexes(statement, ofPeople.formatted("e.id = 'ex-new-employment-7'"),
+                    "pk_fuhito_employment", "idx_fuhito_employment_person", "idx_fuhito_assignment_employment");
+            assertIndexes(statement, ofPeople.formatted("e.id in (select b.employment_id from fuhito_assignment b"
+                    + " where b.assignment_id = 'ex-new-assignment-7')"),
+                    BY_ASSIGNMENT, "pk_fuhito_employment", "idx_fuhito_employment_person",
+                    "idx_fuhito_assignment_employment");
             assertIndexes(statement, """
                     select l.realm_id, l.id from fuhito_reporting_line l where l.assignment_id in
                     (select a.assignment_id from fuhito_assignment a where a.employment_id in (%s))"""
@@ -287,12 +293,6 @@ class ReadsByIdPlansIT {
                     "idx_fuhito_reporting_line_assignment");
             assertIndexes(statement, "select q.realm_id, q.id from fuhito_qualification q"
                     + " where q.person_id = " + PERSON, "idx_fuhito_qualification_person");
-            assertIndexes(statement, "select distinct a.realm_id, a.assignment_id from fuhito_assignment a"
-                    + " where a.employment_id = 'ex-new-employment-7'", "idx_fuhito_assignment_employment");
-            assertIndexes(statement, """
-                    select distinct a.realm_id, a.assignment_id from fuhito_assignment a where a.employment_id in
-                    (select b.employment_id from fuhito_assignment b where b.assignment_id = 'ex-new-assignment-7')""",
-                    BY_ASSIGNMENT, "idx_fuhito_assignment_employment");
         });
     }
 
@@ -311,6 +311,20 @@ class ReadsByIdPlansIT {
                 and y.valid_from = (select max(n.valid_from) from fuhito_assignment n
                 where n.assignment_id = y.assignment_id)
                 order by x.assignment_id, y.assignment_id""", BY_ASSIGNMENT, "pk_fuhito_employment",
+                "idx_fuhito_employment_person", "idx_fuhito_assignment_employment"));
+    }
+
+    // JpaAssignmentStore.firstRowsOfPeople for the employments of a write.
+    @Test
+    void theFirstRowsOfTheAssignmentsOfPeopleAreFoundThroughTheirEmployments() throws Exception {
+        withOldStatistics(statement -> assertIndexes(statement, """
+                select e.id, x.* from fuhito_assignment x
+                join fuhito_employment ex on ex.id = x.employment_id
+                join fuhito_employment e on e.person_id = ex.person_id
+                where e.id = any('{ex-new-employment-7,ex-new-employment-8}')
+                and not exists (select 1 from fuhito_assignment o where o.assignment_id = x.assignment_id
+                and o.valid_from < x.valid_from)
+                order by e.id, x.assignment_id""", BY_ASSIGNMENT, "pk_fuhito_employment",
                 "idx_fuhito_employment_person", "idx_fuhito_assignment_employment"));
     }
 

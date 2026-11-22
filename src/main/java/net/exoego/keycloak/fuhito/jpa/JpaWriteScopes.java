@@ -18,6 +18,8 @@ public class JpaWriteScopes implements WriteScopes {
     private static final String OF_PERSON = "e.personId = :id";
     private static final String ONE = "e.id = :id";
     private static final String OF_EMPLOYER = "e.employerId = :id";
+    private static final String OF_ASSIGNMENT = "e.id in (select b.employmentId from AssignmentEntity b "
+            + "where b.assignmentId = :id)";
 
     private final EntityManager em;
     private final String realmId;
@@ -73,17 +75,21 @@ public class JpaWriteScopes implements WriteScopes {
     }
 
     @Override
-    public Map<String, Set<String>> assignmentsOfEmployment(String employmentId) {
-        return Map.of("assignments", ids("""
-                select distinct a.realmId, a.assignmentId from AssignmentEntity a
-                where a.employmentId = :id""", employmentId));
+    public Map<String, Set<String>> assignmentsOfPerson(String employmentId) {
+        return Map.of("assignments", ids(ofPeople(ONE), employmentId));
     }
 
     @Override
     public Map<String, Set<String>> assignmentsBeside(String assignmentId) {
-        return Map.of("assignments", ids("""
+        return Map.of("assignments", ids(ofPeople(OF_ASSIGNMENT), assignmentId));
+    }
+
+    // The assignments of every employment of the people of the employments that a condition names.
+    private static String ofPeople(String condition) {
+        return """
                 select distinct a.realmId, a.assignmentId from AssignmentEntity a where a.employmentId in
-                (select b.employmentId from AssignmentEntity b where b.assignmentId = :id)""", assignmentId));
+                (select p.id from EmploymentEntity p where p.personId in
+                (select e.personId from EmploymentEntity e where %s))""".formatted(condition);
     }
 
     // Each condition is one of the fixed texts above.
@@ -93,8 +99,7 @@ public class JpaWriteScopes implements WriteScopes {
                 + employments + ")";
         Map<String, Set<String>> all = new HashMap<>();
         all.put("employments", ids("select e.realmId, e.id from EmploymentEntity e where " + condition, id));
-        all.put("assignments", ids("select distinct a.realmId, a.assignmentId from AssignmentEntity a "
-                + "where a.employmentId in (" + employments + ")", id));
+        all.put("assignments", ids(ofPeople(condition), id));
         all.put("unit-roles", ids("select r.realmId, r.id from UnitRoleEntity r "
                 + "where r.employmentId in (" + employments + ")", id));
         all.put("reporting-lines", ids("select l.realmId, l.id from ReportingLineEntity l "

@@ -23,6 +23,9 @@ final class MemoryAssignmentStore implements AssignmentStore {
 
     final List<Assignment> rows = new ArrayList<>();
 
+    /** The IDs of the assignments in each call of {@link #countUp}. */
+    final List<List<String>> countedUp = new ArrayList<>();
+
     /** The stores that a list of members or of users reads besides the rows. A test that reads those sets them. */
     MemoryOrgUnitStore orgUnits;
     MemoryEmploymentStore employments;
@@ -124,10 +127,42 @@ final class MemoryAssignmentStore implements AssignmentStore {
         return found;
     }
 
+    @Override
+    public Map<String, List<Assignment>> firstRowsOfPeople(Collection<String> employmentIds) {
+        Map<String, List<Assignment>> found = new HashMap<>();
+        List<Assignment> firsts = rows.stream()
+                .map(Assignment::assignmentId)
+                .distinct()
+                .sorted()
+                .map(id -> rows(id).getFirst())
+                .toList();
+        for (String employmentId : employmentIds) {
+            String person = personOf(employmentId);
+            List<Assignment> ofPerson = firsts.stream().filter(first -> personOf(first).equals(person)).toList();
+            if (!ofPerson.isEmpty()) {
+                found.put(employmentId, ofPerson);
+            }
+        }
+        return found;
+    }
+
+    @Override
+    public void countUp(Collection<String> assignmentIds) {
+        countedUp.add(List.copyOf(assignmentIds));
+        rows.replaceAll(r -> assignmentIds.contains(r.assignmentId()) ? new Assignment(r.rowId(), r.assignmentId(),
+                r.employmentId(), r.orgUnitId(), r.period(), r.jobTitleId(), r.occupationId(), r.kindId(),
+                r.workLocationId(), r.costCenterId(), r.head(), r.primary(), r.allocationPercent(),
+                r.displayOrder(), r.attributes(), r.source(), r.version() + 1) : r);
+    }
+
     // A test that sets no store of employments has one person for each employment.
     private String personOf(Assignment row) {
-        return employments == null ? row.employmentId()
-                : employments.find(row.employmentId()).map(Employment::personId).orElse(row.employmentId());
+        return personOf(row.employmentId());
+    }
+
+    private String personOf(String employmentId) {
+        return employments == null ? employmentId
+                : employments.find(employmentId).map(Employment::personId).orElse(employmentId);
     }
 
     @Override

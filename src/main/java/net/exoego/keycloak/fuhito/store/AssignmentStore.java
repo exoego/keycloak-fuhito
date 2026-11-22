@@ -61,6 +61,23 @@ public interface AssignmentStore {
     Map<String, List<Assignment>> endedOnStart(Collection<String> assignmentIds);
 
     /**
+     * Lists the first row of each assignment of the people of some employments, in every employment of each person.
+     *
+     * @param employmentIds the IDs of the employments
+     * @return the first rows by the ID of each of the employments. An employment of a person with no assignment is
+     *         left out.
+     */
+    Map<String, List<Assignment>> firstRowsOfPeople(Collection<String> employmentIds);
+
+    /**
+     * Counts up the versions of assignments whose read changed although no write changed their rows. An assignment
+     * that a write of the transaction counted up already keeps its version.
+     *
+     * @param assignmentIds the IDs of the assignments
+     */
+    void countUp(Collection<String> assignmentIds);
+
+    /**
      * Counts the assignments to an org unit that hold on a date or after it.
      *
      * @param orgUnitId the ID of the org unit
