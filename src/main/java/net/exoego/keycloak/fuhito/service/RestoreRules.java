@@ -146,7 +146,6 @@ final class RestoreRules {
         }
     }
 
-    // The rows of every assignment come first, as a row may continue an assignment that comes later.
     private void requireRows(RealmExport.AssignmentRows assignment) {
         List<RealmExport.Period> sorted = rows.get(assignment.assignmentId());
         if (sorted.isEmpty()) {
@@ -175,17 +174,6 @@ final class RestoreRules {
             ValidPeriod life = units.life(row.orgUnitId());
             check("assignments", row.rowId(), outside(period, life),
                     () -> AssignmentService.requireOrgUnitCovers(row.orgUnitId(), period, Optional.of(life)));
-            if (row.continuesAssignmentId() != null) {
-                List<RealmExport.Period> previous = rows.get(row.continuesAssignmentId());
-                String previousPersonId = employments.get(previous.getFirst().employmentId()).personId();
-                check("assignments", row.rowId(), "continuesAssignmentId", () -> AssignmentService.requireSamePerson(
-                        row.continuesAssignmentId(), previousPersonId, e.personId()));
-                RealmExport.Period last = previous.getLast();
-                AssignmentService.stillHolds(row.continuesAssignmentId(), period(last.validFrom(), last.validTo()),
-                        period.from()).ifPresent(error -> {
-                            throw broken("assignments", last.rowId(), "validTo", error.code()).causedBy(error);
-                        });
-            }
         }
     }
 

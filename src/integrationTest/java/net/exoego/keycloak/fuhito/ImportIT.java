@@ -279,7 +279,7 @@ class ImportIT {
     }
 
     @Test
-    void anImportSavesTheLinksToTheEmploymentAndTheAssignmentThatRecordsContinue() throws Exception {
+    void anImportSavesTheLinkToTheEmploymentThatARecordContinues() throws Exception {
         TestRealm realm = TestRealm.create("import-continues");
         Api api = realm.api;
         realm.user("sato");
@@ -314,12 +314,10 @@ class ImportIT {
                     "continuesEmploymentId": "%s"}
                  ],
                  "assignments": [
-                   {"externalId": "A2", "employmentExternalId": "E2", "orgUnitExternalId": "L", "primary": true,
-                    "continuesAssignmentExternalId": "A1"},
-                   {"externalId": "A4", "employmentExternalId": "E4", "orgUnitExternalId": "L", "primary": true,
-                    "continuesAssignmentId": "%s"}
+                   {"externalId": "A2", "employmentExternalId": "E2", "orgUnitExternalId": "L", "primary": true},
+                   {"externalId": "A4", "employmentExternalId": "E4", "orgUnitExternalId": "L", "primary": true}
                  ]}
-                """.formatted(e3, a3);
+                """.formatted(e3);
 
         JsonNode first = ok(api.post("/imports", transfer));
 
@@ -329,10 +327,11 @@ class ImportIT {
                 .path("continuesEmploymentId").asText());
         assertEquals(e3, ok(api.get("/employments/" + lookup(api, "EMPLOYMENT", "E4")))
                 .path("continuesEmploymentId").asText());
-        assertEquals(lookup(api, "ASSIGNMENT", "A1"), ok(api.get("/assignments/" + lookup(api, "ASSIGNMENT", "A2")))
-                .path("continuesAssignmentId").asText());
-        assertEquals(a3, ok(api.get("/assignments/" + lookup(api, "ASSIGNMENT", "A4")))
-                .path("continuesAssignmentId").asText());
+        // Each new assignment starts on the end of the old one, which ends with its employment.
+        assertEquals(List.of(lookup(api, "ASSIGNMENT", "A1")), ok(api.get("/assignments/"
+                + lookup(api, "ASSIGNMENT", "A2"))).get("endedOnStart").findValuesAsText("assignmentId"));
+        assertEquals(List.of(a3), ok(api.get("/assignments/" + lookup(api, "ASSIGNMENT", "A4")))
+                .get("endedOnStart").findValuesAsText("assignmentId"));
 
         // The stored links are the ones of the rows, so the same document changes nothing.
         JsonNode again = ok(api.post("/imports", transfer));

@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
 import java.util.List;
-import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,10 +9,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * An earlier end of an employment removes each assignment of it that would start on the end or later. It does not
- * remove one that another assignment continues, as the delete of that assignment does not.
+ * An earlier end of an employment removes each assignment of it that would start on the end or later. That holds
+ * also for an assignment that ends on the start of another assignment of the person.
  */
 class EndRemovalsIT {
 
@@ -21,14 +21,14 @@ class EndRemovalsIT {
 
     /**
      * A person at company X has an assignment from 2026-04-01 and moves to company Y on 2027-04-01. The copy of the
-     * assignment at company Y continues it.
+     * assignment at company Y starts on the end of it.
      *
      * @param realm the realm
-     * @param x the ID of company X
      * @param old the ID of the employment at company X
      * @param assignment the ID of the assignment at company X
+     * @param copy the ID of the assignment at company Y
      */
-    private record Moved(TestRealm realm, String x, String old, String assignment) {
+    private record Moved(TestRealm realm, String old, String assignment, String copy) {
     }
 
     private static Moved moved(String prefix) throws Exception {
@@ -43,8 +43,9 @@ class EndRemovalsIT {
         HttpResponse<String> transfer = api.postWithVersion("/employments/" + old + "/transfer",
                 "{\"employerId\": \"" + y + "\", \"validFrom\": \"2027-04-01\"}");
         assertEquals(201, transfer.statusCode(), transfer.body());
-        assertEquals(assignment, Api.json(transfer).get("assignments").get(0).get("continuesAssignmentId").asText());
-        return new Moved(realm, x, old, assignment);
+        JsonNode copy = Api.json(transfer).get("assignments").get(0);
+        assertEquals(List.of(assignment), copy.get("endedOnStart").findValuesAsText("assignmentId"));
+        return new Moved(realm, old, assignment, copy.get("id").asText());
     }
 
     private static String unit(Api api, String name) throws Exception {
@@ -57,77 +58,35 @@ class EndRemovalsIT {
         return Api.json(response).get("id").asText();
     }
 
-    // What the delete of the assignment that the copy continues answers.
-    private static JsonNode deleteError(Moved moved) throws Exception {
-        HttpResponse<String> delete = moved.realm().api.deleteWithVersion("/assignments/" + moved.assignment());
-        assertEquals(409, delete.statusCode(), delete.body());
-        JsonNode error = Api.json(delete);
-        assertEquals("assignment.in_use", error.get("error").asText(), delete.body());
-        assertEquals(JSON.valueToTree(Map.of("id", moved.assignment(), "uses", "continuation")), error.get("params"));
-        return error;
+    @Test
+    void anAssignmentThatEndsOnTheStartOfAnotherCanBeDeleted() throws Exception {
+        Moved moved = moved("end-removals-delete");
+        Api api = moved.realm().api;
+
+        assertEquals(204, api.deleteWithVersion("/assignments/" + moved.assignment()).statusCode());
+
+        assertEquals(404, api.get("/assignments/" + moved.assignment()).statusCode());
+        assertFalse(Api.json(api.get("/assignments/" + moved.copy())).has("endedOnStart"));
     }
 
     @Test
-    void anEarlierEndThatWouldRemoveAContinuedAssignmentFailsAsItsDeleteAndWritesNothing() throws Exception {
+    void anEarlierEndRemovesAnAssignmentThatEndsOnTheStartOfAnother() throws Exception {
         Moved moved = moved("end-removals-end");
         Api api = moved.realm().api;
-        JsonNode delete = deleteError(moved);
-        ObjectNode before = RealmExportIT.export(api);
 
         HttpResponse<String> end = api.putWithVersion("/employments/" + moved.old() + "/end",
                 "{\"validTo\": \"2026-01-01\"}");
 
-        assertEquals(409, end.statusCode(), end.body());
-        assertEquals(delete, Api.json(end));
-        assertEquals(before, RealmExportIT.export(api));
+        assertEquals(200, end.statusCode(), end.body());
+        assertEquals(404, api.get("/assignments/" + moved.assignment()).statusCode());
+        assertFalse(Api.json(api.get("/assignments/" + moved.copy())).has("endedOnStart"));
     }
 
     @Test
-    void anImportRowThatWouldRemoveAContinuedAssignmentFailsTheSameWay() throws Exception {
-        Moved moved = moved("end-removals-import");
-        Api api = moved.realm().api;
-        JsonNode delete = deleteError(moved);
-        ObjectNode before = RealmExportIT.export(api);
-
-        HttpResponse<String> imported = api.post("/imports", "{\"effectiveDate\": \"2025-04-01\", \"source\": "
-                + "\"sheet\", \"employments\": [{\"id\": \"" + moved.old() + "\", \"validTo\": \"2026-01-01\"}]}");
-
-        assertEquals(400, imported.statusCode(), imported.body());
-        JsonNode errors = Api.json(imported).get("errors");
-        assertEquals(1, errors.size(), errors.toString());
-        assertEquals(List.of("employments", "0", delete.get("error").asText()), List.of(
-                errors.get(0).get("list").asText(), errors.get(0).get("row").asText(),
-                errors.get(0).get("error").asText()));
-        assertEquals(delete.get("params"), errors.get(0).get("params"));
-        assertEquals(before, RealmExportIT.export(api));
-    }
-
-    @Test
-    void aTransferOrAMergerThatWouldRemoveAContinuedAssignmentFailsTheSameWay() throws Exception {
-        for (boolean merger : List.of(true, false)) {
-            Moved moved = moved("end-removals-transfer");
-            Api api = moved.realm().api;
-            String z = moved.realm().legalEntity("株式会社Zケア");
-            JsonNode delete = deleteError(moved);
-            ObjectNode before = RealmExportIT.export(api);
-
-            HttpResponse<String> response = merger
-                    ? api.post("/employments/transfers", "{\"fromEmployerId\": \"" + moved.x() + "\", "
-                            + "\"toEmployerId\": \"" + z + "\", \"validFrom\": \"2026-01-01\", \"endEmployer\": true}")
-                    : api.postWithVersion("/employments/" + moved.old() + "/transfer", "{\"employerId\": \"" + z
-                            + "\", \"validFrom\": \"2026-01-01\"}");
-
-            assertEquals(409, response.statusCode(), response.body());
-            assertEquals(delete, Api.json(response));
-            assertEquals(before, RealmExportIT.export(api));
-        }
-    }
-
-    @Test
-    void anEarlierEndThatRemovesNoContinuedAssignmentWorksAndItsExportRestores() throws Exception {
+    void anEarlierEndKeepsWhatStartedBeforeItAndItsExportRestores() throws Exception {
         Moved moved = moved("end-removals-kept");
         Api api = moved.realm().api;
-        // A move inside the old employment. The end removes both assignments, so nothing that stays names the first.
+        // A move inside the old employment. The end removes both assignments of it.
         String first = id(api.post("/assignments", "{\"employmentId\": \"" + moved.old() + "\", \"orgUnitId\": \""
                 + unit(api, "検査科") + "\", \"validFrom\": \"2026-06-01\", \"validTo\": \"2026-09-01\"}"));
         HttpResponse<String> move = api.postWithVersion("/assignments/" + first + "/move", "{\"orgUnitId\": \""
@@ -139,7 +98,7 @@ class EndRemovalsIT {
                 "{\"validTo\": \"2026-05-01\"}");
 
         assertEquals(200, end.statusCode(), end.body());
-        // The assignment that the copy continues ends with the employment and stays.
+        // The assignment that started before the end ends with the employment and stays.
         assertEquals("2026-05-01", Api.json(api.get("/assignments/" + moved.assignment())).get("validTo").asText());
         assertEquals(404, api.get("/assignments/" + first).statusCode());
         assertEquals(404, api.get("/assignments/" + second).statusCode());

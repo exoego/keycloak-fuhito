@@ -369,7 +369,6 @@ final class RestoreCheck {
                 optional("assignments", "kindId", p.kindId(), refItems);
                 optional("assignments", "workLocationId", p.workLocationId(), refItems);
                 optional("assignments", "costCenterId", p.costCenterId(), refItems);
-                optional("assignments", "continuesAssignmentId", p.continuesAssignmentId(), assignments);
             }
         }
         for (RealmExport.Line l : all(document.reportingLines())) {

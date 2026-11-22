@@ -409,7 +409,6 @@ public class EmploymentService {
      * Sets the end of an employment.
      * An earlier end is how a person leaves. It also ends the terms, the assignments, and the roles over org units
      * on that date, and removes stored changes that would start on or after it.
-     * It does not remove an assignment that another assignment continues, as the delete of that assignment does not.
      * A later end extends a fixed-term employment and its last terms. It does not extend assignments.
      * A later end cannot pass the start of an employment that continues this one.
      *
@@ -417,9 +416,8 @@ public class EmploymentService {
      * @param validTo the first date on which the employment no longer holds, as {@code YYYY-MM-DD}
      * @param endReason the code of the end reason, or null
      * @return the employment with all its terms
-     * @throws FuhitoException when the date is not after the start of the employment, a value is bad, the
-     *         employment would hold on the start of an employment that continues it, or the end would remove an
-     *         assignment that another assignment continues
+     * @throws FuhitoException when the date is not after the start of the employment, a value is bad, or the
+     *         employment would hold on the start of an employment that continues it
      */
     public EmploymentView end(String id, String validTo, String endReason) {
         return end(id, validTo, endReason, true);
@@ -451,13 +449,12 @@ public class EmploymentService {
 
     /**
      * Ends some employments on one date in one write, as {@link #end(String, String, String)} does for each. Each
-     * keeps its end reason. The end of one may remove an assignment that an assignment of another continues, when the
-     * end of the other removes that one too.
+     * keeps its end reason.
      *
      * @param ids the IDs of employments that start before the date and hold on it
      * @param to the date
      * @return the employments with all their terms, in the order of the IDs
-     * @throws FuhitoException when the ends would remove an assignment that another assignment continues
+     * @throws FuhitoException when an employer does not exist until the end
      */
     List<EmploymentView> endAll(List<String> ids, LocalDate to) {
         if (ids.isEmpty()) {
@@ -540,8 +537,7 @@ public class EmploymentService {
      * @return the two employments and what the new one got
      * @throws FuhitoException when the employment has an external employer or does not hold on the day before and on
      *         the date, its terms of the date have a contract that ends before the date, the new employer is not a
-     *         legal entity, is the old one, or ends before the new employment, the end would remove an assignment
-     *         that another assignment continues, or a value is bad
+     *         legal entity, is the old one, or ends before the new employment, or a value is bad
      */
     public Transfer transfer(String id, TransferRequest request) {
         Checks.required("body", request);
@@ -628,8 +624,7 @@ public class EmploymentService {
         List<String> ids = moves.stream().map(move -> move.employment().id()).toList();
         Holding holding = holding(ids, date);
         List<String> staffNumbers = check(moves, employer, date, holding, endReason, reason);
-        // Each old assignment becomes one new assignment, with every period from the date on. An assignment may
-        // continue one of another employment of the same person that moves too.
+        // Each old assignment becomes one new assignment, with every period from the date on.
         Map<String, String> newAssignmentIds = new HashMap<>();
         holding.rows().values().stream()
                 .flatMap(List::stream)
@@ -645,7 +640,7 @@ public class EmploymentService {
 
         List<Employment> olds = moves.stream().map(Move::employment).toList();
         List<Assignment> rows = holding.rows().values().stream().flatMap(List::stream).toList();
-        checkEnd(olds, date, rows);
+        checkEnd(olds, date);
 
         // The end removes these old resources, so their copies take their external IDs and an import still finds them.
         Map<ExternalId.Kind, Map<String, String>> gone = new EnumMap<>(ExternalId.Kind.class);
@@ -746,17 +741,12 @@ public class EmploymentService {
         moved.forEach(row -> ofEmployment.put(row.assignmentId(), newAssignmentIds.get(row.assignmentId())));
         Map<String, String> goneAssignments = new HashMap<>(ofEmployment);
         goneAssignments.keySet().removeAll(kept);
-        List<Assignment> rows = moved.stream().map(row -> {
-            boolean stays = kept.contains(row.assignmentId());
-            // A copy continues the old assignment that stays. A copy of one that the end removed continues the
-            // copy of what the old one continued, and takes the system that made it.
-            String continues = stays ? row.assignmentId()
-                    : newAssignmentIds.getOrDefault(row.continuesAssignmentId(), row.continuesAssignmentId());
-            return new Assignment(newId(), newAssignmentIds.get(row.assignmentId()), started.id(),
-                    row.orgUnitId(), from(date, row.period()), row.jobTitleId(), row.occupationId(), row.kindId(),
-                    row.workLocationId(), row.costCenterId(), row.head(), row.primary(), row.allocationPercent(),
-                    row.displayOrder(), row.attributes(), stays ? null : row.source(), continues, 1);
-        }).toList();
+        // A copy of an assignment that the end removed takes the system that made it.
+        List<Assignment> rows = moved.stream().map(row -> new Assignment(newId(),
+                newAssignmentIds.get(row.assignmentId()), started.id(), row.orgUnitId(), from(date, row.period()),
+                row.jobTitleId(), row.occupationId(), row.kindId(), row.workLocationId(), row.costCenterId(),
+                row.head(), row.primary(), row.allocationPercent(), row.displayOrder(), row.attributes(),
+                kept.contains(row.assignmentId()) ? null : row.source(), 1)).toList();
         List<ReportingLine> oldLines = ofEmployment.keySet().stream()
                 .flatMap(oldId -> holding.lines().getOrDefault(oldId, List.of()).stream())
                 .toList();
@@ -810,14 +800,14 @@ public class EmploymentService {
     }
 
     private void setEnd(List<Employment> employments, LocalDate to, Function<Employment, String> endReasonId) {
+        checkEnd(employments, to);
         List<Assignment> rows = to == null ? List.of()
                 : assignments.rowsOfEmployments(employments.stream().map(Employment::id).toList());
-        checkEnd(employments, to, rows);
         writeEnd(employments, to, endReasonId, rows);
     }
 
-    // Every check of an end comes before its first write. The rows are all rows of the assignments of the employments.
-    private void checkEnd(List<Employment> employments, LocalDate to, List<Assignment> rows) {
+    // Every check of an end comes before its first write.
+    private void checkEnd(List<Employment> employments, LocalDate to) {
         // Only the end of the period counts, and it is the same for every employment.
         Set<Employer> checked = new HashSet<>();
         for (Employment employment : employments) {
@@ -825,23 +815,6 @@ public class EmploymentService {
                 employers.requireCovers(employment.employer(), employment.period().endingAt(to));
             }
         }
-        if (to == null) {
-            return;
-        }
-        // The end removes an assignment when every row of it starts on the date or later.
-        Set<String> kept = rows.stream()
-                .filter(row -> row.period().from().isBefore(to))
-                .map(Assignment::assignmentId)
-                .collect(Collectors.toSet());
-        Map<String, String> personOf = employments.stream()
-                .collect(Collectors.toMap(Employment::id, Employment::personId));
-        Set<String> removed = new HashSet<>();
-        Set<String> people = new HashSet<>();
-        rows.stream().filter(row -> !kept.contains(row.assignmentId())).forEach(row -> {
-            removed.add(row.assignmentId());
-            people.add(personOf.get(row.employmentId()));
-        });
-        ContinuedAssignments.requireNoneRemoved(store, assignments, people, removed);
     }
 
     private void writeEnd(List<Employment> employments, LocalDate to, Function<Employment, String> endReasonId,

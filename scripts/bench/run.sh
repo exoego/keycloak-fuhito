@@ -90,8 +90,13 @@ measure 'Members below the company, by work location' '/org-units/u-0/members?in
 measure 'Members below a division, by cost center' '/org-units/u-1/members?includeDescendants=true&max=1000&costCenter=cc-1'
 measure 'People, first page' '/people?max=100'
 measure 'People, deep page' "/people?first=$((PEOPLE - 1000))&max=100"
+measure 'Assignments, first page' '/assignments?max=100'
+measure 'Assignments, page of 1,000' '/assignments?max=1000'
 measure 'Assignments of a person' '/people/p-12345/assignments?includePath=true'
 measure 'History of a person' '/people/p-12345/history'
+# Person n moved in 2024 when n % 10 < 3.
+measure 'One assignment after a move' '/assignments/a-12342'
+measure 'History of a person who moved' '/people/p-12342/history'
 measure 'Managers of a person' '/people/p-12345/managers'
 measure 'Reports of the head of the company' '/people/p-0/reports?max=100'
 measure 'Reports of the head of a division' '/people/p-1/reports?max=1000'

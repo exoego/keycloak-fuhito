@@ -247,7 +247,7 @@ public class RealmExportService {
                         .map(a -> new RealmExport.Period(a.rowId(), a.employmentId(), a.orgUnitId(),
                                 from(a.period()), to(a.period()), a.jobTitleId(), a.occupationId(), a.kindId(),
                                 a.workLocationId(), a.costCenterId(), a.head(), a.primary(), a.allocationPercent(),
-                                a.displayOrder(), a.attributes(), a.source(), a.continuesAssignmentId()))
+                                a.displayOrder(), a.attributes(), a.source()))
                         .toList()));
     }
 
@@ -493,19 +493,17 @@ public class RealmExportService {
         counts.put("employments", rows.size());
     }
 
-    // A row that continues another assignment comes after it.
     private void restoreAssignments(List<AssignmentRows> assignments, Map<String, Integer> counts) {
         List<RealmExport.Period> rows = new ArrayList<>(assignments.stream()
                 .flatMap(a -> a.periods().stream()).toList());
-        rows.sort(Comparator.comparing((RealmExport.Period r) -> r.continuesAssignmentId() != null)
-                .thenComparing(RealmExport.Period::validFrom));
+        rows.sort(Comparator.comparing(RealmExport.Period::validFrom));
         Map<String, AssignmentRows> assignmentOfRow = new HashMap<>();
         assignments.forEach(a -> a.periods().forEach(r -> assignmentOfRow.put(r.rowId(), a)));
         rows.forEach(r -> stores.assignments().insert(new Assignment(r.rowId(),
                 assignmentOfRow.get(r.rowId()).assignmentId(), r.employmentId(), r.orgUnitId(),
                 period(r.validFrom(), r.validTo()), r.jobTitleId(), r.occupationId(), r.kindId(), r.workLocationId(),
                 r.costCenterId(), r.head(), r.primary(), r.allocationPercent(), r.displayOrder(), r.attributes(),
-                r.source(), r.continuesAssignmentId(), version(assignmentOfRow.get(r.rowId()).version()))));
+                r.source(), version(assignmentOfRow.get(r.rowId()).version()))));
         counts.put("assignments", assignments.size());
     }
 

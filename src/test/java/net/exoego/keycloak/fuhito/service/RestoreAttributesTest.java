@@ -41,7 +41,7 @@ class RestoreAttributesTest {
                 "2020-04-01", null, null, null, null, null, List.of(terms));
         RealmExport.AssignmentRows assignment = new RealmExport.AssignmentRows("a-1", 1L, List.of(
                 new RealmExport.Period("r-1", "e-1", "u-1", "2020-04-01", null, null, null, null, null, null, false,
-                        true, null, 0, of.get("r-1"), null, null)));
+                        true, null, 0, of.get("r-1"), null)));
         return new RealmExport(RealmExport.FORMAT, null, List.of(item("g1", "GRADE", "g1", of.get("g1")),
                 item("approver", "UNIT_ROLE", "approver", Map.of())), definitions, null, List.of(unit),
                 List.of(new RealmExport.PersonRow("p-1", 1L, null, null, null, of.get("p-1"), null, null)),

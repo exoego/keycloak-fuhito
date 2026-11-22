@@ -11,6 +11,7 @@ import static net.exoego.keycloak.fuhito.ImportIT.lookup;
 import static net.exoego.keycloak.fuhito.ImportIT.ok;
 import static net.exoego.keycloak.fuhito.ImportIT.rows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class ImportContinuesIT {
 
@@ -53,13 +54,12 @@ class ImportContinuesIT {
     }
 
     @Test
-    void aRowFailsWhileTheEmploymentOrAssignmentThatItContinuesHasNotEnded() throws Exception {
+    void aRowFailsWhileTheEmploymentThatItContinuesHasNotEnded() throws Exception {
         TestRealm realm = twoCompanies("import-continues-holds");
         Api api = realm.api;
         String e1 = lookup(api, "EMPLOYMENT", "E1");
         String e3 = lookup(api, "EMPLOYMENT", "E3");
         String a1 = lookup(api, "ASSIGNMENT", "A1");
-        String a3 = lookup(api, "ASSIGNMENT", "A3");
 
         // Sato moves to company Y with no row that ends the old employment. The old employment of Suzuki ends a
         // month after the new one starts.
@@ -69,18 +69,11 @@ class ImportContinuesIT {
                    {"externalId": "E2", "username": "sato", "employerExternalId": "Y", "continuesEmploymentExternalId": "E1"},
                    {"externalId": "E3", "username": "suzuki", "employerExternalId": "X", "validTo": "2026-05-01"},
                    {"externalId": "E4", "username": "suzuki", "employerExternalId": "Y", "continuesEmploymentExternalId": "E3"}
-                 ],
-                 "assignments": [
-                   {"externalId": "A2", "employmentExternalId": "E2", "orgUnitExternalId": "L", "primary": true,
-                    "continuesAssignmentExternalId": "A1"},
-                   {"externalId": "A4", "employmentExternalId": "E4", "orgUnitExternalId": "L", "primary": true,
-                    "continuesAssignmentExternalId": "A3"}
                  ]}
                 """);
 
         assertEquals(List.of("employments[0] employment.continues_holds " + e1,
-                "employments[2] employment.continues_holds " + e3, "assignments[0] assignment.continues_holds " + a1,
-                "assignments[1] assignment.continues_holds " + a3), errors(unended));
+                "employments[2] employment.continues_holds " + e3), errors(unended));
         assertEquals("The employment \"" + e1 + "\" does not end by 2026-04-01, when the employment that continues "
                 + "it starts. Its end must be on that date or before.",
                 Api.json(unended).get("errors").get(0).get("message").asText());
@@ -98,10 +91,9 @@ class ImportContinuesIT {
                     "continuesEmploymentExternalId": "E3"}
                  ],
                  "assignments": [
-                   {"externalId": "A2", "employmentExternalId": "E2", "orgUnitExternalId": "L", "primary": true,
-                    "continuesAssignmentExternalId": "A1"},
+                   {"externalId": "A2", "employmentExternalId": "E2", "orgUnitExternalId": "L", "primary": true},
                    {"externalId": "A4", "employmentExternalId": "E4", "orgUnitExternalId": "L", "primary": true,
-                    "validFrom": "2026-05-01", "continuesAssignmentExternalId": "A3"}
+                    "validFrom": "2026-05-01"}
                  ]}
                 """));
         assertEquals(2, moved.get("counts").get("employments").get("created").asInt(), moved.toString());
@@ -109,6 +101,10 @@ class ImportContinuesIT {
         assertEquals(2, moved.get("counts").get("assignments").get("created").asInt(), moved.toString());
         assertEquals(e3, ok(api.get("/employments/" + lookup(api, "EMPLOYMENT", "E4"))).get("continuesEmploymentId")
                 .asText());
+        // The new assignment of Sato starts on the end of the old one. The one of Suzuki starts after a gap.
+        assertEquals(List.of(a1), ok(api.get("/assignments/" + lookup(api, "ASSIGNMENT", "A2"))).get("endedOnStart")
+                .findValuesAsText("assignmentId"));
+        assertFalse(ok(api.get("/assignments/" + lookup(api, "ASSIGNMENT", "A4"))).has("endedOnStart"));
 
         // A later file cannot open the old employment again.
         HttpResponse<String> reopened = api.post("/imports", """
@@ -119,8 +115,9 @@ class ImportContinuesIT {
         assertEquals("2026-04-01", ok(api.get("/employments/" + e1)).get("validTo").asText());
     }
 
+    // An assignment that is not primary may hold on beside the one that a move started.
     @Test
-    void aFileCannotOpenAgainWhatATransferOrAMoveEnded() throws Exception {
+    void aFileCannotOpenAgainWhatATransferEndedButCanOpenAMovedAssignment() throws Exception {
         TestRealm realm = twoCompanies("import-continues-reopen");
         Api api = realm.api;
         ok(api.post("/imports", """
@@ -140,8 +137,12 @@ class ImportContinuesIT {
                  "assignments": [{"externalId": "C3", "validTo": "2026-10-01"}]}
                 """);
 
-        assertEquals(List.of("employments[0] employment.continues_holds " + e1,
-                "assignments[0] assignment.continues_holds " + c3), errors(reopened));
+        assertEquals(List.of("employments[0] employment.continues_holds " + e1), errors(reopened));
         assertEquals("2026-04-01", ok(api.get("/assignments/" + c3)).get("validTo").asText());
+        ok(api.post("/imports", """
+                {"effectiveDate": "2026-04-01", "source": "sheet",
+                 "assignments": [{"externalId": "C3", "validTo": "2026-10-01"}]}
+                """));
+        assertEquals("2026-10-01", ok(api.get("/assignments/" + c3)).get("validTo").asText());
     }
 }

@@ -153,7 +153,7 @@ public record RealmExport(
     public record Period(String rowId, String employmentId, String orgUnitId, String validFrom, String validTo,
             String jobTitleId, String occupationId, String kindId, String workLocationId, String costCenterId,
             boolean head, boolean primary, BigDecimal allocationPercent, int displayOrder,
-            Map<String, Object> attributes, String source, String continuesAssignmentId) {
+            Map<String, Object> attributes, String source) {
     }
 
     @Schema(name = "ExportReportingLine")

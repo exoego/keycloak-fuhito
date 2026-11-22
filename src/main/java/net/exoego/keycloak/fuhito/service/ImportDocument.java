@@ -730,9 +730,9 @@ public record ImportDocument(
     public record AssignmentRow(
             @Schema(
                     description = "The name of the system that the row comes from. The default is the source of the "
-                            + "document. A row by `id` with this and none of `externalId`, `employmentExternalId`, "
-                            + "`orgUnitExternalId`, and `continuesAssignmentExternalId` must give the `source` that a "
-                            + "read of the assignment has, or it fails with `import.value_fixed`.",
+                            + "document. A row by `id` with this and none of `externalId`, `employmentExternalId`, and "
+                            + "`orgUnitExternalId` must give the `source` that a read of the assignment has, or it "
+                            + "fails with `import.value_fixed`.",
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String source,
@@ -784,13 +784,6 @@ public record ImportDocument(
             @Schema(description = "The ID of a stored assignment, for a row of an assignment with no external ID. A "
                     + "CSV export has it in every row. A new assignment has none.")
             String id,
-            @Schema(description = "The external ID of the assignment that this one continues after a transfer "
-                    + "between employers, with the same source. A new assignment gets the link. A stored one must "
-                    + "have the same. The one it continues must end by the start of this one.")
-            String continuesAssignmentExternalId,
-            @Schema(description = "The ID of the assignment that this one continues. Give this or "
-                    + "`continuesAssignmentExternalId`, not both.")
-            String continuesAssignmentId,
             @Schema(description = "The code of the work location. With none, the one of the org unit applies.")
             String workLocation,
             @Schema(description = "The code of the cost center. With none, the one of the org unit applies.")
@@ -801,11 +794,11 @@ public record ImportDocument(
         public AssignmentRow(String source, String externalId, String employmentExternalId, String orgUnitExternalId,
                 String jobTitle, String occupation, String kind, Boolean head, Boolean primary,
                 BigDecimal allocationPercent, Integer displayOrder, Map<String, Object> attributes, String validFrom,
-                String validTo, String employmentId, String orgUnitId, String id, String continuesAssignmentExternalId,
-                String continuesAssignmentId, String workLocation, String costCenter) {
+                String validTo, String employmentId, String orgUnitId, String id, String workLocation,
+                String costCenter) {
             this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head, primary,
                     allocationPercent, displayOrder, attributes, validFrom, validTo, employmentId, orgUnitId, id,
-                    continuesAssignmentExternalId, continuesAssignmentId, workLocation, costCenter, Set.of());
+                    workLocation, costCenter, Set.of());
         }
 
         public AssignmentRow(String source, String externalId, String employmentExternalId,
@@ -814,7 +807,7 @@ public record ImportDocument(
                 String validFrom, String validTo, String employmentId, String orgUnitId, String id) {
             this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head,
                     primary, allocationPercent, displayOrder, attributes, validFrom, validTo, employmentId, orgUnitId,
-                    id, null, null, null, null);
+                    id, null, null);
         }
 
         /**
@@ -841,7 +834,7 @@ public record ImportDocument(
                 String validFrom, String validTo) {
             this(source, externalId, employmentExternalId, orgUnitExternalId, jobTitle, occupation, kind, head,
                     primary, allocationPercent, displayOrder, attributes, validFrom, validTo, null, null, null, null,
-                    null, null, null);
+                    null);
         }
     }
 

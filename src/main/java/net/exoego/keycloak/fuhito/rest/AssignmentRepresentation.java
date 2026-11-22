@@ -50,10 +50,16 @@ public record AssignmentRepresentation(
                 readOnly = true)
         List<ExternalIdPairRepresentation> externalIds,
         @Schema(
-                description = "The ID of the assignment that this one continues, after a move to another org unit "
-                        + "or a transfer to another employer.",
+                description = "The assignments of the same person, in any of the person's employments, whose "
+                        + "`validTo` is the `validFrom` of this one and that have the same primary flag, by "
+                        + "`assignmentId`. A move to another org unit gives the old assignment, and so do a transfer "
+                        + "and a merger of employers. Two posts can also end and start on one day with no tie "
+                        + "between them, so this states only the dates. A gap gives none. It is missing when there "
+                        + "is none. A read works it out from the other assignments, and a write never stores it. A "
+                        + "create may leave it out. A create that gives another list than the one that the new "
+                        + "assignment gets fails with 400 and `invalid.value_fixed`, and writes nothing.",
                 readOnly = true)
-        String continuesAssignmentId,
+        List<EndedAssignmentRepresentation> endedOnStart,
         @Schema(description = "The code of the first job title.", writeOnly = true)
         String jobTitle,
         @Schema(description = "The code of the first occupation.", writeOnly = true)
@@ -174,8 +180,8 @@ public record AssignmentRepresentation(
         return new AssignmentRepresentation(view.assignmentId(), first.version(), first.employmentId(),
                 view.userId(), first.orgUnitId(), view.period().from().toString(), text(view.period().to()), null,
                 first.source(), ExternalIdPairRepresentation.of(ids.of(view.assignmentId(), first.source())),
-                view.continuesAssignmentId(), null, null, null, null, null, null, null, null, null,
-                null, null, view.rows().stream()
+                EndedAssignmentRepresentation.of(view.endedOnStart()), null, null, null, null, null, null, null, null,
+                null, null, null, view.rows().stream()
                         .map(r -> new Details(null, r.row().period().from().toString(), text(r.row().period().to()),
                                 r.jobTitle(), r.occupation(), r.kind(), r.places().workLocation(),
                                 r.places().costCenter(), r.places().effectiveWorkLocation(),

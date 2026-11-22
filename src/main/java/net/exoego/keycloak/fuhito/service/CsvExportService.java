@@ -382,7 +382,7 @@ public class CsvExportService {
         List<String> header = new ArrayList<>();
         for (String field : List.of("id", "externalId", "source", "employmentId", "orgUnitId", "jobTitle",
                 "occupation", "assignmentKind", "workLocation", "costCenter", "head", "primary", "allocationPercent",
-                "displayOrder", "validFrom", "validTo", "continuesAssignmentId")) {
+                "displayOrder", "validFrom", "validTo")) {
             header.add(column(field, japanese));
         }
         attributes.forEach(attribute -> header.add(CsvImportService.ATTRIBUTE_COLUMN + attribute));
@@ -405,7 +405,7 @@ public class CsvExportService {
                         text(current.places().costCenter()), Boolean.toString(row.head()),
                         Boolean.toString(row.primary()), number(row.allocationPercent()),
                         Integer.toString(row.displayOrder()), view.period().from().toString(),
-                        text(view.period().to()), text(view.continuesAssignmentId())));
+                        text(view.period().to())));
                 attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(row.attributes())
                         .map(values -> values.get(attribute)).orElse(null))));
                 line(csv, cells);

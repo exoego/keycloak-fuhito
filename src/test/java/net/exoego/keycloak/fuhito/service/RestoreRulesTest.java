@@ -55,7 +55,7 @@ class RestoreRulesTest {
 
     private static RealmExport.AssignmentRows assignment(String id) {
         return new RealmExport.AssignmentRows(id, 1L, List.of(new RealmExport.Period("r-" + id, "e-1", "u-1",
-                "2020-04-01", null, null, null, null, null, null, false, false, null, 0, Map.of(), null, null)));
+                "2020-04-01", null, null, null, null, null, null, false, false, null, 0, Map.of(), null)));
     }
 
     private static RealmExport.Line line(String id, String assignmentId, String kind) {

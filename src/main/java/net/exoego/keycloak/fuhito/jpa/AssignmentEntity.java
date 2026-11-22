@@ -75,9 +75,6 @@ public class AssignmentEntity implements VersionedRow {
     @Column(name = "SOURCE", length = 64)
     String source;
 
-    @Column(name = "CONTINUES_ASSIGNMENT_ID", length = 36)
-    String continuesAssignmentId;
-
     // The version of the assignment. Every row of it has the same one.
     @Column(name = "VERSION", nullable = false)
     long version;
