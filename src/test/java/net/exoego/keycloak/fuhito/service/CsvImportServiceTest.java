@@ -434,16 +434,38 @@ class CsvImportServiceTest {
                 line 2",
                 """);
 
-        // The rows that the cells fail come first.
-        assertEquals(List.of("line 4 row 2 invalid.blank", "line 7 row 5 csv.too_many_cells",
-                "line 8 row 6 invalid.blank", "line 2 row 0 invalid.surrounding_space",
-                "line 3 row 1 invalid.surrounding_space", "line 5 row 3 invalid.surrounding_space",
-                "line 6 row 4 invalid.surrounding_space", "line 9 row 7 invalid.surrounding_space"), errors(result));
-        assertEquals(List.of(Map.of("field", "name"), Map.of("columns", "4", "cells", "5"),
-                Map.of("field", "externalId"), Map.of("field", "names.ja.name"), Map.of("field", "names.ja.name"),
-                Map.of("field", "timeZone"), Map.of("field", "externalId"), Map.of("field", "names.ja.name")),
+        // The rows that fail before the import reads stored data come first.
+        assertEquals(List.of("line 4 row 2 invalid.blank", "line 6 row 4 invalid.surrounding_space",
+                "line 7 row 5 csv.too_many_cells", "line 8 row 6 invalid.blank",
+                "line 2 row 0 invalid.surrounding_space", "line 3 row 1 invalid.surrounding_space",
+                "line 5 row 3 invalid.surrounding_space", "line 9 row 7 invalid.surrounding_space"), errors(result));
+        assertEquals(List.of(Map.of("field", "name"), Map.of("field", "externalId"),
+                Map.of("columns", "4", "cells", "5"), Map.of("field", "externalId"), Map.of("field", "names.ja.name"),
+                Map.of("field", "names.ja.name"), Map.of("field", "timeZone"), Map.of("field", "names.ja.name")),
                 result.errors().stream().map(e -> e.error().params()).toList());
         assertEquals("line 1\nline 2", unit("H", "2026-04-01").version().names().primary().name());
+    }
+
+    // The import and the cells of the primary names find a stored unit by these keys.
+    @Test
+    void aKeyWithSpacesAroundItFailsBeforeTheImportLooksItUp() {
+        load("orgUnits", "2026-04-01", "externalId,primaryLanguage,name\nH,ja,病院\n");
+        String h = stored(ExternalId.Kind.ORG_UNIT, "import", "H");
+
+        CsvImportService.Result result = load("orgUnits", "2026-05-01", """
+                id,externalId,primaryLanguage,name,parentExternalId,source
+                %s,H ,ja,本院,,
+                ,　H,,本院,,
+                ,W,ja,病棟,H\t,
+                %s,H,ja,本院,,h r
+                """.formatted(h, h));
+
+        assertEquals(List.of("line 2 row 0 invalid.surrounding_space", "line 3 row 1 invalid.surrounding_space",
+                "line 4 row 2 invalid.surrounding_space", "line 5 row 3 invalid.code"), errors(result));
+        assertEquals(List.of(Map.of("field", "externalId"), Map.of("field", "externalId"),
+                Map.of("field", "parentExternalId"), Map.of("field", "source")),
+                result.errors().stream().map(e -> e.error().params()).toList());
+        assertEquals("病院", unit("H", "2026-05-01").version().names().primary().name());
     }
 
     @Test
@@ -592,11 +614,13 @@ class CsvImportServiceTest {
                 外部ID,終了日,後継の外部ID
                 OLD,2027-04-01,100\\|2024||C:\\\\200
                 """)));
-        // An item keeps the spaces around it, so no unit has the external ID of the first item.
-        assertEquals(List.of("line 2 row 0 import.successor_unknown"), errors(load("orgUnits", "2026-05-01", """
+        // An item keeps the spaces around it, and an ID of a system has none.
+        CsvImportService.Result padded = load("orgUnits", "2026-05-01", """
                 外部ID,終了日,後継の外部ID
                 OLD,2027-04-01,100\\|2024 |C:\\\\200
-                """)));
+                """);
+        assertEquals(List.of("line 2 row 0 invalid.surrounding_space"), errors(padded));
+        assertEquals(Map.of("field", "successorExternalIds"), padded.errors().getFirst().error().params());
         assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
                 外部ID,終了日,後継の外部ID
                 OLD,2027-04-01,100\\|2024|C:\\\\200

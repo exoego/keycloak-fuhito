@@ -114,14 +114,40 @@ class SurroundingSpaceIT {
                  "changeOrders": [{"externalId": "O", "title": "異動", "externalReference": " DOC-9"}]}
                 """;
 
+        // A bad key fails before the import reads stored data, so its row comes first in its list.
         assertEquals(List.of("changeOrders[0] invalid.surrounding_space externalReference",
-                "orgUnits[0] invalid.surrounding_space names.ja.name",
                 "orgUnits[1] invalid.surrounding_space externalId",
+                "orgUnits[0] invalid.surrounding_space names.ja.name",
                 "orgUnits[2] invalid.surrounding_space timeZone",
                 "people[0] invalid.surrounding_space attributes.tags"), rowFailures(api.post("/imports", document)));
         assertEquals("0", rows(realm, "fuhito_org_unit"));
         assertEquals("0", rows(realm, "fuhito_person"));
         assertEquals("0", rows(realm, "fuhito_change_order"));
+    }
+
+    // A row names stored things by these keys, so a bad key fails before the import looks it up.
+    @Test
+    void anImportRowWithAKeyWithSpacesAroundItFailsWithTheErrorOfTheKey() throws Exception {
+        TestRealm realm = TestRealm.create("surrounding-space-keys");
+        Api api = realm.api;
+        ok(api.post("/imports", "{\"effectiveDate\": \"2026-04-01\", \"orgUnits\": [{\"externalId\": \"H\", "
+                + NAMES.formatted("病院") + "}]}"));
+        String lookup = "/external-ids/lookup?resourceType=ORG_UNIT&source=import&externalId=";
+        String h = ok(api.get(lookup + "H")).get("resourceId").asText();
+        String document = "{\"effectiveDate\": \"2026-05-01\", \"orgUnits\": [{\"id\": \"" + h + "\", "
+                + "\"externalId\": \"H \", " + NAMES.formatted("本院") + "}, {\"externalId\": \"W\", "
+                + NAMES.formatted("病棟") + ", \"parentExternalId\": \"\\tH\"}]}";
+
+        assertEquals(List.of("orgUnits[0] invalid.surrounding_space externalId",
+                "orgUnits[1] invalid.surrounding_space parentExternalId"), rowFailures(api.post("/imports", document)));
+        assertEquals(List.of("orgUnits[0] invalid.surrounding_space externalId"),
+                rowFailures(csv(api, "org-units", "id,externalId,name\r\n" + h + ",H ,本院\r\n")));
+        // A read finds no ID with spaces around it, as it finds no other ID that a write never stores.
+        HttpResponse<String> read = api.get(lookup + "H%20");
+        assertEquals(404, read.statusCode(), read.body());
+        assertEquals("external_id.unknown", Api.json(read).get("error").asText());
+        assertEquals("病院", Api.json(api.get("/org-units/" + h + "?asOf=2026-05-01")).get("name").asText());
+        assertEquals("1", rows(realm, "fuhito_org_unit"));
     }
 
     @Test
@@ -148,9 +174,9 @@ class SurroundingSpaceIT {
                 F ,ja,耳鼻科,,
                 """);
         assertEquals(List.of("orgUnits[1] invalid.blank name", "orgUnits[4] invalid.blank attributes.tags",
+                "orgUnits[5] invalid.surrounding_space externalId",
                 "orgUnits[0] invalid.surrounding_space names.ja.name", "orgUnits[2] invalid.surrounding_space timeZone",
-                "orgUnits[3] invalid.surrounding_space attributes.tags",
-                "orgUnits[5] invalid.surrounding_space externalId"), rowFailures(cells));
+                "orgUnits[3] invalid.surrounding_space attributes.tags"), rowFailures(cells));
         assertEquals("0", rows(realm, "fuhito_org_unit"));
 
         ok(csv(api, "org-units", "externalId,primaryLanguage,name,attributes.tags\r\nA,ja,\"内 科\",night|day\r\n"));

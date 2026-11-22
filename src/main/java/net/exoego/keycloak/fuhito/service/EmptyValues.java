@@ -19,20 +19,23 @@ public final class EmptyValues {
     }
 
     /**
-     * Requires a row of an import with no empty value.
+     * Requires a row of an import with no empty value, and with keys in the form that a write takes, as
+     * {@link RowKeys} checks them.
      *
      * @param <R> the type of the row
      * @param row the row
      * @return the row
-     * @throws FuhitoException when the row is missing, a value is empty, or a text cannot be stored
+     * @throws FuhitoException when the row is missing, a value is empty, a text cannot be stored, or a key is bad
      */
     static <R extends Record> R checked(R row) {
-        return withoutEmptyValues(Checks.required("row", row));
+        withoutEmptyValues(Checks.required("row", row));
+        RowKeys.require(row);
+        return row;
     }
 
     /**
      * Tells whether a row of an import passes {@link #checked(Record)}. An import reads stored data only for such
-     * rows, so that a text that the database cannot take never reaches it.
+     * rows, so that a text that the database cannot take never reaches it, and a bad key fails with its own error.
      *
      * @param row the row, or null
      * @return true when the row passes

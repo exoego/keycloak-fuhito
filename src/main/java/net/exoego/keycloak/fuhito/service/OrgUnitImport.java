@@ -81,7 +81,7 @@ final class OrgUnitImport {
                 fail(i, FuhitoException.invalid("import.duplicate_row", Map.of("externalId", name(row))));
             } else {
                 try {
-                    EmptyValues.withoutEmptyValues(row);
+                    EmptyValues.checked(row);
                 } catch (FuhitoException e) {
                     fail(i, e);
                 }

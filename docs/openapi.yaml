@@ -6864,7 +6864,9 @@ paths:
     get:
       summary: Finds the resource that an ID of a system names.
       description: "Every ID of every system counts, also the one of the system that\
-        \ made the resource."
+        \ made the resource. A read stores nothing, so it checks no form. An ID with\
+        \ spaces around it, which no write stores, finds nothing and fails with 404\
+        \ and `external_id.unknown`."
       operationId: lookUpExternalId
       tags:
       - general
@@ -7116,18 +7118,22 @@ paths:
         \ such as `names` or `attributes` merges by key in the same way. An empty\
         \ text, a text of only spaces, and an empty array fail with `invalid.blank`.\
         \ A text with white space at its start or end fails with `invalid.surrounding_space`,\
-        \ as in a write, and nothing is stripped. A text with NUL (U+0000) or half\
-        \ of a surrogate pair fails with `invalid.character`, as the database cannot\
-        \ store it. A document that gives one key twice in one object fails as a whole\
-        \ with `invalid.duplicate_key`, which names the key with its path, such as\
-        \ `orgUnits[1].names.ja`. A key that the document does not have fails as a\
-        \ whole with `invalid.unknown_key`, as in a write. It names the key with its\
-        \ path, such as `employments[2].employerExternalID`. This holds for the keys\
-        \ of the document, of each row, and of the names of one language, as a CSV\
-        \ column that its list does not have fails with `csv.bad_column`. The keys\
-        \ of `attributes` are the names of attributes, and their definitions check\
-        \ them. A value of another JSON type than its field fails as a whole with\
-        \ `invalid.type`, as in a write, such as `\"3\"` or `3.7` for `displayOrder`.\
+        \ as in a write, and nothing is stripped. This holds also for a key by which\
+        \ a row names a stored thing, such as `externalId`, `parentExternalId`, or\
+        \ an item of `successorExternalIds`, and such a key fails before the import\
+        \ looks it up. So a row with `id` and the `externalId` `H ` fails with `invalid.surrounding_space`.\
+        \ A `source` that is no code fails with `invalid.code` before the lookup too.\
+        \ A text with NUL (U+0000) or half of a surrogate pair fails with `invalid.character`,\
+        \ as the database cannot store it. A document that gives one key twice in\
+        \ one object fails as a whole with `invalid.duplicate_key`, which names the\
+        \ key with its path, such as `orgUnits[1].names.ja`. A key that the document\
+        \ does not have fails as a whole with `invalid.unknown_key`, as in a write.\
+        \ It names the key with its path, such as `employments[2].employerExternalID`.\
+        \ This holds for the keys of the document, of each row, and of the names of\
+        \ one language, as a CSV column that its list does not have fails with `csv.bad_column`.\
+        \ The keys of `attributes` are the names of attributes, and their definitions\
+        \ check them. A value of another JSON type than its field fails as a whole\
+        \ with `invalid.type`, as in a write, such as `\"3\"` or `3.7` for `displayOrder`.\
         \ It names the field with its path, such as `refItems[0].displayOrder`, and\
         \ the type of the field. A whole number outside the range of its field fails\
         \ as a whole with `invalid.out_of_range`, which names the field with its path\

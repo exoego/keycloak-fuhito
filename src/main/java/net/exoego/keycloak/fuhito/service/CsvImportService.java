@@ -421,14 +421,16 @@ public class CsvImportService {
         }
     }
 
-    // The stored thing that a row names, as the import finds it. The import reports a row that names nothing.
+    // The stored thing that a row names, as the import finds it. The import reports a row that names nothing. A key
+    // that a write never stores fails here with its own error, and not with an error about what the row lacks.
     private Optional<String> storedId(ExternalId.Kind kind, Cells cells, String defaultSource) {
         String id = cells.text("id");
         String externalId = cells.text("externalId");
         if (id != null || externalId == null) {
             return Optional.ofNullable(id);
         }
-        return resourceOf(kind, cells.text("source"), externalId, defaultSource);
+        return resourceOf(kind, Checks.optionalCode("source", cells.text("source")),
+                ExternalIdService.value(externalId), defaultSource);
     }
 
     private RefKindRow refKind(Cells cells, String defaultSource) {

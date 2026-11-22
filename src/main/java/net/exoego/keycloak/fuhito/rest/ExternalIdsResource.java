@@ -88,7 +88,9 @@ public class ExternalIdsResource {
     @Operation(
             operationId = "lookUpExternalId",
             summary = "Finds the resource that an ID of a system names.",
-            description = "Every ID of every system counts, also the one of the system that made the resource.")
+            description = "Every ID of every system counts, also the one of the system that made the resource. A "
+                    + "read stores nothing, so it checks no form. An ID with spaces around it, which no write stores, "
+                    + "finds nothing and fails with 404 and `external_id.unknown`.")
     @APIResponse(responseCode = "200", description = "The ID with its resource.")
     @BadRequest
     @NotFound
