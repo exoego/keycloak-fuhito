@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -22,6 +21,7 @@ import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.AssignmentView;
 import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.EndedOnStartChanges;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.MembershipService;
@@ -173,16 +173,14 @@ public class AssignmentsResource {
         context.requireWrite();
         return Calls.run(context, () -> {
             Calls.body(body);
-            // A switch of the primary flag changes the other assignments of the employment.
-            if (Boolean.TRUE.equals(body.switchPrimary())) {
-                context.lock(scopes.assignmentsOfEmployment(body.employmentId()));
-            }
+            context.lock(scopes.assignmentsOfPerson(body.employmentId()));
             AssignmentService.Written added = service.add(body.toValues());
             var assignment = represent(added.view());
             // The list is known only once the assignment is there. A failure rolls the write back.
             Checks.fixed("endedOnStart", assignment.endedOnStart(), body.endedOnStart());
             Writes.recordAll(context, externalIds, List.of(new RequestContext.ChangeRecord(Change.CREATE,
-                    RESOURCE_TYPE, assignment.id(), path(assignment.id()), assignment)), added.others());
+                    RESOURCE_TYPE, assignment.id(), path(assignment.id()), assignment, added.propagated())),
+                    added.others());
             return Response.status(Response.Status.CREATED).entity(assignment).build();
         });
     }
@@ -220,9 +218,11 @@ public class AssignmentsResource {
                     required = true)
             @QueryParam("version") Long version) {
         context.requireWrite();
-        return Calls.guarded(context, version, () -> version(id), () -> {
+        return Calls.guarded(context, version, () -> version(id), () -> scopes.assignmentsBeside(id), () -> {
+            EndedOnStartChanges endings = service.watch(id);
             removals.remove(ResourceRemoval.Kind.ASSIGNMENT, id);
-            context.recordChange(Change.DELETE, RESOURCE_TYPE, id, "fuhito/assignments/" + id, null);
+            context.recordChange(Change.DELETE, RESOURCE_TYPE, id, "fuhito/assignments/" + id, null,
+                    endings.changed());
             return Response.noContent().build();
         });
     }
@@ -243,15 +243,14 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             AssignmentRepresentation.Details body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id),
-                () -> Boolean.TRUE.equals(body.switchPrimary()) ? scopes.assignmentsBeside(id) : Map.of(), () -> {
+        return Calls.guarded(context, body, () -> version(id), () -> scopes.assignmentsBeside(id), () -> {
             Writes.requireRead(body, () -> Writes.periodOn(represent(service.get(id)).periods(),
                     AssignmentRepresentation.Details::validFrom, AssignmentRepresentation.Details::validTo,
                     Checks.date("validFrom", body.validFrom())), AssignmentRepresentation.Details.READ_ONLY);
             AssignmentService.Written changed = service.changeDetails(id, body.toValues());
             var assignment = represent(changed.view());
             Writes.recordAll(context, externalIds, List.of(new RequestContext.ChangeRecord(Change.UPDATE,
-                    RESOURCE_TYPE, id, path(id) + "/details", assignment)), changed.others());
+                    RESOURCE_TYPE, id, path(id) + "/details", assignment, changed.propagated())), changed.others());
             return assignment;
         });
     }
@@ -276,11 +275,11 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             EndRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id), () -> {
+        return Calls.guarded(context, body, () -> version(id), () -> scopes.assignmentsBeside(id), () -> {
             AssignmentService.Written ended = service.end(id, body.validTo());
             var assignment = represent(ended.view());
             Writes.recordAll(context, externalIds, List.of(new RequestContext.ChangeRecord(Change.UPDATE,
-                    RESOURCE_TYPE, id, path(id) + "/end", assignment)), ended.others());
+                    RESOURCE_TYPE, id, path(id) + "/end", assignment, ended.propagated())), ended.others());
             return assignment;
         });
     }
@@ -311,12 +310,13 @@ public class AssignmentsResource {
             @PathParam("id") String id,
             MoveRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id), () -> {
+        return Calls.guarded(context, body, () -> version(id), () -> scopes.assignmentsBeside(id), () -> {
             AssignmentService.Move move = service.move(id, body.toRequest());
             var ended = represent(move.ended());
             var started = represent(move.started());
             Writes.recordAll(context, externalIds, List.of(
-                    new RequestContext.ChangeRecord(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/move", ended),
+                    new RequestContext.ChangeRecord(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/move", ended,
+                            move.propagated()),
                     new RequestContext.ChangeRecord(Change.CREATE, RESOURCE_TYPE, started.id(), path(started.id()),
                             started)), move.lines());
             return Response.status(Response.Status.CREATED).entity(MoveRepresentation.of(ended, started)).build();
@@ -344,9 +344,11 @@ public class AssignmentsResource {
                     required = true)
             @QueryParam("version") Long version) {
         context.requireWrite();
-        return Calls.guarded(context, version, () -> version(id), () -> {
-            var assignment = represent(service.removeEnd(id));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
+        return Calls.guarded(context, version, () -> version(id), () -> scopes.assignmentsBeside(id), () -> {
+            AssignmentService.Written opened = service.removeEnd(id);
+            var assignment = represent(opened.view());
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment,
+                    opened.propagated());
             return assignment;
         });
     }

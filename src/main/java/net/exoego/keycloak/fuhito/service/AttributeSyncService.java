@@ -366,7 +366,7 @@ public class AttributeSyncService {
                         today.toString(), null, jobTitle, codeOf(current.occupationId()), codeOf(current.kindId()),
                         codeOf(current.workLocationId()), codeOf(current.costCenterId()), current.head(),
                         current.primary(), false, current.allocationPercent(), current.displayOrder(),
-                        current.attributes(), null, null)).view(), false, "/details");
+                        current.attributes(), null, null)), false, "/details");
                 tally.assignmentsChanged++;
             }
         }
@@ -440,11 +440,11 @@ public class AttributeSyncService {
         boolean hasPrimary = from.assignments().rowsOfEmployment(employment.id()).stream()
                 .anyMatch(row -> row.primary() && row.period().overlaps(ValidPeriod.startingAt(today)));
         LocalDate end = firstEnd(lifeOf(orgUnitId).to(), employment.period().to());
-        AssignmentView added = from.assignmentService().add(new AssignmentValues(employment.id(), orgUnitId,
-                today.toString(), Objects.toString(end, null), jobTitle, null, null, null, !hasPrimary, false, null,
-                null, null, null, SOURCE)).view();
+        AssignmentService.Written added = from.assignmentService().add(new AssignmentValues(employment.id(),
+                orgUnitId, today.toString(), Objects.toString(end, null), jobTitle, null, null, null, !hasPrimary,
+                false, null, null, null, null, SOURCE));
         written(added, true, "");
-        return added.assignmentId();
+        return added.view().assignmentId();
     }
 
     // The versions of one org unit have no gaps.
@@ -468,12 +468,13 @@ public class AttributeSyncService {
                 from.lines().delete(line.id());
                 record.accept(Write.Removed.line(line.id()));
             });
+            EndedOnStartChanges endings = from.assignmentService().watch(row.assignmentId());
             rows.forEach(each -> from.assignments().delete(each.rowId()));
-            record.accept(Write.Removed.assignment(row.assignmentId()));
+            record.accept(Write.Removed.assignment(row.assignmentId(), endings.changed()));
             return;
         }
         AssignmentService.Written ended = from.assignmentService().end(row.assignmentId(), today.toString());
-        written(ended.view(), false, "/end");
+        written(ended, false, "/end");
         ended.others().forEach(record);
     }
 
@@ -512,8 +513,8 @@ public class AttributeSyncService {
         return usersFound.contains(userId) || from.users().exists(userId);
     }
 
-    private void written(AssignmentView view, boolean created, String suffix) {
-        record.accept(new Write.OfAssignment(created, suffix, view));
+    private void written(AssignmentService.Written written, boolean created, String suffix) {
+        record.accept(new Write.OfAssignment(created, suffix, written.view(), written.propagated()));
     }
 
     private String codeOf(String refItemId) {

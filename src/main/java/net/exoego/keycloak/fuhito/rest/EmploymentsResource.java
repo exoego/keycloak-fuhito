@@ -305,7 +305,7 @@ public class EmploymentsResource {
             EmploymentService.Ended ended = service.end(id, body.validTo(), body.endReason());
             var employment = represent(ended.view());
             Writes.recordAll(context, externalIds, List.of(new RequestContext.ChangeRecord(Change.UPDATE,
-                    RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment)),
+                    RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment, ended.cut().propagated())),
                     ended.cut().writes(assignments));
             return employment;
         });
@@ -505,7 +505,7 @@ public class EmploymentsResource {
             var ended = employments.next();
             var started = employments.next();
             changes.add(new RequestContext.ChangeRecord(Change.UPDATE, RESOURCE_TYPE, ended.id(),
-                    "fuhito/employments/" + ended.id() + "/transfer", ended));
+                    "fuhito/employments/" + ended.id() + "/transfer", ended, transfer.cut().propagated()));
             changes.addAll(take(cutChanges, cutOfTransfer.next().size()));
             changes.add(new RequestContext.ChangeRecord(Change.CREATE, RESOURCE_TYPE, started.id(),
                     "fuhito/employments/" + started.id(), started));

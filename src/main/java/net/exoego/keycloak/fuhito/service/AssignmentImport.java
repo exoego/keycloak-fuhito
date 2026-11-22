@@ -18,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.AttributeDefinition.Target;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.service.ImportDocument.AssignmentRow;
 import net.exoego.keycloak.fuhito.service.ImportReport.Outcome;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
@@ -39,6 +40,8 @@ final class AssignmentImport {
     private final Map<String, Boolean> units = new HashMap<>();
     private final List<Supplier<Write>> writes = new ArrayList<>();
     private final Map<String, AssignmentView> views = new HashMap<>();
+    // The other assignments whose read each new assignment changed.
+    private final Map<String, List<PropagatedChange>> propagated = new HashMap<>();
 
     AssignmentImport(PeopleImport document) {
         this.document = document;
@@ -74,6 +77,7 @@ final class AssignmentImport {
         added.insert();
         outcomes.values().forEach(outcome -> document.report.count(ASSIGNMENTS, outcome));
         views.putAll(added.views());
+        propagated.putAll(added.changedBy());
         writes.forEach(write -> document.report.write(write.get()));
         document.rowDone.run();
     }
@@ -134,7 +138,8 @@ final class AssignmentImport {
                     Merged.attributes(row, row.attributes(), null, rules, Target.ASSIGNMENT), row.externalId(), source);
             String id = ids.create(ExternalId.Kind.ASSIGNMENT, source, row.externalId(),
                     () -> added.add(values), Function.identity());
-            writes.add(() -> new Write.OfAssignment(true, "", views.get(id)));
+            writes.add(() -> new Write.OfAssignment(true, "", views.get(id),
+                    propagated.getOrDefault(id, List.of())));
             return Outcome.CREATED;
         }
         String id = storedId.get();
@@ -170,7 +175,7 @@ final class AssignmentImport {
         // With no end of its own, an assignment ends with its employment.
         if (validTo == null && !Objects.equals(storedEnd, Objects.toString(document.people.employments()
                 .find(first.employmentId()).orElseThrow().period().to(), null))) {
-            written("/end", first, () -> new AssignmentService.Written(service.removeEnd(id), List.of()));
+            written("/end", first, () -> service.removeEnd(id));
             changed = true;
         } else if (validTo != null && !validTo.equals(storedEnd)) {
             written("/end", first, () -> service.end(id, validTo));
@@ -199,7 +204,7 @@ final class AssignmentImport {
         AssignmentService.Written after = write.get();
         stored.remove(first.assignmentId());
         added.forget(first.employmentId());
-        writes.add(() -> new Write.OfAssignment(false, suffix, after.view()));
+        writes.add(() -> new Write.OfAssignment(false, suffix, after.view(), after.propagated()));
         after.others().forEach(other -> writes.add(() -> other));
     }
 

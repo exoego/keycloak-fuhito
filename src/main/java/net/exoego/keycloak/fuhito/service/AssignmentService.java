@@ -23,6 +23,7 @@ import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
@@ -112,13 +113,16 @@ public class AssignmentService {
     }
 
     /**
-     * An assignment after a write, and the writes of the other records that the write changed.
+     * An assignment after a write, the writes of the other records that the write changed, and the other assignments
+     * whose read it changed.
      *
      * @param view the assignment after the write
      * @param others the writes of the other records. An earlier end ends or removes reporting lines of the
      *        assignment. A switch of the primary flag changes other assignments of the employment.
+     * @param propagated the other assignments of the person whose {@code endedOnStart} the write changed. Their
+     *        versions are counted up already.
      */
-    public record Written(AssignmentView view, List<Write> others) {
+    public record Written(AssignmentView view, List<Write> others, List<PropagatedChange> propagated) {
     }
 
     /**
@@ -135,7 +139,7 @@ public class AssignmentService {
         NewAssignments adds = new NewAssignments(externalIds);
         String id = adds.add(request);
         adds.insert();
-        return new Written(get(id), switched(adds.switched));
+        return new Written(get(id), switched(adds.switched), adds.endings.changed());
     }
 
     /**
@@ -162,6 +166,7 @@ public class AssignmentService {
         private final List<ExternalId> rows = new ArrayList<>();
         private final List<String> inserted = new ArrayList<>();
         private final Set<String> switched = new LinkedHashSet<>();
+        private final EndedOnStartChanges endings = new EndedOnStartChanges(store);
 
         private NewAssignments(ExternalIdWrites ids) {
             this.ids = ids;
@@ -234,13 +239,14 @@ public class AssignmentService {
             String assignmentId = newId();
             Assignment row = row(newId(), assignmentId, employmentId, orgUnitId, period, request, null,
                     Checks.optionalCode("source", request.source()));
-            List<String> holders = claimPrimary(row, request, rowsOf(employmentId));
+            List<String> holders = claimPrimary(row, request, rowsOf(employmentId), endings);
             if (!holders.isEmpty()) {
                 switched.addAll(holders);
                 forget(employmentId);
             }
             rowsOf(employmentId).add(row);
             added.put(assignmentId, row);
+            endings.noteNew(List.of(row));
             ids.forNew(assignmentId, externalId).ifPresent(rows::add);
             return assignmentId;
         }
@@ -269,6 +275,16 @@ public class AssignmentService {
         Map<String, AssignmentView> views() {
             return findAll(inserted);
         }
+
+        /**
+         * Finds the other assignments whose {@code endedOnStart} the new assignments that {@link #insert} stored
+         * changed, and counts up their versions.
+         *
+         * @return the propagated changes by the ID of the new assignment that caused them
+         */
+        Map<String, List<PropagatedChange>> changedBy() {
+            return endings.changedBy();
+        }
     }
 
     /**
@@ -286,28 +302,31 @@ public class AssignmentService {
     public Written changeDetails(String id, AssignmentValues request) {
         Checks.required("body", request);
         LocalDate from = Checks.date("validFrom", request.validFrom());
-        Assignment current = requireRows(id).stream()
+        List<Assignment> rows = requireRows(id);
+        Assignment current = rows.stream()
                 .filter(r -> r.period().contains(from))
                 .findFirst()
                 .orElseThrow(() -> FuhitoException.notFound("assignment.not_valid_on",
                         Map.of("id", id, "date", from.toString())));
+        EndedOnStartChanges endings = new EndedOnStartChanges(store);
+        endings.note(rows);
 
         List<String> holders;
         if (current.period().from().equals(from)) {
             Assignment corrected = row(current.rowId(), id, current.employmentId(), current.orgUnitId(),
                     current.period(), request, current, current.source());
-            holders = claimPrimary(corrected, request);
+            holders = claimPrimary(corrected, request, endings);
             store.update(corrected);
         } else {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new row first, so that a bad value fails before anything is written.
             Assignment next = row(newId(), id, current.employmentId(), current.orgUnitId(), parts.get(1), request,
                     current, current.source());
-            holders = claimPrimary(next, request);
+            holders = claimPrimary(next, request, endings);
             store.update(current.withPeriod(parts.getFirst()));
             store.insert(next);
         }
-        return new Written(get(id), switched(holders));
+        return new Written(get(id), switched(holders), endings.changed());
     }
 
     // An assignment that gave up the primary flag for some dates has new details.
@@ -332,6 +351,13 @@ public class AssignmentService {
      * @throws FuhitoException when the date would cut off a stored change, or the new period is not covered
      */
     public Written end(String id, String validTo) {
+        EndedOnStartChanges endings = new EndedOnStartChanges(store);
+        List<Write> lines = end(id, validTo, endings);
+        return new Written(get(id), lines, endings.changed());
+    }
+
+    // Gives the writes of the reporting lines that the end ended or removed.
+    private List<Write> end(String id, String validTo, EndedOnStartChanges endings) {
         LocalDate to = Checks.date("validTo", validTo);
         List<Assignment> rows = requireRows(id);
         if (!to.isAfter(rows.getFirst().period().from())) {
@@ -341,11 +367,11 @@ public class AssignmentService {
         if (!to.isAfter(last.period().from())) {
             throw FuhitoException.conflict("assignment.later_changes_exist", Map.of("id", id, "validTo", validTo));
         }
-        setEnd(last, to);
-        List<Write> lines = CutRecords.cutLines(reportingLines, List.of(id), to).values().stream()
+        endings.note(rows);
+        setEnd(last, to, endings);
+        return CutRecords.cutLines(reportingLines, List.of(id), to).values().stream()
                 .flatMap(List::stream)
                 .toList();
-        return new Written(get(id), lines);
     }
 
     /**
@@ -354,8 +380,11 @@ public class AssignmentService {
      * @param ended the assignment to the old org unit, with its end
      * @param started the assignment to the new org unit
      * @param lines the writes of the reporting lines of the old assignment that the end ended or removed
+     * @param propagated the other assignments of the person whose {@code endedOnStart} the move changed. Their
+     *        versions are counted up already.
      */
-    public record Move(AssignmentView ended, AssignmentView started, List<Write> lines) {
+    public record Move(AssignmentView ended, AssignmentView started, List<Write> lines,
+            List<PropagatedChange> propagated) {
     }
 
     /**
@@ -395,28 +424,45 @@ public class AssignmentService {
                 idOf(RefKind.COST_CENTER, request.costCenter(), null), Boolean.TRUE.equals(request.head()),
                 last.primary(), last.allocationPercent(), request.displayOrder() == null ? 0 : request.displayOrder(),
                 last.attributes(), null, 1);
+        EndedOnStartChanges endings = new EndedOnStartChanges(store);
         // The end rejects a change that is stored for the date or later, and ends the reporting lines.
-        Written ended = end(id, request.validFrom());
+        List<Write> lines = end(id, request.validFrom(), endings);
         store.insert(next);
-        return new Move(ended.view(), get(next.assignmentId()), ended.others());
+        endings.noteNew(List.of(next));
+        return new Move(get(id), get(next.assignmentId()), lines, endings.changed());
     }
 
     /**
      * Removes the end of an assignment. The assignment then lasts as long as its employment.
      *
      * @param id the ID of the assignment
-     * @return the assignment with all its details
+     * @return the assignment with all its details, and the other assignments whose read the write changed
      * @throws FuhitoException when the org unit does not cover the new period
      */
-    public AssignmentView removeEnd(String id) {
+    public Written removeEnd(String id) {
         List<Assignment> rows = requireRows(id);
+        EndedOnStartChanges endings = new EndedOnStartChanges(store);
+        endings.note(rows);
         Assignment last = rows.getLast();
         LocalDate employmentEnd = employments.find(last.employmentId()).orElseThrow().period().to();
-        setEnd(last, employmentEnd);
-        return get(id);
+        setEnd(last, employmentEnd, endings);
+        return new Written(get(id), List.of(), endings.changed());
     }
 
-    private void setEnd(Assignment last, LocalDate to) {
+    /**
+     * Notes the rows of an assignment before a write that this service does not make changes them, such as a
+     * removal.
+     *
+     * @param id the ID of the assignment
+     * @return the notes, which find the other assignments whose {@code endedOnStart} the write changed
+     */
+    public EndedOnStartChanges watch(String id) {
+        EndedOnStartChanges endings = new EndedOnStartChanges(store);
+        endings.note(store.rows(id));
+        return endings;
+    }
+
+    private void setEnd(Assignment last, LocalDate to, EndedOnStartChanges endings) {
         Assignment changed = last.withPeriod(last.period().endingAt(to));
         boolean longer = last.period().to() != null && (to == null || to.isAfter(last.period().to()));
         if (longer) {
@@ -425,7 +471,7 @@ public class AssignmentService {
             requireOrgUnitCovers(last.orgUnitId(), changed.period());
             if (changed.primary()) {
                 claimPrimary(changed, new AssignmentValues(null, null, null, null, null, null, null, null, true,
-                        false, null, null, null, null, null));
+                        false, null, null, null, null, null), endings);
             }
         }
         store.update(changed);
@@ -551,13 +597,13 @@ public class AssignmentService {
     }
 
     // An employment has at most one primary assignment on any date.
-    private List<String> claimPrimary(Assignment claimant, AssignmentValues request) {
-        return claimPrimary(claimant, request, store.rowsOfEmployment(claimant.employmentId()));
+    private List<String> claimPrimary(Assignment claimant, AssignmentValues request, EndedOnStartChanges endings) {
+        return claimPrimary(claimant, request, store.rowsOfEmployment(claimant.employmentId()), endings);
     }
 
     // Gives the assignments whose rows held the flag and gave it to the claimant. Those rows changed.
     private List<String> claimPrimary(Assignment claimant, AssignmentValues request,
-            List<Assignment> ofEmployment) {
+            List<Assignment> ofEmployment, EndedOnStartChanges endings) {
         if (!claimant.primary()) {
             if (Boolean.TRUE.equals(request.switchPrimary())) {
                 throw FuhitoException.invalid("assignment.switch_primary_unused", Map.of());
@@ -578,8 +624,10 @@ public class AssignmentService {
                     claimant.employmentId(), "assignmentId", holders.getFirst().assignmentId(), "validFrom",
                     claimant.period().from().toString()));
         }
+        List<String> ids = holders.stream().map(Assignment::assignmentId).distinct().toList();
+        endings.note(ofEmployment.stream().filter(row -> ids.contains(row.assignmentId())).toList());
         holders.forEach(holder -> releasePrimary(holder, claimant.period()));
-        return holders.stream().map(Assignment::assignmentId).distinct().toList();
+        return ids;
     }
 
     // Splits the holder so that it stays primary before and after the period, and is not primary inside it.

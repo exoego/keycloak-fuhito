@@ -332,11 +332,22 @@ class AttributeSyncIT {
 
         // The department goes. The sync removes its assignment, which started today and never held.
         setAttributes(alice, Map.of("title", "部長"));
+        long version = api.version("/assignments/" + next);
+        DerivedReads reads = DerivedReads.before(api);
         JsonNode report = run("");
 
         assertEquals(0, report.path("failed").size(), report.toString());
         assertEquals(404, api.get("/assignments/" + synced).statusCode());
         assertFalse(Api.json(api.get("/assignments/" + next)).has("endedOnStart"));
+        // Nobody wrote the next assignment, so it gets a new version and a propagated change of the removal.
+        reads.assertEveryChangeIsLogged();
+        assertEquals(version + 1, api.version("/assignments/" + next));
+        JsonNode propagated = Api.json(api.get("/change-log?kind=PROPAGATED&resourceId=" + next));
+        assertEquals(1, propagated.size(), propagated.toString());
+        long cause = propagated.get(0).get("causeSequence").asLong();
+        JsonNode write = Api.json(api.get("/change-log?max=1&after=" + (cause - 1))).get(0);
+        assertEquals(List.of("DELETE", "fuhito/assignments/" + synced),
+                List.of(write.get("operation").asText(), write.get("resourcePath").asText()));
     }
 
     @Test

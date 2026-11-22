@@ -113,6 +113,34 @@ public class JpaAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public Map<String, List<Assignment>> firstRowsOfPeople(Collection<String> employmentIds) {
+        if (employmentIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<Assignment>> found = new HashMap<>();
+        em.createQuery("""
+                        select e.id, x from AssignmentEntity x
+                        join EmploymentEntity ex on ex.id = x.employmentId
+                        join EmploymentEntity e on e.personId = ex.personId
+                        where %s
+                        and not exists (select 1 from AssignmentEntity older where older.assignmentId = x.assignmentId
+                        and older.validFrom < x.validFrom)
+                        order by e.id, x.assignmentId"""
+                        .formatted(ManyIds.has("e.id", "employmentIds")), Object[].class)
+                .setParameter("employmentIds", ManyIds.of(employmentIds))
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, row -> ((AssignmentEntity) row[1]).realmId))
+                .forEach(row -> found.computeIfAbsent((String) row[0], id -> new ArrayList<>())
+                        .add(toDomain((AssignmentEntity) row[1])));
+        return found;
+    }
+
+    @Override
+    public void countUp(Collection<String> assignmentIds) {
+        Versions.assignments(em, realmId, assignmentIds);
+    }
+
+    @Override
     public long assignmentsHoldingFrom(String orgUnitId, LocalDate date) {
         return em.createQuery("""
                         select a.realmId, count(distinct a.assignmentId) from AssignmentEntity a
