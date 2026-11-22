@@ -24,10 +24,11 @@ final class RestoreAttributes {
     /**
      * Requires that the attributes of every row meet the definitions of the export, as in a write. A name has a
      * definition, a value has its type, a list is given only for a definition with {@code multiple}, and the code of
-     * the type {@code REF_ITEM} is the code of an item of the export of the kind of the definition. A required value
-     * is in every row and every version. The attributes are at most 64 KiB as JSON, and a number is one that a double
-     * gives back the same. A restore stores the attributes as the export has them, so they must be in the form that a
-     * write stores. A name with null is not, because a write leaves it out, and an export never gives one.
+     * the type {@code REF_ITEM} is the code of an item of the export of the kind of the definition. A value of the type
+     * {@code STRING} has no spaces around it. A required value is in every row and every version. The attributes are
+     * at most 64 KiB as JSON, and a number is one that a double gives back the same. A restore stores the attributes
+     * as the export has them, so they must be in the form that a write stores. A name with null is not, because a
+     * write leaves it out, and an export never gives one.
      *
      * @param document the export, whose values are checked, whose IDs and keys are unique, and whose definitions have
      *        known choices and kinds
@@ -35,8 +36,9 @@ final class RestoreAttributes {
      *         error is {@code restore.bad_value} and names the list, the ID of the row, the field, and the error of
      *         the write in {@code rule}. A size names the field {@code attributes} and {@code attribute.too_large}.
      *         Another rule names the attribute in the field, such as {@code attributes.beds}, and
-     *         {@code attribute.unknown}, {@code attribute.bad_value}, or {@code attribute.required}. A name with null
-     *         and a definition names the attribute in the field and has no rule.
+     *         {@code attribute.unknown}, {@code attribute.bad_value}, {@code invalid.surrounding_space}, or
+     *         {@code attribute.required}. A name with null and a definition names the attribute in the field and has
+     *         no rule.
      */
     static void require(RealmExport document) {
         Map<String, Set<String>> codes = new HashMap<>();
@@ -72,8 +74,8 @@ final class RestoreAttributes {
             stored = rules.check(target, attributes);
         } catch (FuhitoException e) {
             String name = e.params().get("name");
-            throw RestoreRules.broken(list, id, name == null ? "attributes" : "attributes." + name, e.code())
-                    .causedBy(e);
+            String field = e.params().getOrDefault("field", name == null ? "attributes" : "attributes." + name);
+            throw RestoreRules.broken(list, id, field, e.code()).causedBy(e);
         }
         attributes.keySet().stream().filter(name -> !stored.containsKey(name)).findFirst().ifPresent(name -> {
             throw RestoreRules.broken(list, id, "attributes." + name, null);

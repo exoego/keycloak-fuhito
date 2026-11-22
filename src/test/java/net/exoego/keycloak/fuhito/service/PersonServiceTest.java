@@ -70,7 +70,7 @@ class PersonServiceTest {
     @Test
     void createsAPersonWithNoUserAndEveryValue() {
         PersonView view = service.create(new PersonValues(null, "JA", Map.of("JA",
-                new PersonName(" 山田 太郎 ", " やまだ たろう "), "en", new PersonName("Taro Yamada", null)),
+                new PersonName("山田 太郎", "やまだ たろう"), "en", new PersonName("Taro Yamada", null)),
                 Map.of("派遣元", "A社"), "P-1", "hr"));
 
         Person person = view.person();

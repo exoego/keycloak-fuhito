@@ -116,7 +116,7 @@ class AttributeDefinitionServiceTest {
         service.create("ASSIGNMENT", "note", "STRING", null, false, null, null);
         service.create("ASSIGNMENT", "since", "DATE", null, false, null, null);
 
-        Map<String, Object> good = Map.of("shifts", List.of("night", " day"), "note", " a ");
+        Map<String, Object> good = Map.of("shifts", List.of("night", "day off"), "note", "a\nb");
         assertEquals(good, service.check(Target.ASSIGNMENT, good));
         for (List<String> bad : List.of(List.of("night", ""), List.of(" "), List.of("\t", "day"))) {
             FuhitoException e = assertThrows(FuhitoException.class,
@@ -129,6 +129,22 @@ class AttributeDefinitionServiceTest {
                     () -> service.check(Target.ASSIGNMENT, Map.of("note", bad))).params());
         }
         assertEquals("invalid.blank", code(() -> service.check(Target.ASSIGNMENT, Map.of("since", ""))));
+    }
+
+    @Test
+    void aTextOfTheTypeStringHasNoSpacesAroundIt() {
+        service.create("ASSIGNMENT", "shifts", "STRING", null, true, null, null);
+        service.create("ASSIGNMENT", "note", "STRING", null, false, null, null);
+        service.create("ASSIGNMENT", "since", "DATE", null, false, null, null);
+
+        for (Map<String, Object> bad : List.<Map<String, Object>>of(Map.of("note", " a"), Map.of("note", "a　"),
+                Map.of("note", "line 1\nline 2\n"), Map.of("shifts", List.of("night", "day\t")))) {
+            FuhitoException e = assertThrows(FuhitoException.class, () -> service.check(Target.ASSIGNMENT, bad));
+            assertEquals("invalid.surrounding_space", e.code(), bad.toString());
+            assertEquals(Map.of("field", "attributes." + bad.keySet().iterator().next()), e.params());
+        }
+        assertEquals("attribute.bad_value", code(() -> service.check(Target.ASSIGNMENT, Map.of("since",
+                " 2026-04-01"))));
     }
 
     @Test
@@ -233,6 +249,10 @@ class AttributeDefinitionServiceTest {
         assertEquals("invalid.blank", code(() -> service.create("PERSON", "jobs", "REF_ITEM", "OCCUPATION", true,
                 true, List.of())));
         assertEquals("invalid.blank", code(() -> service.create("PERSON", "note", "STRING", null, null, true, " ")));
+        FuhitoException padded = assertThrows(FuhitoException.class,
+                () -> service.create("PERSON", "tags", "STRING", null, true, true, List.of("a", " b")));
+        assertEquals("invalid.surrounding_space", padded.code());
+        assertEquals(Map.of("field", "fillValue"), padded.params());
         assertEquals("attribute.too_large", code(() -> service.create("PERSON", "note", "STRING", null, null, true,
                 "a".repeat(65_536))));
         assertEquals(List.of(), store.definitions);

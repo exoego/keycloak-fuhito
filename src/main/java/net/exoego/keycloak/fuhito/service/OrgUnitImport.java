@@ -366,17 +366,13 @@ final class OrgUnitImport {
         OrgUnit unit = units.unit(id).orElseThrow();
         String zone = row.or("timeZone", row.timeZone(), unit.timeZone());
         String start = row.or("dayStart", row.dayStart(), unit.dayStart());
-        if (Objects.equals(stripped(zone), unit.timeZone()) && Objects.equals(stripped(start), unit.dayStart())) {
+        if (Objects.equals(zone, unit.timeZone()) && Objects.equals(start, unit.dayStart())) {
             return false;
         }
         OrgUnit changed = units.write(id, () -> orgUnitService.setTime(id, zone, start));
         Write write = new Write.OfTimeSettings(id, changed.timeZone(), changed.dayStart(), changed.version());
         writes.add(() -> write);
         return true;
-    }
-
-    private static String stripped(String value) {
-        return value == null ? null : value.strip();
     }
 
     // A link decides who is a member of the organization, so the caller must manage the old and the new one.

@@ -333,7 +333,7 @@ class OrgUnitServiceTest {
         String parentId = service.create(named("Hospital", null, "2026-04-01")).unit().id();
 
         OrgUnitState state = service.create(new NewOrgUnit("naika", "JA", Map.of("ja",
-                new OrgUnitName(" 内科 ", "内", "ないか"), "en-us", new OrgUnitName("Internal Medicine", "IM", null)),
+                new OrgUnitName("内科", "内", "ないか"), "en-us", new OrgUnitName("Internal Medicine", "IM", null)),
                 "department", parentId, "2026-04-01", 3, Map.of("floor", 2), "D-001", "hr-system"));
 
         assertEquals("naika", state.version().code());

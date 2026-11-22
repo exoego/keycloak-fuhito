@@ -416,6 +416,36 @@ class CsvImportServiceTest {
         assertEquals(new Counts(1, 0, 0), result.report().counts().get("orgUnits"));
     }
 
+    // A text block drops the spaces at the end of a line, so \s keeps one there.
+    @Test
+    void aCellIsReadWithTheSpacesAroundIt() {
+        CsvImportService.Result result = load("orgUnits", "2026-04-01", """
+                externalId,primaryLanguage,name,timeZone
+                A,ja,内科 ,
+                B,ja,　外科,
+                C,ja,  ,
+                D,ja,眼科,Asia/Tokyo\t
+                E ,ja,皮膚科,
+                F,ja,歯科,,\s
+                 ,\t, ,
+                G,ja,"耳鼻科
+                ",
+                H,ja,"line 1
+                line 2",
+                """);
+
+        // The rows that the cells fail come first.
+        assertEquals(List.of("line 4 row 2 invalid.blank", "line 7 row 5 csv.too_many_cells",
+                "line 8 row 6 invalid.blank", "line 2 row 0 invalid.surrounding_space",
+                "line 3 row 1 invalid.surrounding_space", "line 5 row 3 invalid.surrounding_space",
+                "line 6 row 4 invalid.surrounding_space", "line 9 row 7 invalid.surrounding_space"), errors(result));
+        assertEquals(List.of(Map.of("field", "name"), Map.of("columns", "4", "cells", "5"),
+                Map.of("field", "externalId"), Map.of("field", "names.ja.name"), Map.of("field", "names.ja.name"),
+                Map.of("field", "timeZone"), Map.of("field", "externalId"), Map.of("field", "names.ja.name")),
+                result.errors().stream().map(e -> e.error().params()).toList());
+        assertEquals("line 1\nline 2", unit("H", "2026-04-01").version().names().primary().name());
+    }
+
     @Test
     void aReasonStaysWithTheLeaveAndGoesWithTheReturn() {
         item(RefKind.LEAVE_REASON, "parental");
@@ -514,7 +544,7 @@ class CsvImportServiceTest {
 
         assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
                 外部ID,attributes.tags,attributes.sizes,attributes.flags
-                W, night\\|day | C:\\\\ward ,30|2.50,はい|false
+                W,night\\|day|C:\\\\ward,30|2.50,はい|false
                 """)));
         // Each item has the type of the definition, as a single value has.
         assertEquals(Map.of("tags", List.of("night|day", "C:\\ward"), "sizes", List.of(30, 2.5),
@@ -528,12 +558,19 @@ class CsvImportServiceTest {
                 W,C:\\ward,,
                 W,,30|many,
                 W,,,はい|maybe
+                W,night| ,,
+                W,  ,,
+                W,,30| 2,
                 """);
         assertEquals(List.of("line 2 row 0 csv.empty_item", "line 3 row 1 csv.bad_escape",
-                "line 4 row 2 csv.bad_number", "line 5 row 3 csv.bad_boolean"), errors(bad));
+                "line 4 row 2 csv.bad_number", "line 5 row 3 csv.bad_boolean", "line 6 row 4 invalid.blank",
+                "line 7 row 5 invalid.blank", "line 8 row 6 csv.bad_number"), errors(bad));
         assertEquals(Map.of("field", "attributes.tags", "value", "night||icu"),
                 bad.errors().getFirst().error().params());
         assertEquals(Map.of("field", "attributes.sizes", "value", "many"), bad.errors().get(2).error().params());
+        assertEquals(Map.of("field", "attributes.tags"), bad.errors().get(4).error().params());
+        assertEquals(Map.of("field", "attributes.tags"), bad.errors().get(5).error().params());
+        assertEquals(Map.of("field", "attributes.sizes", "value", " 2"), bad.errors().get(6).error().params());
 
         load("orgUnits", "2026-07-01", """
                 外部ID,attributes.tags,attributes.sizes,attributes.flags
@@ -555,9 +592,14 @@ class CsvImportServiceTest {
                 外部ID,終了日,後継の外部ID
                 OLD,2027-04-01,100\\|2024||C:\\\\200
                 """)));
+        // An item keeps the spaces around it, so no unit has the external ID of the first item.
+        assertEquals(List.of("line 2 row 0 import.successor_unknown"), errors(load("orgUnits", "2026-05-01", """
+                外部ID,終了日,後継の外部ID
+                OLD,2027-04-01,100\\|2024 |C:\\\\200
+                """)));
         assertEquals(List.of(), errors(load("orgUnits", "2026-05-01", """
                 外部ID,終了日,後継の外部ID
-                OLD,2027-04-01, 100\\|2024 | C:\\\\200
+                OLD,2027-04-01,100\\|2024|C:\\\\200
                 """)));
 
         assertEquals(List.of(stored(ExternalId.Kind.ORG_UNIT, "import", "100|2024"),
@@ -694,6 +736,13 @@ class CsvImportServiceTest {
         assertEquals("csv.bad_column", failure("orgUnits", "外部ID,名称,name\nH,x,y\n").code());
         assertEquals("csv.bad_column", failure("orgUnits", "外部ID,名称,ユーザー名\nH,x,y\n").code());
         assertEquals("csv.bad_column", failure("orgUnits", "外部ID,名称,表示順:en\nH,x,1\n").code());
+        // A column name is read as it is, with the spaces around it.
+        Map.of(" 外部ID,名称", " 外部ID", "外部ID,名称 ", "名称 ", "外部ID,名称:en\t", "名称:en\t", "外部ID,　名称", "　名称")
+                .forEach((header, column) -> {
+                    FuhitoException padded = failure("orgUnits", header + "\nH,x\n");
+                    assertEquals("csv.bad_column", padded.code());
+                    assertEquals(Map.of("column", column), padded.params());
+                });
         // Two columns of one name in one language, as the tags are written in any case.
         FuhitoException twice = failure("orgUnits", "外部ID,主言語,名称:ja,name:JA\nH,ja,x,y\n");
         assertEquals("invalid.duplicate_language", twice.code());
@@ -789,8 +838,8 @@ class CsvImportServiceTest {
     }
 
     @Test
-    void headersIgnoreCaseAndSpacesAndTheSourceCanBeSet() {
-        CsvImportService.Result result = service.apply("orgUnits", " EXTERNALID , PrimaryLanguage, Name ,SOURCE\nH,ja,X,\nK,ja,Y,other\n",
+    void headersIgnoreCaseAndTheSourceCanBeSet() {
+        CsvImportService.Result result = service.apply("orgUnits", "EXTERNALID,PrimaryLanguage,Name,SOURCE\nH,ja,X,\nK,ja,Y,other\n",
                 "2026-04-01", false, "sheet");
 
         assertEquals(List.of(), errors(result));

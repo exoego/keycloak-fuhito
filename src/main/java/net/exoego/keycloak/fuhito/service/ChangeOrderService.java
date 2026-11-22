@@ -166,7 +166,8 @@ public class ChangeOrderService {
                 Checks.date("effectiveDate", request.effectiveDate()),
                 knownUser("approverUserId", request.approverUserId()),
                 knownUser("requesterUserId", request.requesterUserId()),
-                Checks.optionalText("externalReference", request.externalReference(), MAX_EXTERNAL_REFERENCE_LENGTH),
+                Checks.unpadded("externalReference", Checks.optionalText("externalReference",
+                        request.externalReference(), MAX_EXTERNAL_REFERENCE_LENGTH)),
                 createdAt, before == null ? null : before.announcedAt(),
                 before == null ? null : before.announcedByUserId(), before == null ? 1 : before.version());
         if (number != null && store.findByNumber(number).filter(other -> !other.id().equals(id)).isPresent()) {

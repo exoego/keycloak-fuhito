@@ -20,7 +20,7 @@ class PersonNameTest {
     void checksTheNamesOfARequest() {
         assertEquals(new Localized<>("ja", Map.of("ja", new PersonName("山田 太郎", "やまだ たろう"),
                 "en-US", new PersonName("Taro Yamada", null))), PersonName.check("ja", Map.of(
-                "ja", new PersonName(" 山田 太郎 ", " やまだ たろう "), "en-us", new PersonName("Taro Yamada", null))));
+                "ja", new PersonName("山田 太郎", "やまだ たろう"), "en-us", new PersonName("Taro Yamada", null))));
     }
 
     @Test
@@ -30,6 +30,18 @@ class PersonNameTest {
         assertEquals("invalid.name", code("ja", Map.of("ja", new PersonName(" ", null))));
         FuhitoException phonetic = assertThrows(FuhitoException.class,
                 () -> PersonName.check("ja", Map.of("ja", new PersonName("X", "x".repeat(256)))));
+        assertEquals(Map.of("field", "names.ja.phoneticName"), phonetic.params());
+    }
+
+    @Test
+    void rejectsANameWithSpacesAroundIt() {
+        FuhitoException name = assertThrows(FuhitoException.class,
+                () -> PersonName.check("ja", Map.of("ja", new PersonName("山田太郎　", null))));
+        assertEquals("invalid.surrounding_space", name.code());
+        assertEquals(Map.of("field", "names.ja.name"), name.params());
+        FuhitoException phonetic = assertThrows(FuhitoException.class,
+                () -> PersonName.check("ja", Map.of("ja", new PersonName("山田太郎", " やまだたろう"))));
+        assertEquals("invalid.surrounding_space", phonetic.code());
         assertEquals(Map.of("field", "names.ja.phoneticName"), phonetic.params());
     }
 

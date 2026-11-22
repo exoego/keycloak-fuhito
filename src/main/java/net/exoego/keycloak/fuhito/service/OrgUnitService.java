@@ -824,22 +824,20 @@ public class OrgUnitService {
      * @param timeZone the time zone, for example {@code America/New_York}, or null for none
      * @param dayStart the time of day when the date changes, as {@code HH:mm}, or null for none
      * @return the unit with the new settings
-     * @throws FuhitoException when the unit does not exist, a value is empty or only spaces, the time zone is
-     *         unknown, or the day start is bad
+     * @throws FuhitoException when the unit does not exist, a value is empty, only spaces, or has spaces around it,
+     *         the time zone is unknown, or the day start is bad
      */
     public OrgUnit setTime(String id, String timeZone, String dayStart) {
         OrgUnit unit = requireUnit(id);
-        Checks.optionalText("timeZone", timeZone);
-        Checks.optionalText("dayStart", dayStart);
-        String zone = timeZone == null ? null : timeZone.strip();
-        String start = dayStart == null ? null : dayStart.strip();
+        Checks.unpadded("timeZone", Checks.optionalText("timeZone", timeZone));
+        Checks.unpadded("dayStart", Checks.optionalText("dayStart", dayStart));
         try {
             // Any rule will do for the check. Only the two new values are parsed.
-            new BusinessDay.Rule(ZoneOffset.UTC, LocalTime.MIDNIGHT).with(zone, start);
+            new BusinessDay.Rule(ZoneOffset.UTC, LocalTime.MIDNIGHT).with(timeZone, dayStart);
         } catch (FuhitoException e) {
             throw FuhitoException.invalid(e.code(), e.params()).causedBy(e);
         }
-        store.updateUnit(new OrgUnit(unit.id(), unit.source(), unit.keycloakOrganizationId(), zone, start,
+        store.updateUnit(new OrgUnit(unit.id(), unit.source(), unit.keycloakOrganizationId(), timeZone, dayStart,
                 unit.version()));
         return requireUnit(id);
     }

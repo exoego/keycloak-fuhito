@@ -200,7 +200,8 @@ public class AttributeDefinitionService implements AttributeRules {
      * @param definition the definition after the write
      * @param fillValue the value, or null
      * @return the same value
-     * @throws FuhitoException when the definition is not required, or the value does not fit it
+     * @throws FuhitoException when the definition is not required, or the value does not fit it or has spaces around
+     *         a text of the type {@code STRING}
      */
     Object fillValue(AttributeDefinition definition, Object fillValue) {
         if (fillValue == null) {
@@ -215,6 +216,7 @@ public class AttributeDefinitionService implements AttributeRules {
             throw FuhitoException.invalid("attribute.bad_value",
                     Map.of("name", definition.name(), "type", typeOf(definition)));
         }
+        requireUnpadded("fillValue", definition, fillValue);
         AttributeSize.require(Map.of(definition.name(), fillValue));
         return fillValue;
     }
@@ -357,6 +359,7 @@ public class AttributeDefinitionService implements AttributeRules {
             if (!fitsAll(definition, value, items)) {
                 throw FuhitoException.invalid("attribute.bad_value", Map.of("name", name, "type", typeOf(definition)));
             }
+            requireUnpadded("attributes." + name, definition, value);
         });
         byName.values().stream()
                 .filter(definition -> definition.required() && !values.containsKey(definition.name()))
@@ -381,6 +384,13 @@ public class AttributeDefinitionService implements AttributeRules {
             throw FuhitoException.invalid("attribute.bad_name", Map.of("name", name));
         }
         return name;
+    }
+
+    private static void requireUnpadded(String field, AttributeDefinition definition, Object value) {
+        if (definition.type() == AttributeDefinition.Type.STRING) {
+            List<?> texts = definition.multiple() ? (List<?>) value : List.of(value);
+            texts.forEach(text -> Checks.unpadded(field, (String) text));
+        }
     }
 
     private static boolean fitsAll(AttributeDefinition definition, Object value, BiPredicate<String, String> items) {

@@ -1532,7 +1532,7 @@ components:
         type:
           type: string
           description: "The type of the value. A `STRING` value must not be empty\
-            \ or only spaces, also in a list."
+            \ or only spaces, and must have no spaces around it, also in a list."
           enum:
           - STRING
           - NUMBER
@@ -1649,7 +1649,8 @@ components:
         \ existing thing takes effect on that date. A row of a stored thing changes\
         \ the values that it gives. A key that a row leaves out keeps the stored value,\
         \ and `null` clears it. An empty text, a text of only spaces, and an empty\
-        \ array fail."
+        \ array fail. So does a text with spaces around it that a write rejects, as\
+        \ in a write."
       type: object
       properties:
         effectiveDate:
@@ -4571,7 +4572,8 @@ components:
         `true` or `false` gets `invalid.type`. A query parameter of the type `string`
         that is empty or only spaces gets `invalid.blank`.
         In a write, an empty text, a text of only spaces, or an empty array gets
-        `invalid.blank`. A text with NUL or half of a surrogate pair gets
+        `invalid.blank`. A text with white space at its start or end gets
+        `invalid.surrounding_space`. A text with NUL or half of a surrogate pair gets
         `invalid.character`. A body that gives one key twice in one object gets
         `invalid.duplicate_key`, and a body with a key that it does not have gets
         `invalid.unknown_key`. A value of another JSON type than its field gets
@@ -4641,6 +4643,17 @@ info:
     also for a name and for a text in `attributes`. Such a text fails with 400 and
     `invalid.blank`, which names the field. An empty array fails in the same way, also a list
     in `attributes`. A field that is left out or null has no value.
+
+    A write stores a text as it is sent and strips nothing, so a read gives back the same text.
+    A text that starts or ends with white space fails with 400 and `invalid.surrounding_space`,
+    which names the field. White space is what `String.strip()` of Java removes, so a tab, a
+    line break, and the full-width space count, and a no-break space does not. So `" Sales "`,
+    `"山田太郎　"`, and `"line 1\nline 2\n"` fail. This holds for the names (`name`,
+    `shortName`, `phoneticName`) of org units, people, reference items, and kinds of reference
+    data, the `name` of a hierarchy, the `title` and the `externalReference` of a change order,
+    the `number` of a qualification, `timeZone` and `dayStart`, `externalId`, and the values of
+    attributes of the type `STRING`, also in an import. A search such as `q` ignores the spaces
+    around it, as it stores nothing.
 
     The database cannot store NUL (U+0000) or half of a surrogate pair, such as `"\ud800"`.
     A text with one fails with 400 and `invalid.character`, which names the field and the code
@@ -7102,17 +7115,19 @@ paths:
         \ that a row leaves out keeps the stored value, and `null` clears it. An object\
         \ such as `names` or `attributes` merges by key in the same way. An empty\
         \ text, a text of only spaces, and an empty array fail with `invalid.blank`.\
-        \ A text with NUL (U+0000) or half of a surrogate pair fails with `invalid.character`,\
-        \ as the database cannot store it. A document that gives one key twice in\
-        \ one object fails as a whole with `invalid.duplicate_key`, which names the\
-        \ key with its path, such as `orgUnits[1].names.ja`. A key that the document\
-        \ does not have fails as a whole with `invalid.unknown_key`, as in a write.\
-        \ It names the key with its path, such as `employments[2].employerExternalID`.\
-        \ This holds for the keys of the document, of each row, and of the names of\
-        \ one language, as a CSV column that its list does not have fails with `csv.bad_column`.\
-        \ The keys of `attributes` are the names of attributes, and their definitions\
-        \ check them. A value of another JSON type than its field fails as a whole\
-        \ with `invalid.type`, as in a write, such as `\"3\"` or `3.7` for `displayOrder`.\
+        \ A text with white space at its start or end fails with `invalid.surrounding_space`,\
+        \ as in a write, and nothing is stripped. A text with NUL (U+0000) or half\
+        \ of a surrogate pair fails with `invalid.character`, as the database cannot\
+        \ store it. A document that gives one key twice in one object fails as a whole\
+        \ with `invalid.duplicate_key`, which names the key with its path, such as\
+        \ `orgUnits[1].names.ja`. A key that the document does not have fails as a\
+        \ whole with `invalid.unknown_key`, as in a write. It names the key with its\
+        \ path, such as `employments[2].employerExternalID`. This holds for the keys\
+        \ of the document, of each row, and of the names of one language, as a CSV\
+        \ column that its list does not have fails with `csv.bad_column`. The keys\
+        \ of `attributes` are the names of attributes, and their definitions check\
+        \ them. A value of another JSON type than its field fails as a whole with\
+        \ `invalid.type`, as in a write, such as `\"3\"` or `3.7` for `displayOrder`.\
         \ It names the field with its path, such as `refItems[0].displayOrder`, and\
         \ the type of the field. A whole number outside the range of its field fails\
         \ as a whole with `invalid.out_of_range`, which names the field with its path\
@@ -7227,25 +7242,28 @@ paths:
     post:
       summary: Loads one CSV file in one transaction.
       description: "The first row has the column names, in English or in Japanese.\
-        \ A blank cell keeps the stored value, as a key that a JSON row leaves out\
+        \ An empty cell keeps the stored value, as a key that a JSON row leaves out\
         \ does. The cell `#CLEAR` removes it, as `null` in a JSON row does. A cell\
         \ of a list separates its items with `|`. In an item, `\\|` is a `|` and `\\\
-        \\` is a `\\`. The `charset` of the content type says how the file is encoded.\
-        \ The default is UTF-8. fuhito does not guess the encoding. A file that is\
-        \ not valid in its charset fails with `csv.bad_encoding`, with the line and\
-        \ the offset of the first bad bytes. So does a file that starts with `FF FE`\
-        \ or `FE FF`, or has a `00` byte on its first line, unless the charset is\
-        \ UTF-16 or UTF-32. Such a file is most likely UTF-16. An unknown charset\
-        \ fails with `csv.bad_charset`. A `00` byte after the first line is NUL in\
-        \ a cell, which fails with `invalid.character` and names the column. A number\
-        \ has the form of a number of JSON, with only the digits 0 to 9, no `+` in\
-        \ front, no `0` in front of another digit, and digits on both sides of a point.\
-        \ A cell in another form, such as `５`, `+5`, `05`, or `.5`, or a number that\
-        \ the column cannot take, fails the row with `csv.bad_number`, which names\
-        \ the column. Such a number is a `displayOrder` that is no whole number from\
-        \ -2147483648 to 2147483647, or a number of an attribute of the type `NUMBER`\
-        \ that a 64-bit floating point number does not give back the same, such as\
-        \ `1e400` or `1e999999999`, as in a JSON import."
+        \\` is a `\\`. A column name, a cell, and an item are read as they are, with\
+        \ no spaces removed. So a column name with spaces around it fails the file\
+        \ with `csv.bad_column`, a cell of only spaces fails the row with `invalid.blank`,\
+        \ and a cell such as `Sales ` fails as such a text in a JSON row does. The\
+        \ `charset` of the content type says how the file is encoded. The default\
+        \ is UTF-8. fuhito does not guess the encoding. A file that is not valid in\
+        \ its charset fails with `csv.bad_encoding`, with the line and the offset\
+        \ of the first bad bytes. So does a file that starts with `FF FE` or `FE FF`,\
+        \ or has a `00` byte on its first line, unless the charset is UTF-16 or UTF-32.\
+        \ Such a file is most likely UTF-16. An unknown charset fails with `csv.bad_charset`.\
+        \ A `00` byte after the first line is NUL in a cell, which fails with `invalid.character`\
+        \ and names the column. A number has the form of a number of JSON, with only\
+        \ the digits 0 to 9, no `+` in front, no `0` in front of another digit, and\
+        \ digits on both sides of a point. A cell in another form, such as `５`, `+5`,\
+        \ `05`, or `.5`, or a number that the column cannot take, fails the row with\
+        \ `csv.bad_number`, which names the column. Such a number is a `displayOrder`\
+        \ that is no whole number from -2147483648 to 2147483647, or a number of an\
+        \ attribute of the type `NUMBER` that a 64-bit floating point number does\
+        \ not give back the same, such as `1e400` or `1e999999999`, as in a JSON import."
       operationId: applyCsvImport
       tags:
       - bulk
@@ -10202,9 +10220,9 @@ paths:
         \ resources. The rows are written all or nothing. A row that is null, or a\
         \ row with no value that its table needs, such as `attributes`, fails with\
         \ 400 and `restore.bad_value`. So does a text longer than its column, or a\
-        \ value that breaks the rule of a write, such as a code or a name. So does\
-        \ a value that a write would store in another form, such as a name with spaces\
-        \ around it or the language tag `JA` for `ja`, because a restore stores each\
+        \ value that breaks the rule of a write, such as a code, a name, or a text\
+        \ with spaces around it. So does a value that a write would store in another\
+        \ form, such as the language tag `JA` for `ja`, because a restore stores each\
         \ value as it is. So does a time in another form than an export gives, such\
         \ as a time with an offset in place of `Z`. So does a `validTo` that is not\
         \ after the `validFrom` of its row, as in a write. So does an unknown choice,\

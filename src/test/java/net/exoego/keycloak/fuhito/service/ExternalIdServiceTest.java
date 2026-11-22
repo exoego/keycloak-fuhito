@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.service;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.ExternalId;
@@ -92,6 +93,18 @@ class ExternalIdServiceTest {
         // The same ID in another kind of resource is another ID.
         store.resource(Kind.PERSON, "nurse", null);
         assertEquals("nurse", service.put("PERSON", "nurse", "payroll", "P-9").view().resourceId());
+    }
+
+    @Test
+    void anIdHasNoSpacesAroundIt() {
+        for (String padded : List.of(" P-1", "P-1 ", "P-1　", "P-1\n")) {
+            FuhitoException e = assertThrows(FuhitoException.class,
+                    () -> service.put("ORG_UNIT", "ward", "payroll", padded));
+            assertEquals("invalid.surrounding_space", e.code());
+            assertEquals(Map.of("field", "externalId"), e.params());
+        }
+        assertEquals(List.of("hr=W-1 own"), summary(service.list("ORG_UNIT", "ward")));
+        assertEquals("P 1", service.put("ORG_UNIT", "ward", "payroll", "P 1").view().externalId());
     }
 
     @Test

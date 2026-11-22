@@ -41,7 +41,7 @@ class LocalizedTest {
     @Test
     void checksTheNamesOfARequest() {
         Map<String, OrgUnitName> names = new LinkedHashMap<>();
-        names.put("JA", new OrgUnitName(" 営業部 ", " 営業 ", "えいぎょうぶ"));
+        names.put("JA", new OrgUnitName("営業部", "営業", "えいぎょうぶ"));
         names.put("en-us", new OrgUnitName("Sales", null, null));
 
         Localized<OrgUnitName> checked = Localized.check("ja", names, (field, name) -> name.checked(field));

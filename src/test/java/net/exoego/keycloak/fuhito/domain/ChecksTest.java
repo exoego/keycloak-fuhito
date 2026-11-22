@@ -96,9 +96,32 @@ class ChecksTest {
         assertEquals("invalid.mismatch", invalid(() -> Checks.agree("personId", null, "userId", "u1")).code());
     }
 
+    // String.strip() finds the white space, so U+3000 is a space and U+00A0 is not.
+    @ParameterizedTest
+    @ValueSource(strings = {" 内科", "内科 ", "内科　", "\t内科", "内科\n", "line 1\nline 2\n"})
+    void rejectsANameWithSpacesAroundIt(String name) {
+        FuhitoException e = invalid(() -> Checks.name("name", name));
+        assertEquals("invalid.surrounding_space", e.code());
+        assertEquals(Map.of("field", "name"), e.params());
+    }
+
     @Test
-    void stripsAName() {
-        assertEquals("内科", Checks.name("name", " 内科　"));
+    void keepsAName() {
+        assertEquals("内 科", Checks.name("name", "内 科"));
+        assertEquals("line 1\nline 2", Checks.name("name", "line 1\nline 2"));
+        assertEquals(" 内科 ", Checks.name("name", " 内科 "));
+    }
+
+    @Test
+    void anUnpaddedTextHasNoSpacesAroundIt() {
+        assertNull(Checks.unpadded("ref", null));
+        assertEquals("", Checks.unpadded("ref", ""));
+        assertEquals("a b", Checks.unpadded("ref", "a b"));
+        for (String padded : List.of(" a", "a ", "a\t", "\r\na", "　a", " ")) {
+            FuhitoException e = invalid(() -> Checks.unpadded("ref", padded));
+            assertEquals("invalid.surrounding_space", e.code());
+            assertEquals(Map.of("field", "ref"), e.params());
+        }
     }
 
     @Test
@@ -138,7 +161,8 @@ class ChecksTest {
         assertEquals("a", Checks.optionalCode("code", "a"));
         assertEquals("invalid.code", invalid(() -> Checks.optionalCode("code", "a b")).code());
         assertNull(Checks.optionalName("name", null));
-        assertEquals("a", Checks.optionalName("name", " a "));
+        assertEquals("a", Checks.optionalName("name", "a"));
+        assertEquals("invalid.surrounding_space", invalid(() -> Checks.optionalName("name", " a ")).code());
         assertNull(Checks.optionalDate("date", null));
     }
 

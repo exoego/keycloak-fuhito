@@ -292,8 +292,8 @@ public class RealmExportService {
      *        before anything is written
      * @return the number of rows of each list
      * @throws FuhitoException when the format is unknown, the realm has data and is not replaced, a value is empty or
-     *         too long for its column or not in the form that a write stores, such as a name with spaces around it,
-     *         a time is not in the form that an export gives, a choice or the names break a rule of a write, the
+     *         too long for its column, has spaces around it where a write rejects them, or is not in the form that a
+     *         write stores, a time is not in the form that an export gives, a choice or the names break a rule of a write, the
      *         attributes of a row break a rule of a write against the definitions of the export, a period does not
      *         end after it starts, two rows have the same key or overlap, a kind has the code of a fixed kind, a row
      *         names a row that the export does not have or a reference item of another kind, an item has a mark that

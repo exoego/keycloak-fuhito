@@ -28,10 +28,16 @@ class CsvTest {
     @Test
     void leavesOutTheByteOrderMarkAndRowsWithNoContent() {
         assertEquals(List.of(List.of("名称", "コード"), List.of("内科", "naika")),
-                cells("﻿名称,コード\n\n , \n内科,naika\n\n"));
-        assertEquals(List.of(1, 4), lines("﻿名称,コード\n\n , \n内科,naika\n\n"));
+                cells("﻿名称,コード\n\n,\n内科,naika\n\n"));
+        assertEquals(List.of(1, 4), lines("﻿名称,コード\n\n,\n内科,naika\n\n"));
         assertEquals(List.of(), cells(""));
         assertEquals(List.of(), cells("﻿"));
+    }
+
+    @Test
+    void aCellKeepsTheSpacesAroundIt() {
+        assertEquals(List.of(List.of(" a ", "\tb"), List.of(" ", "　")), cells(" a ,\tb\n ,　\n"));
+        assertEquals(List.of(2), lines("\n , \n"));
     }
 
     @Test

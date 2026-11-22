@@ -82,6 +82,12 @@ class RestoreCheckTest {
                 null);
     }
 
+    private static RealmExport order(String externalReference) {
+        return new RealmExport(RealmExport.FORMAT, null, null, null, null, null, null, null, null, null, null, null,
+                null, List.of(new RealmExport.Order("o-1", 1L, null, null, "April", null, null, "2024-04-01", null,
+                        null, externalReference, "2024-03-01T00:00:00Z", null, null)), null);
+    }
+
     private static RealmExport attribute(String name) {
         return of(null, null, null, null, List.of(new RealmExport.Definition("d-1", 1L, "PERSON", name, "STRING",
                 null, false, false)));
@@ -187,16 +193,25 @@ class RestoreCheckTest {
     }
 
     @Test
-    void aValueIsInTheFormThatAWriteStores() {
+    void aTextHasNoSpacesAroundItAsInAWrite() {
         assertBadValue(hierarchy("project", "Project "), "hierarchies", "h-1", "name");
         assertBadValue(unit(null, " Asia/Tokyo", null), "org-units", "u-1", "timeZone");
         assertBadValue(unit(null, null, "04:00 "), "org-units", "u-1", "dayStart");
+        assertBadValue(externalId("P-1\n"), "external-ids", "x-1", "externalId");
+        assertBadValue(order("　DOC-9"), "change-orders", "o-1", "externalReference");
+        assertBroken(person("ja", Map.of("ja", new PersonName(" Hanako", null))), "people", "p-1", "names.ja.name",
+                "invalid.surrounding_space");
+        assertBroken(person("ja", Map.of("ja", new PersonName("Hanako", "はなこ　"))), "people", "p-1",
+                "names.ja.phoneticName", "invalid.surrounding_space");
+        assertDoesNotThrow(() -> check(hierarchy("project", "My Project")));
+        assertDoesNotThrow(() -> check(externalId("P 1")));
+        assertDoesNotThrow(() -> check(order("DOC 9")));
+    }
+
+    @Test
+    void aValueIsInTheFormThatAWriteStores() {
         assertBadValue(names(null, null, "JA"), "ref-item-names", "n-1", "primaryLanguage");
         assertBadValue(person("ja", Map.of("JA", new PersonName("Hanako", null))), "people", "p-1", "names.JA");
-        assertBadValue(person("ja", Map.of("ja", new PersonName(" Hanako", null))), "people", "p-1", "names.ja.name");
-        assertBadValue(person("ja", Map.of("ja", new PersonName("Hanako", "はなこ　"))), "people", "p-1",
-                "names.ja.phoneticName");
-        assertDoesNotThrow(() -> check(hierarchy("project", "My Project")));
         assertDoesNotThrow(() -> check(person("en-US", Map.of("en-US", new PersonName("Hanako Yamada", null)))));
     }
 

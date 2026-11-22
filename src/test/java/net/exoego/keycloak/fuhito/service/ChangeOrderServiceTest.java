@@ -82,7 +82,7 @@ class ChangeOrderServiceTest {
 
     @Test
     void createsAnOrderWithOnlyATitleAndAnEffectiveDate() {
-        ChangeOrder order = service.create(titled(" April transfers ", "2026-04-01"));
+        ChangeOrder order = service.create(titled("April transfers", "2026-04-01"));
 
         assertEquals(36, order.id().length());
         assertEquals("April transfers", order.title());
@@ -237,6 +237,22 @@ class ChangeOrderServiceTest {
         assertEquals("requesterUserId", failure(new ChangeOrderValues(null, null, "x", null, null, "2026-04-01",
                 "director", "nobody", null)).params().get("field"));
         assertTrue(store.orders.isEmpty());
+    }
+
+    @Test
+    void rejectsATitleOrAReferenceWithSpacesAroundIt() {
+        for (String padded : List.of(" April transfers", "異動　", "line 1\nline 2\n")) {
+            FuhitoException title = failure(titled(padded, "2026-04-01"));
+            assertEquals("invalid.surrounding_space", title.code());
+            assertEquals(Map.of("field", "title"), title.params());
+            FuhitoException reference = failure(new ChangeOrderValues(null, null, "x", null, null, "2026-04-01",
+                    null, null, padded));
+            assertEquals("invalid.surrounding_space", reference.code());
+            assertEquals(Map.of("field", "externalReference"), reference.params());
+        }
+        assertTrue(store.orders.isEmpty());
+        assertEquals("DOC 9", service.create(new ChangeOrderValues(null, null, "x", null, null, "2026-04-01", null,
+                null, "DOC 9")).externalReference());
     }
 
     @Test

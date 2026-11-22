@@ -22,6 +22,17 @@
                         `invalid.blank`, which names the field. An empty array fails in the same way, also a list
                         in `attributes`. A field that is left out or null has no value.
 
+                        A write stores a text as it is sent and strips nothing, so a read gives back the same text.
+                        A text that starts or ends with white space fails with 400 and `invalid.surrounding_space`,
+                        which names the field. White space is what `String.strip()` of Java removes, so a tab, a
+                        line break, and the full-width space count, and a no-break space does not. So `" Sales "`,
+                        `"山田太郎　"`, and `"line 1\\nline 2\\n"` fail. This holds for the names (`name`,
+                        `shortName`, `phoneticName`) of org units, people, reference items, and kinds of reference
+                        data, the `name` of a hierarchy, the `title` and the `externalReference` of a change order,
+                        the `number` of a qualification, `timeZone` and `dayStart`, `externalId`, and the values of
+                        attributes of the type `STRING`, also in an import. A search such as `q` ignores the spaces
+                        around it, as it stores nothing.
+
                         The database cannot store NUL (U+0000) or half of a surrogate pair, such as `"\\ud800"`.
                         A text with one fails with 400 and `invalid.character`, which names the field and the code
                         point. This holds for every text of every write, also for a key in `attributes`. Other
@@ -197,7 +208,8 @@
                                     `true` or `false` gets `invalid.type`. A query parameter of the type `string`
                                     that is empty or only spaces gets `invalid.blank`.
                                     In a write, an empty text, a text of only spaces, or an empty array gets
-                                    `invalid.blank`. A text with NUL or half of a surrogate pair gets
+                                    `invalid.blank`. A text with white space at its start or end gets
+                                    `invalid.surrounding_space`. A text with NUL or half of a surrogate pair gets
                                     `invalid.character`. A body that gives one key twice in one object gets
                                     `invalid.duplicate_key`, and a body with a key that it does not have gets
                                     `invalid.unknown_key`. A value of another JSON type than its field gets

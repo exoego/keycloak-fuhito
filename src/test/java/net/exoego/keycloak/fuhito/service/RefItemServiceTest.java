@@ -53,7 +53,7 @@ class RefItemServiceTest {
     @Test
     void keepsTheNamesOfEachLanguageAndAttributes() {
         RefItem item = service.create(RefKind.UNIT_TYPE, "ward", "ja",
-                Map.of("ja", new RefItemName(" 病棟 "), "en-us", new RefItemName("Ward")), 3, Map.of("beds", true));
+                Map.of("ja", new RefItemName("病棟"), "en-us", new RefItemName("Ward")), 3, Map.of("beds", true));
 
         assertEquals(new Localized<>("ja", Map.of("ja", new RefItemName("病棟"), "en-US", new RefItemName("Ward"))),
                 item.names());

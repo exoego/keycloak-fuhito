@@ -156,7 +156,7 @@ class CsvImportIT {
 
         load(api, "org-units", "effectiveDate=2026-05-01", """
                 externalId,validTo,successorExternalIds,attributes.tags
-                OLD,2027-04-01, 100\\|2024 | C:\\\\200 , night\\|day | C:\\\\ward
+                OLD,2027-04-01,100\\|2024|C:\\\\200,night\\|day|C:\\\\ward
                 """);
 
         String old = unitOf(api, "OLD");

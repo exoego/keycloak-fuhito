@@ -103,6 +103,18 @@ class RestoreAttributesTest {
     }
 
     @Test
+    void aTextOfTheTypeStringWithSpacesAroundItFails() {
+        List<RealmExport.Definition> definitions = List.of(definition("PERSON", "note", "STRING", null, false, false),
+                definition("PERSON", "tags", "STRING", null, true, false));
+        for (Map<String, Object> bad : List.<Map<String, Object>>of(Map.of("note", " a"), Map.of("note", "a\n"),
+                Map.of("tags", List.of("a", "b　")))) {
+            String name = bad.keySet().iterator().next();
+            assertBroken(document(definitions, Map.of("p-1", bad)), "people", "p-1", "attributes." + name,
+                    "invalid.surrounding_space");
+        }
+    }
+
+    @Test
     void aRequiredValueIsInEveryRowAndVersion() {
         List<RealmExport.Definition> definitions = List.of(definition("ORG_UNIT", "beds", "NUMBER", null, false, true),
                 definition("EMPLOYMENT_TERMS", "rank", "STRING", null, false, true));

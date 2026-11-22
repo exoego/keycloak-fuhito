@@ -55,8 +55,8 @@ import net.exoego.keycloak.fuhito.service.ImportDocument.RefKindRow;
 import net.exoego.keycloak.fuhito.store.RefItemStore;
 
 /**
- * Turns one CSV file into an import document and applies it.
- * A blank cell is a key that a JSON row leaves out, so it keeps the stored value. The cell {@code #CLEAR} is null,
+ * Turns one CSV file into an import document and applies it. A cell is read as it is, with the spaces around it.
+ * An empty cell is a key that a JSON row leaves out, so it keeps the stored value. The cell {@code #CLEAR} is null,
  * which removes it.
  */
 public class CsvImportService {
@@ -375,8 +375,10 @@ public class CsvImportService {
         });
         Map<String, String> columns = new LinkedHashMap<>();
         Set<String> normalizedColumns = new HashSet<>();
-        for (String cell : header) {
-            String name = cell.strip();
+        for (String name : header) {
+            if (name.strip().length() != name.length()) {
+                throw FuhitoException.invalid("csv.bad_column", Map.of("column", name));
+            }
             if (name.startsWith(ATTRIBUTE_COLUMN)) {
                 String attribute = name.substring(ATTRIBUTE_COLUMN.length());
                 if (defined.stream().noneMatch(definition -> definition.name().equals(attribute))
@@ -597,8 +599,8 @@ public class CsvImportService {
     }
 
     /**
-     * The cells of one row by column. A blank cell is a key that the row leaves out, and {@code #CLEAR} is a key
-     * with null, as in a JSON row.
+     * The cells of one row by column. An empty cell is a key that the row leaves out, and {@code #CLEAR} is a key
+     * with null, as in a JSON row. A cell of only spaces fails, as such a text in a JSON row does.
      */
     private record Cells(Map<String, String> values, Map<String, String> headers, List<AttributeDefinition> defined,
             Set<String> cleared) {
@@ -609,7 +611,7 @@ public class CsvImportService {
         static Cells of(Map<String, String> columns, List<String> cells, List<AttributeDefinition> defined) {
             // A comma that should have been in quotes moves every later value one column to the right.
             if (cells.subList(Math.min(columns.size(), cells.size()), cells.size()).stream()
-                    .anyMatch(cell -> !cell.isBlank())) {
+                    .anyMatch(cell -> !cell.isEmpty())) {
                 throw FuhitoException.invalid("csv.too_many_cells",
                         Map.of("columns", Integer.toString(columns.size()), "cells", Integer.toString(cells.size())));
             }
@@ -618,8 +620,11 @@ public class CsvImportService {
             int i = 0;
             for (String column : columns.keySet()) {
                 // A row reads stored data by its cells, before the import checks the row.
-                String value = Checks.storable(column, i < cells.size() ? cells.get(i).strip() : "");
+                String value = Checks.storable(column, i < cells.size() ? cells.get(i) : "");
                 i++;
+                if (!value.isEmpty()) {
+                    Checks.optionalText(column, value);
+                }
                 values.put(column, value);
                 if (value.equals(CLEAR) && column.indexOf(':') < 0 && !column.startsWith(ATTRIBUTE_COLUMN)) {
                     cleared.add(KEYS.getOrDefault(column, column));

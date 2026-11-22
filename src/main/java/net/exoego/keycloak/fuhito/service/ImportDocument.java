@@ -18,7 +18,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
                 + "thing starts on that date, and a change to an existing thing takes effect on that date. A row "
                 + "of a stored thing changes the values that it gives. A key that a row leaves out keeps the "
                 + "stored value, and `null` clears it. An empty text, a text of only spaces, and an empty array "
-                + "fail.",
+                + "fail. So does a text with spaces around it that a write rejects, as in a write.",
         requiredProperties = {"effectiveDate"})
 public record ImportDocument(
         @Schema(description = "The date of the state.", format = "date")
@@ -431,8 +431,8 @@ public record ImportDocument(
                     + "a stored definition may leave it out.", maxLength = 64)
             String name,
             @Schema(
-                    description = "The type of the value. A `STRING` value must not be empty or only spaces, also "
-                            + "in a list.",
+                    description = "The type of the value. A `STRING` value must not be empty or only spaces, and "
+                            + "must have no spaces around it, also in a list.",
                     enumeration = {"STRING", "NUMBER", "BOOLEAN", "DATE", "REF_ITEM"})
             String type,
             @Schema(description = "The kind of reference data. Only the type `REF_ITEM` has it.")

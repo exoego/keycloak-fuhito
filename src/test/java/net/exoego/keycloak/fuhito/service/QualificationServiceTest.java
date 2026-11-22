@@ -72,7 +72,7 @@ class QualificationServiceTest {
 
     @Test
     void addsAQualificationWithEveryValue() {
-        QualificationView view = service.add(new QualificationValues("doctor", "narcotics-license", " 第12345号 ",
+        QualificationView view = service.add(new QualificationValues("doctor", "narcotics-license", "第12345号",
                 "2024-04-01", "2027-01-01", Map.of("issuer", "Tokyo"), "Q-1", "hr"));
 
         Qualification q = view.qualification();
@@ -187,6 +187,9 @@ class QualificationServiceTest {
         assertEquals("invalid.required", failure(of("doctor", "specialist", null, null, null)).code());
         assertEquals("invalid.period", failure(of("doctor", "specialist", null, "2018-04-01", "2018-04-01")).code());
         assertEquals("invalid.name", failure(of("doctor", "specialist", " ", "2018-04-01", null)).code());
+        FuhitoException padded = failure(of("doctor", "specialist", "第12345号 ", "2018-04-01", null));
+        assertEquals("invalid.surrounding_space", padded.code());
+        assertEquals(Map.of("field", "number"), padded.params());
         FuhitoException kind = failure(of("doctor", "nope", null, "2018-04-01", null));
         assertEquals("ref_item.unknown", kind.code());
         assertEquals(Map.of("kind", "QUALIFICATION", "code", "nope"), kind.params());
