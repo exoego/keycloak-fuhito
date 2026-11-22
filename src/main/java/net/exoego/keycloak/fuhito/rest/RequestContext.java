@@ -96,7 +96,7 @@ public interface RequestContext {
     String callerUserId();
 
     /**
-     * Returns the language for messages.
+     * Returns the language for messages. It is the tag of {@link #nameLanguage()}, or English when there is none.
      *
      * @return the locale
      */

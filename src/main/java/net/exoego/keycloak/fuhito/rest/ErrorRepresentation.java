@@ -14,7 +14,8 @@ public record ErrorRepresentation(
         @Schema(description = "The values that the message refers to.")
         Map<String, String> params,
         @Schema(
-                description = "The message for people. Its text can change. Its language follows the "
-                        + "`Accept-Language` header.")
+                description = "The message for people. Its text can change. Its language is the one of the names, "
+                        + "which the `Accept-Language` header gives, else English. The message of `invalid.header` "
+                        + "is in English.")
         String message) {
 }
