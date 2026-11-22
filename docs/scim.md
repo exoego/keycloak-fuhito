@@ -32,10 +32,11 @@ Users arrive through the SCIM server of Keycloak, and the extension reads the us
 
 One endpoint runs the sync for a realm. Nothing else runs it.
 
-A listener was the other choice. It was not taken, for these reasons.
+A listener was the other choice.
+A global event listener needs no setting in a realm. Keycloak calls it in every realm, also in a realm that stores no events.
+The listener was still not taken, for these reasons.
 
-- Keycloak has no event for a changed user attribute that an extension can rely on.
-- Admin events exist, but each realm turns them on or off, and a listener must be added to each realm by hand. A realm with the wrong setting would lose changes with no error.
+- Keycloak does not send an event for every change of a user attribute. A sync of an LDAP federation sends none for each user. A listener would miss such a change with no error.
 - A sync that reads the present state is correct after any missed change. A listener is not.
 
 The projection into organization groups works the same way, for the same reasons.
