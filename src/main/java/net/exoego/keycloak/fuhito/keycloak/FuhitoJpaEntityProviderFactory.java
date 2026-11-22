@@ -62,7 +62,7 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
                         RealmData.delete(entityManager(removed.getKeycloakSession()), removed.getRealm().getId());
                 case UserModel.UserRemovedEvent removed ->
                         UserRemovalHandler.retire(entityManager(removed.getKeycloakSession()), removed.getRealm(),
-                                removed.getUser().getId());
+                                removed.getUser());
                 case OrganizationModel.OrganizationRemovedEvent removed -> {
                     KeycloakSession session = removed.getKeycloakSession();
                     OrganizationRemovalHandler.unlink(entityManager(session), session.getContext().getRealm().getId(),

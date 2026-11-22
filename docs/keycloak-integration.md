@@ -222,6 +222,7 @@ In the same transaction it ends only what would still hold.
 - A reporting line where the user is the manager ends on that day.
 - Qualifications stay as they are.
 - The records of the organizations that the projection added the user to are removed.
+- A person with no names in the record loses the name that its read took from the user. It gets a new version and a propagated change with the cause `KEYCLOAK_USER_REMOVED`. A user with no name changes no read, so its person gets none.
 - The change log keeps every entry. It gets one more for each employment that ended. That entry has no acting user.
 
 So the person no longer shows up as a current member, in tokens, or in the projection.
@@ -699,6 +700,7 @@ A person with no linked user must have names in the record.
 When Keycloak changes the first name or the last name of a user, the read of a person with no names in the record changes.
 The person then gets a new version, and the change log gets a propagated change of it with the cause `KEYCLOAK_USER_NAME_CHANGED`. See "Propagated changes" below.
 A person with names in the record gets none. Neither does a change that leaves the name of the read as it was, such as a change of the email or of the spaces around a name.
+The removal of the user takes the name away too. See "Removal of a realm or a user".
 
 The extension learns of a change from the events that Keycloak sends in the transaction of the change.
 Its event listener is global, so Keycloak calls it in every realm. A realm does not need to store events or to list the listener.
@@ -784,7 +786,7 @@ A client that holds an old read gets 409, as for any other change.
 | `operation` | `CREATE`, `UPDATE`, or `DELETE` | `UPDATE` |
 | `resourcePath` | The path of the request | The path of the resource, such as `fuhito/org-units/{id}` |
 | `changeOrderId` | The change order of the request | The change order of the write that caused it |
-| `cause` | Absent | `WRITE` for a write to the API, or the change in Keycloak, such as `KEYCLOAK_ORGANIZATION_REMOVED` |
+| `cause` | Absent | `WRITE` for a write to the API, or the change in Keycloak, such as `KEYCLOAK_ORGANIZATION_REMOVED` or `KEYCLOAK_USER_REMOVED` |
 | `causeSequence` | Absent | The sequence number of the entry of the write, for the cause `WRITE` |
 
 A write keeps its own entry, with its user and its change order. So the log still says who wrote what.
@@ -798,7 +800,7 @@ The enum `DerivedValue` lists every value that a read takes from elsewhere, what
 | Value | Read of | Changed by |
 |---|---|---|
 | `keycloakOrganizationId` | Org units | The removal of the organization in Keycloak |
-| `name` and `nameSource` of a person with no names in the record | People | A change of the name of the linked user in Keycloak that sends an event. See "A change of the name in Keycloak" above |
+| `name` and `nameSource` of a person with no names in the record | People | A change of the name of the linked user in Keycloak that sends an event, and the removal of the user. See "A change of the name in Keycloak" above |
 
 ### Keeping the log
 

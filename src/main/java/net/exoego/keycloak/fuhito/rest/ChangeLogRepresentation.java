@@ -42,8 +42,9 @@ public record ChangeLogRepresentation(
                 description = "What caused a propagated change. `WRITE` is a write to the API, whose entry "
                         + "`causeSequence` names. `KEYCLOAK_ORGANIZATION_REMOVED` is the removal of the linked "
                         + "organization in Keycloak. `KEYCLOAK_USER_NAME_CHANGED` is a change of the name of the "
-                        + "linked user in Keycloak. A write has no cause.",
-                enumeration = {"WRITE", "KEYCLOAK_ORGANIZATION_REMOVED", "KEYCLOAK_USER_NAME_CHANGED"})
+                        + "linked user in Keycloak, and `KEYCLOAK_USER_REMOVED` is its removal. A write has no cause.",
+                enumeration = {"WRITE", "KEYCLOAK_ORGANIZATION_REMOVED", "KEYCLOAK_USER_NAME_CHANGED",
+                    "KEYCLOAK_USER_REMOVED"})
         String cause,
         @Schema(description = "The sequence number of the entry of the write that caused a propagated change. Only a "
                 + "propagated change with the cause `WRITE` has it.")

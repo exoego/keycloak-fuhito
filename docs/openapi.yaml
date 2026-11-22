@@ -441,12 +441,13 @@ components:
           description: "What caused a propagated change. `WRITE` is a write to the\
             \ API, whose entry `causeSequence` names. `KEYCLOAK_ORGANIZATION_REMOVED`\
             \ is the removal of the linked organization in Keycloak. `KEYCLOAK_USER_NAME_CHANGED`\
-            \ is a change of the name of the linked user in Keycloak. A write has\
-            \ no cause."
+            \ is a change of the name of the linked user in Keycloak, and `KEYCLOAK_USER_REMOVED`\
+            \ is its removal. A write has no cause."
           enum:
           - WRITE
           - KEYCLOAK_ORGANIZATION_REMOVED
           - KEYCLOAK_USER_NAME_CHANGED
+          - KEYCLOAK_USER_REMOVED
         causeSequence:
           type: integer
           format: int64
@@ -3102,9 +3103,9 @@ components:
           format: int64
           description: "The version of the person. A new person has 1. Each write\
             \ counts it up by one, also a mask or a change of an ID of another system.\
-            \ A change of the name of the linked user in Keycloak counts it up too,\
-            \ when the record has no names. A write of a stored person sends the version\
-            \ that the caller read. A create needs none."
+            \ A change of the name of the linked user in Keycloak, or its removal,\
+            \ counts it up too, when the record has no names. A write of a stored\
+            \ person sends the version that the caller read. A create needs none."
         userId:
           type: string
           description: The ID of the linked Keycloak user. One user is linked to at

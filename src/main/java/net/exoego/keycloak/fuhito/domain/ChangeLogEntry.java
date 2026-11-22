@@ -42,7 +42,9 @@ public record ChangeLogEntry(String id, long sequence, Instant recordedAt, Kind 
         /** The removal of an organization in Keycloak. */
         KEYCLOAK_ORGANIZATION_REMOVED,
         /** A change of the first name or the last name of a user in Keycloak. */
-        KEYCLOAK_USER_NAME_CHANGED
+        KEYCLOAK_USER_NAME_CHANGED,
+        /** The removal of a user in Keycloak. */
+        KEYCLOAK_USER_REMOVED
     }
 
     /**

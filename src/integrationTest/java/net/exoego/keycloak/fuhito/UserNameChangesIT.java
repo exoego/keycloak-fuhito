@@ -28,7 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
  * People whose read gives the name of their Keycloak user. An administrator, the user, or an identity provider over
- * SCIM changes the user in Keycloak. The realm stores no events and lists no event listener of the extension.
+ * SCIM changes the user in Keycloak, or an administrator removes it. The realm stores no events and lists no event
+ * listener of the extension.
  */
 class UserNameChangesIT {
 
@@ -164,6 +165,36 @@ class UserNameChangesIT {
         assertEquals("Jiro Sato", ok(api.get("/people/" + person)).get("name").asText());
         assertEquals(version, api.version("/people/" + person));
         assertEquals(List.of("WRITE "), kindsAndCauses(person));
+    }
+
+    @Test
+    void theRemovalOfTheUserAddsAPropagatedChangeOfAPersonWithNoNames() throws Exception {
+        String named = realm.user("goro", "Goro", "Kato");
+        String recorded = realm.user("rokuro", "Rokuro", "Kato");
+        String nameless = realm.user("nanashi");
+        String person = person("{\"userId\": \"" + named + "\"}");
+        String withNames = person("{\"userId\": \"" + recorded + "\", \"primaryLanguage\": \"ja\", "
+                + "\"names\": {\"ja\": {\"name\": \"加藤 六郎\"}}}");
+        String withNoName = person("{\"userId\": \"" + nameless + "\"}");
+        List<Long> versions = List.of(api.version("/people/" + person), api.version("/people/" + withNames),
+                api.version("/people/" + withNoName));
+        DerivedReads reads = DerivedReads.before(api);
+
+        realm.removeUser(named);
+        realm.removeUser(recorded);
+        realm.removeUser(nameless);
+
+        reads.assertEveryChangeIsLogged();
+        JsonNode read = ok(api.get("/people/" + person));
+        assertEquals(List.of(named, Long.toString(versions.get(0) + 1), "false", "false"), List.of(
+                read.get("userId").asText(), read.get("version").asText(), Boolean.toString(read.has("name")),
+                Boolean.toString(read.has("nameSource"))));
+        assertEquals(List.of("WRITE ", "PROPAGATED KEYCLOAK_USER_REMOVED"), kindsAndCauses(person));
+        // The read of the others does not change.
+        assertEquals(List.of(versions.get(1), versions.get(2)),
+                List.of(api.version("/people/" + withNames), api.version("/people/" + withNoName)));
+        assertEquals(List.of("WRITE "), kindsAndCauses(withNames));
+        assertEquals(List.of("WRITE "), kindsAndCauses(withNoName));
     }
 
     private static String userWithPassword(String username, String firstName, String lastName) {
