@@ -161,6 +161,7 @@ A dated change becomes true on its date with no write on that day, so the timer 
 - A realm with no usable time zone is skipped. So is a realm with an org unit whose time setting is bad. Each node logs one warning for such a realm.
 - The timer keeps its last run in `FUHITO_JOB_RUN` as the job `projection-timer`. `GET /projection/last-run` does not read that row.
 - The timer is on by default. The server option `spi-admin-realm-restapi-extension--fuhito--projection-timer-enabled` with `false` turns it off.
+- The server option `spi-admin-realm-restapi-extension--fuhito--projection-timer-interval` sets the number of seconds between two checks of the timer. The default is 60 seconds. A value below 1 fails the start of Keycloak.
 
 A write to the API does not run the projection. The timer picks the change up after the next day start.
 When a change must reach Keycloak at once, the app that writes to the API calls `POST /projection/rebuild` after its writes.
