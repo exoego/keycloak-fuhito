@@ -487,6 +487,12 @@ class AttributeSyncServiceTest {
         assertEquals(List.of("boss 2026-06-15 2026-06-16"), managersOf("alice"));
         assertEquals(List.of("boss 2026-06-15 2026-06-16"), managersOf("bob"));
         assertEquals(List.of("Internal Medicine 2026-06-15 null - primary"), assignmentsOf("bob"));
+        // The line of alice that the end of her assignment ended gets a write too.
+        assertEquals(List.of("FUHITO_ASSIGNMENT /end", "FUHITO_REPORTING_LINE /end", "FUHITO_REPORTING_LINE /end"),
+                report.writes().stream()
+                        .map(write -> write.resourceType() + " " + write.path().substring(write.path().lastIndexOf('/')))
+                        .sorted()
+                        .toList());
     }
 
     @Test

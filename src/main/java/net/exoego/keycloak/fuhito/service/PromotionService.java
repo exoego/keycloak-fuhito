@@ -93,7 +93,7 @@ public class PromotionService {
                     details.occupation(), details.kind(), details.places().workLocation(),
                     details.places().costCenter(), request.head() == null ? row.head() : request.head(),
                     row.primary(), false, row.allocationPercent(), row.displayOrder(), row.attributes(), null,
-                    null));
+                    null)).view();
         }
         return new Promotion(employments.get(employmentId), assignment);
     }

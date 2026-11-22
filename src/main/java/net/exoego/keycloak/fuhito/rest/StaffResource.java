@@ -80,7 +80,7 @@ public class StaffResource {
             var employment = EmploymentRepresentation.of(started, externalIds.lists(ExternalId.Kind.EMPLOYMENT,
                     List.of(started.employment().id())));
             var assignment = AssignmentsResource.represent(
-                    List.of(assignments.add(body.toAssignment(employment.id()))), externalIds).getFirst();
+                    List.of(assignments.add(body.toAssignment(employment.id())).view()), externalIds).getFirst();
             context.recordChange(Change.CREATE, EmploymentsResource.RESOURCE_TYPE, employment.id(),
                     "fuhito/employments/" + employment.id(), employment);
             context.recordChange(Change.CREATE, AssignmentsResource.RESOURCE_TYPE, assignment.id(),

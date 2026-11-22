@@ -177,10 +177,12 @@ public class AssignmentsResource {
             if (Boolean.TRUE.equals(body.switchPrimary())) {
                 context.lock(scopes.assignmentsOfEmployment(body.employmentId()));
             }
-            var assignment = represent(service.add(body.toValues()));
+            AssignmentService.Written added = service.add(body.toValues());
+            var assignment = represent(added.view());
             // The list is known only once the assignment is there. A failure rolls the write back.
             Checks.fixed("endedOnStart", assignment.endedOnStart(), body.endedOnStart());
-            context.recordChange(Change.CREATE, RESOURCE_TYPE, assignment.id(), path(assignment.id()), assignment);
+            Writes.recordAll(context, externalIds, List.of(new RequestContext.ChangeRecord(Change.CREATE,
+                    RESOURCE_TYPE, assignment.id(), path(assignment.id()), assignment)), added.others());
             return Response.status(Response.Status.CREATED).entity(assignment).build();
         });
     }
@@ -246,8 +248,10 @@ public class AssignmentsResource {
             Writes.requireRead(body, () -> Writes.periodOn(represent(service.get(id)).periods(),
                     AssignmentRepresentation.Details::validFrom, AssignmentRepresentation.Details::validTo,
                     Checks.date("validFrom", body.validFrom())), AssignmentRepresentation.Details.READ_ONLY);
-            var assignment = represent(service.changeDetails(id, body.toValues()));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/details", assignment);
+            AssignmentService.Written changed = service.changeDetails(id, body.toValues());
+            var assignment = represent(changed.view());
+            Writes.recordAll(context, externalIds, List.of(new RequestContext.ChangeRecord(Change.UPDATE,
+                    RESOURCE_TYPE, id, path(id) + "/details", assignment)), changed.others());
             return assignment;
         });
     }
@@ -257,7 +261,9 @@ public class AssignmentsResource {
     @Operation(
             operationId = "endAssignment",
             summary = "Sets the end of an assignment.",
-            description = "Its history stays readable. The end can move earlier or later. A later end of a "
+            description = "Its history stays readable. The end can move earlier or later. An earlier end also ends "
+                    + "the reporting lines of the assignment on the date, and removes the ones that would start "
+                    + "later. Each of them gets an entry of its own in the change log. A later end of a "
                     + "primary assignment that would then share a date with another primary assignment of the "
                     + "employment fails with 409 and `assignment.primary_exists`.")
     @Parameter(ref = "changeOrder")
@@ -271,8 +277,10 @@ public class AssignmentsResource {
             EndRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> {
-            var assignment = represent(service.end(id, body.validTo()));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/end", assignment);
+            AssignmentService.Written ended = service.end(id, body.validTo());
+            var assignment = represent(ended.view());
+            Writes.recordAll(context, externalIds, List.of(new RequestContext.ChangeRecord(Change.UPDATE,
+                    RESOURCE_TYPE, id, path(id) + "/end", assignment)), ended.others());
             return assignment;
         });
     }
@@ -287,7 +295,8 @@ public class AssignmentsResource {
                     + "keeps the occupation, the kind, the primary flag, the allocation, and the attributes. It "
                     + "keeps the job title unless the request gives one. The head flag, the display order, the "
                     + "work location, and the cost center belong to the old org unit and are not kept. The "
-                    + "reporting lines of the old assignment end with it. A failure writes nothing.")
+                    + "reporting lines of the old assignment end with it, and each gets an entry of its own in the "
+                    + "change log. A failure writes nothing.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "201",
@@ -306,8 +315,10 @@ public class AssignmentsResource {
             AssignmentService.Move move = service.move(id, body.toRequest());
             var ended = represent(move.ended());
             var started = represent(move.started());
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/move", ended);
-            context.recordChange(Change.CREATE, RESOURCE_TYPE, started.id(), path(started.id()), started);
+            Writes.recordAll(context, externalIds, List.of(
+                    new RequestContext.ChangeRecord(Change.UPDATE, RESOURCE_TYPE, id, path(id) + "/move", ended),
+                    new RequestContext.ChangeRecord(Change.CREATE, RESOURCE_TYPE, started.id(), path(started.id()),
+                            started)), move.lines());
             return Response.status(Response.Status.CREATED).entity(MoveRepresentation.of(ended, started)).build();
         });
     }
