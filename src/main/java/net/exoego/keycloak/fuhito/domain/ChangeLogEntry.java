@@ -80,4 +80,16 @@ public record ChangeLogEntry(String id, long sequence, Instant recordedAt, Kind 
         return new ChangeLogEntry(id, 0, recordedAt, Kind.PROPAGATED, null, value.resourceType(), resourceId,
                 "UPDATE", value.path(resourceId), changeOrderId, cause, causeSequence);
     }
+
+    /**
+     * Makes the propagated change of a read that this write changed. It has the time and the change order of this
+     * entry, and names this entry by its sequence number.
+     *
+     * @param id the ID of the new entry
+     * @param change the read that changed
+     * @return the entry, with no sequence number yet
+     */
+    public ChangeLogEntry causing(String id, PropagatedChange change) {
+        return propagated(id, recordedAt, change.value(), change.resourceId(), Cause.WRITE, sequence, changeOrderId);
+    }
 }
