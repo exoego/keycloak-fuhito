@@ -59,8 +59,8 @@ class NameOrderChangesIT {
         return versions;
     }
 
-    // Sends every attribute of the realm with one of them changed, as the admin console does. With no value the
-    // attribute is left out, which removes it.
+    // Keycloak removes each attribute that an update of the realm leaves out. So the update sends every attribute,
+    // with one of them changed or left out.
     private static void setAttribute(TestRealm realm, String name, String value) {
         RealmResource resource = ADMIN.realm(realm.name);
         Map<String, String> attributes = new HashMap<>(resource.toRepresentation().getAttributes());

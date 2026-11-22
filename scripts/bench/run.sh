@@ -180,7 +180,7 @@ if [ "${ORDER}" = 1 ]; then
   # Keycloak reads the users again, with the names of the seed.
   curl -s -o /dev/null -X POST -H "Authorization: Bearer $(token)" "${BASE}/admin/realms/${REALM}/clear-user-cache"
   # Prints the time of one update of the realm in milliseconds, with its status and the propagated changes that it
-  # added. The update sends every attribute of the realm, as the admin console does.
+  # added. Keycloak removes each attribute that an update of the realm leaves out, so the update sends every one.
   order() {
     local name="$1" value="$2" before line after
     before="$(curl -s -H "Authorization: Bearer $(token)" "${API}/change-log/count?kind=PROPAGATED" | jq .count)"
