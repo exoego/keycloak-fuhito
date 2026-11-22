@@ -1649,8 +1649,8 @@ components:
         \ existing thing takes effect on that date. A row of a stored thing changes\
         \ the values that it gives. A key that a row leaves out keeps the stored value,\
         \ and `null` clears it. An empty text, a text of only spaces, and an empty\
-        \ array fail. So does a text with spaces around it that a write rejects, as\
-        \ in a write."
+        \ array fail. So does a text with spaces around it, where a REST write rejects\
+        \ one."
       type: object
       properties:
         effectiveDate:

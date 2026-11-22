@@ -275,9 +275,12 @@ class QueryValuesIT {
                             + "\"effectiveDate\": \"bad\"}")), spaces);
             assertEquals("400 invalid.blank q", failure(api.get("/people?q=" + encoded(spaces))), spaces);
         }
-        for (String text : List.of("\u00A0", " a ")) {
+        for (String text : List.of("\u00A0", "a b")) {
             assertEquals("400 invalid.date effectiveDate", failure(api.post("/change-orders",
                     "{\"title\": \"" + text + "\", \"effectiveDate\": \"bad\"}")), text);
+        }
+        // A search keeps no text, so it takes the spaces around a text.
+        for (String text : List.of("\u00A0", " a ")) {
             assertEquals("200", failure(api.get("/people?q=" + encoded(text))), text);
         }
     }
