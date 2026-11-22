@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -85,6 +86,44 @@ public final class JpaLongWrite implements LongWrite {
                 em.detach(entity);
             }
         }
+    }
+
+    /**
+     * Lets go of the rows of some resources before a statement counts up their versions in the database, so that no
+     * row of the session keeps the old version. A resource that a write of this transaction counted up already keeps
+     * its rows, as the statement leaves it out.
+     *
+     * @param <T> the type of the rows
+     * @param em the entity manager of the transaction
+     * @param type the class of the rows
+     * @param resourceOf the ID of the resource of a row
+     * @param resourceIds the IDs of the resources
+     * @return the IDs of the resources whose rows in the session counted up already
+     */
+    static <T extends VersionedRow> Set<String> release(EntityManager em, Class<T> type,
+            Function<T, String> resourceOf, Set<String> resourceIds) {
+        Set<String> counted = new HashSet<>();
+        for (Map.Entry<Object, EntityEntry> entry : em.unwrap(SessionImplementor.class)
+                .getPersistenceContextInternal().reentrantSafeEntityEntries()) {
+            if (type.isInstance(entry.getKey())) {
+                T row = type.cast(entry.getKey());
+                if (row.counted() && resourceIds.contains(resourceOf.apply(row))) {
+                    counted.add(resourceOf.apply(row));
+                }
+            }
+        }
+        detach(em, entity -> type.isInstance(entity) && resourceIds.contains(resourceOf.apply(type.cast(entity)))
+                && !counted.contains(resourceOf.apply(type.cast(entity))));
+        return counted;
+    }
+
+    /**
+     * Tells whether a long write runs, so that the marks of {@link #markCounted} are kept.
+     *
+     * @return true inside {@link #run}
+     */
+    static boolean marking() {
+        return COUNTED.get() != null;
     }
 
     /**

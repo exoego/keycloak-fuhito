@@ -90,6 +90,12 @@ class BulkWriteLocksIT {
         TestRealm realm = TestRealm.withEmployer("bulk-after-write", Map.of("fuhito.sync.enabled", "true"));
         Api api = realm.api;
         String unit = id(api.post("/org-units", UNIT.formatted("A")));
+        realm.refItem("WORK_LOCATION", "tokyo", "東京");
+        // A write that can change the work location that applies to other units holds the realm alone too.
+        String placed = id(api.post("/org-units", UNIT.formatted("B")));
+        String child = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                + "\"C\"}}, \"parentId\": \"" + placed + "\", \"validFrom\": \"2026-04-01\"}"));
+        String renamed = id(api.post("/org-units", UNIT.formatted("D")));
         JsonNode export = RealmExportIT.export(api);
         String definition = id(api.post("/attribute-definitions",
                 "{\"target\": \"PERSON\", \"name\": \"note\", \"type\": \"STRING\"}"));
@@ -108,6 +114,14 @@ class BulkWriteLocksIT {
                         + "\"name\": \"shift\", \"type\": \"STRING\", \"required\": true, \"fillValue\": \"day\"}")),
                 new Bulk("clear", () -> api.deleteWithVersion("/attribute-definitions/" + definition
                         + "?clearValues=true")),
+                new Bulk("work location", () -> api.putWithVersion("/org-units/" + placed, "{\"primaryLanguage\": "
+                        + "\"ja\", \"names\": {\"ja\": {\"name\": \"B\"}}, \"workLocation\": \"tokyo\", "
+                        + "\"validFrom\": \"2026-04-01\"}")),
+                new Bulk("move", () -> api.putWithVersion("/org-units/" + child + "/parent",
+                        "{\"validFrom\": \"2026-04-01\"}")),
+                new Bulk("reorganization", () -> api.postWithVersion("/reorganizations", """
+                        {"effectiveDate": "2026-04-01", "steps": [{"op": "move", "id": "%s", "parentId": "%s"}]}"""
+                        .formatted(child, placed))),
                 new Bulk("restore", () -> api.post("/restore?replace=true", export.toString())));
 
         for (Bulk bulk : bulkWrites) {
@@ -116,9 +130,11 @@ class BulkWriteLocksIT {
             try (Connection first = holding("fuhito_org_unit", unit)) {
                 // The write of the unit waits for its row, and holds its share of the realm meanwhile.
                 write = waitingFor(first, () -> api.putWithVersion("/org-units/" + unit, UNIT.formatted(bulk.name())));
-                // The other writes share the realm and go on.
+                // The other writes share the realm and go on. So does a change of details that keeps the places.
                 assertEquals(201, soon(() -> api.post("/org-units", UNIT.formatted(bulk.name()))).statusCode(),
                         bulk.name());
+                assertEquals(200, soon(() -> api.putWithVersion("/org-units/" + renamed,
+                        UNIT.formatted(bulk.name()))).statusCode(), bulk.name());
                 bulkWrite = waitingFor(waiterOf(first), bulk.call());
                 first.commit();
             }

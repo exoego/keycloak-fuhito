@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.function.BooleanSupplier;
 
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.PropagatedChange;
@@ -47,6 +48,16 @@ public interface RequestContext {
      * the writes that come later wait for it.
      */
     void requireBulkWrite();
+
+    /**
+     * Requires the same as {@link #requireWrite()} for a write that can change the reads of other resources, such as
+     * a new work location of an org unit. Such a write holds the lock of its realm alone, as
+     * {@link #requireBulkWrite()} does. So no other write of the realm changes what it compares while it finds the
+     * reads that it changed. The check runs after the permission is checked, before the lock is taken.
+     *
+     * @param changesOtherReads tells whether the write can change the reads of other resources
+     */
+    void requireWrite(BooleanSupplier changesOtherReads);
 
     /**
      * Requires the permission of Keycloak to manage a user. Throws when the caller lacks it.
@@ -218,6 +229,7 @@ public interface RequestContext {
      * event and an entry of the kind {@code WRITE}. The propagated changes come after all those entries, with no
      * admin event. Each has the time and the change order of the first change that caused it, and names its entry in
      * {@code causeSequence}. A resource gets one propagated change, also when several of the changes changed its read.
+     * A resource that one of the changes writes gets none, as the entry of that write names it.
      *
      * @param changes the changes
      */

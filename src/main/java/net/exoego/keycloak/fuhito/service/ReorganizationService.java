@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 
 /**
  * Changes many org units on the same date.
@@ -26,17 +27,24 @@ public class ReorganizationService {
      * @param op the operation of the step
      * @param unit the unit after the step. For an end and a succession, it is the unit on its last date.
      * @param successions for a succession, the units before and after the unit that ended. Null otherwise.
+     * @param propagated the units and the assignments whose read the step changed, apart from the units of the
+     *         steps. Their versions are counted up.
      */
-    public record Result(String op, OrgUnitState unit, OrgUnitSuccessions successions) {
+    public record Result(String op, OrgUnitState unit, OrgUnitSuccessions successions,
+            List<PropagatedChange> propagated) {
 
         /**
-         * Makes the result of a step that is not a succession.
+         * Makes the result of a step that is not a succession and changes no other read.
          *
          * @param op the operation of the step
          * @param unit the unit after the step
          */
         public Result(String op, OrgUnitState unit) {
-            this(op, unit, null);
+            this(op, unit, null, List.of());
+        }
+
+        private Result(String op, OrgUnitService.Written written) {
+            this(op, written.state(), null, written.propagated());
         }
     }
 
@@ -61,6 +69,18 @@ public class ReorganizationService {
      */
     public ReorganizationService(OrgUnitService orgUnits) {
         this.orgUnits = orgUnits;
+    }
+
+    /**
+     * Tells whether steps can change the reads of other resources. A step {@code change} can give a unit another
+     * work location or cost center, and a step {@code move} another parent. Both change what applies below the unit.
+     *
+     * @param steps the steps, or null
+     * @return true when a step changes or moves a unit
+     */
+    public static boolean changesOtherReads(List<ReorganizationStep> steps) {
+        return steps != null && steps.stream()
+                .anyMatch(step -> step != null && ("change".equals(step.op()) || "move".equals(step.op())));
     }
 
     /**
@@ -101,11 +121,13 @@ public class ReorganizationService {
             Checks.version(step.version(), orgUnits.version(step.id()));
             return step;
         }));
+        // Each step has an entry of its own write, so a step gives the units of the other steps no propagated change.
+        OrgUnitService units = orgUnits.writing(stored.values().stream().map(ReorganizationStep::id).toList());
         Map<String, String> created = new HashMap<>();
         List<Result> results = new ArrayList<>();
         for (int i = 0; i < steps.size(); i++) {
             ReorganizationStep step = steps.get(i);
-            results.add(atStep(i, () -> apply(effectiveDate, step, created)));
+            results.add(atStep(i, () -> apply(units, effectiveDate, step, created)));
         }
         return results;
     }
@@ -144,7 +166,8 @@ public class ReorganizationService {
         }
     }
 
-    private Result apply(String date, ReorganizationStep step, Map<String, String> created) {
+    private static Result apply(OrgUnitService orgUnits, String date, ReorganizationStep step,
+            Map<String, String> created) {
         Checks.required("step", step);
         String op = Checks.required("op", step.op());
         return switch (op) {
@@ -174,7 +197,7 @@ public class ReorganizationService {
                     step.successorRefs().forEach(ref -> successors.add(resolve("successor", null, ref, created)));
                 }
                 OrgUnitState ended = orgUnits.succeed(id, date, successors);
-                yield new Result(op, ended, orgUnits.successions(id));
+                yield new Result(op, ended, orgUnits.successions(id), List.of());
             }
             default -> throw FuhitoException.invalid("invalid.choice", Map.of("field", "op", "value", op));
         };

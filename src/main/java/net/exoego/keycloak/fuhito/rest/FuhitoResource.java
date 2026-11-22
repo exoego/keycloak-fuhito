@@ -28,6 +28,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaJobRunStore;
 import net.exoego.keycloak.fuhito.jpa.JpaLongWrite;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
+import net.exoego.keycloak.fuhito.jpa.JpaPlaceStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRealmExportStore;
 import net.exoego.keycloak.fuhito.jpa.JpaRealmKindStore;
 import net.exoego.keycloak.fuhito.jpa.JpaQualificationStore;
@@ -522,7 +523,8 @@ public class FuhitoResource {
     private OrgUnitService orgUnitService() {
         return new OrgUnitService(new JpaOrgUnitStore(entityManager, realmId),
                 new JpaExternalIdStore(entityManager, realmId), new JpaAssignmentStore(entityManager, realmId),
-                new JpaRefItemStore(entityManager, realmId), today(), attributeRules());
+                new JpaRefItemStore(entityManager, realmId), today(), attributeRules(),
+                new JpaPlaceStore(entityManager, realmId));
     }
 
     // A new one for each service, so that none of them sees the tree as another one loaded it.

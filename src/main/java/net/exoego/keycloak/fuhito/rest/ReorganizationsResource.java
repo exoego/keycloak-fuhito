@@ -12,6 +12,7 @@ import jakarta.ws.rs.core.MediaType;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
+import net.exoego.keycloak.fuhito.rest.RequestContext.ChangeRecord;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
 import net.exoego.keycloak.fuhito.service.ReorganizationService;
@@ -53,14 +54,17 @@ public class ReorganizationsResource {
             description = "A failed step writes nothing. A step that changes a stored unit names the `version` of "
                     + "the unit that the caller read. An old version fails with 409 and `version.conflict`, and "
                     + "`step` in the values of the error. A step that gives a field that its operation does not read "
-                    + "fails with 400 and `reorganization.field_unused` before any step runs.")
+                    + "fails with 400 and `reorganization.field_unused` before any step runs. A step `change` or "
+                    + "`move` can change the work location and the cost center that apply below its unit. Each unit "
+                    + "and assignment whose read changes gets a new version and a propagated change. A reorganization "
+                    + "with such a step holds the lock of the realm alone.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "What each step did.")
     @BadRequest
     @NotFound
     @ApiErrors
     public ReorganizationRepresentation apply(ReorganizationRepresentation body) {
-        context.requireWrite();
+        context.requireWrite(() -> body != null && ReorganizationService.changesOtherReads(body.steps()));
         return Calls.run(context, () -> {
             // The service checks the empty values of each step, so that the error names the step.
             Checks.required("body", body);
@@ -71,32 +75,36 @@ public class ReorganizationsResource {
             ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
                     applied.stream().map(result -> result.unit().unit().id()).distinct().toList());
             Locale language = context.nameLanguage();
+            List<ChangeRecord> records = new ArrayList<>();
             for (ReorganizationService.Result result : applied) {
                 var unit = OrgUnitRepresentation.of(result.unit(), ids, language);
                 String path = "fuhito/org-units/" + unit.id();
                 List<String> successorIds = null;
                 switch (result.op()) {
-                    case "create" -> record(Change.CREATE, path, unit);
-                    case "move" -> record(Change.UPDATE, path + "/parent", unit);
-                    case "end" -> record(Change.UPDATE, path + "/end", unit);
+                    case "create" -> records.add(record(Change.CREATE, path, unit, result));
+                    case "move" -> records.add(record(Change.UPDATE, path + "/parent", unit, result));
+                    case "end" -> records.add(record(Change.UPDATE, path + "/end", unit, result));
                     case "succeed" -> {
-                        record(Change.UPDATE, path + "/end", unit);
+                        records.add(record(Change.UPDATE, path + "/end", unit, result));
                         var successions = OrgUnitSuccessionsRepresentation.of(result.successions());
-                        context.recordChange(Change.UPDATE, OrgUnitsResource.RESOURCE_TYPE, unit.id(),
-                                path + "/succession", successions);
+                        records.add(new ChangeRecord(Change.UPDATE, OrgUnitsResource.RESOURCE_TYPE, unit.id(),
+                                path + "/succession", successions));
                         successorIds = successions.successors().stream()
                                 .map(OrgUnitSuccessionsRepresentation.Link::orgUnitId)
                                 .toList();
                     }
-                    default -> record(Change.UPDATE, path, unit);
+                    default -> records.add(record(Change.UPDATE, path, unit, result));
                 }
                 results.add(new ReorganizationRepresentation.Result(result.op(), unit, successorIds));
             }
+            // One call for all steps, so that a resource that several steps change gets one propagated change.
+            context.recordChanges(records);
             return new ReorganizationRepresentation(null, null, results);
         });
     }
 
-    private void record(Change change, String path, OrgUnitRepresentation unit) {
-        context.recordChange(change, OrgUnitsResource.RESOURCE_TYPE, unit.id(), path, unit);
+    private static ChangeRecord record(Change change, String path, OrgUnitRepresentation unit,
+            ReorganizationService.Result result) {
+        return new ChangeRecord(change, OrgUnitsResource.RESOURCE_TYPE, unit.id(), path, unit, result.propagated());
     }
 }
