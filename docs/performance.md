@@ -355,20 +355,22 @@ What the runs showed.
 At the end, `scripts/bench/run.sh` gives each of the 50,000 people a Keycloak user with a first name and a last name, and takes the names out of the person records. So the read of each person gives the name of its user. `scripts/bench/seed-names.sql` does that with SQL. `ORDER=0` leaves it out.
 Then it changes the realm attribute `fuhito.nameOrder` with `PUT /admin/realms/{realm}`, three times to `family-first` and back to `given-first`. Each change gives all 50,000 people a new version and a propagated change.
 
-Run on 2026-11-22 on top of commit `0c4a7ae`, with Keycloak 26.8.2 and PostgreSQL 18, on a laptop with an Apple M4 Pro and 48 GB of memory. Docker (OrbStack 29.8.2) had 2 CPUs and 8 GB of memory for Keycloak and PostgreSQL together.
+Run on 2026-11-22 on top of commit `036b1ff`, with Keycloak 26.8.2 and PostgreSQL 18, on a laptop with an Apple M4 Pro and 48 GB of memory. Docker (OrbStack 29.8.2) had 2 CPUs and 8 GB of memory for Keycloak and PostgreSQL together. Other jobs used the machine during the run.
 Each number is the time of one request, measured by curl on the same machine.
 
 | Update of the realm | Propagated changes | Round 1 | Round 2 | Round 3 |
 |---|---|---|---|---|
-| To `family-first` | 50,000 | 848 ms | 1,024 ms | 1,050 ms |
-| `family-first` again | 0 | 6 ms | 3 ms | 3 ms |
-| To `given-first` | 50,000 | 934 ms | 1,039 ms | 1,032 ms |
+| To `family-first` | 50,000 | 1,110 ms | 1,262 ms | 1,381 ms |
+| `family-first` again | 0 | 16 ms | 9 ms | 9 ms |
+| To `given-first` | 50,000 | 1,173 ms | 1,270 ms | 1,285 ms |
+
+An earlier run of the same code gave 872 to 1,088 ms for a change, and 4 to 5 ms for the same value again.
 
 What the runs showed.
 
-- The change takes the lock of the realm alone from the event of Keycloak to the end of the request. So the other writes of the realm wait up to about 1 second for a change that reaches 50,000 people.
-- The insert of the 50,000 entries took 390 to 530 ms in the database. Its select of the people took about 120 ms of that. The count-up of the versions took 360 to 540 ms.
-- The same value again took 3 to 6 ms. Keycloak sends no event for it, so the extension does nothing.
+- The change takes the lock of the realm alone from the event of Keycloak to the end of the request. So the other writes of the realm wait about 1 to 1.4 seconds for a change that reaches 50,000 people.
+- The insert of the 50,000 entries took 490 to 680 ms in the database. Its select of the people took about 150 ms of that. The count-up of the versions took 460 to 700 ms. Both are one statement for the whole realm.
+- The same value again took at most 16 ms. Keycloak sends no event for it, so the extension does nothing.
 - The entries go in with one statement, and the change adds no admin event. The fill of an attribute above writes an entry and an admin event for each row, one by one.
 
 ## What the numbers say

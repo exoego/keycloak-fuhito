@@ -742,7 +742,7 @@ Keycloak sends it in the transaction of the change, for each realm attribute who
 The admin event `UPDATE` of `REALM` would not do. It comes for every update of the realm, also one that changes nothing, and it has only the new representation.
 Neither event has the value from before the change. So the extension reads the realm in a transaction of its own, which still sees the old value, and compares the two orders.
 
-One change can give every person of the realm a new version. So it takes the lock of the realm alone, as a bulk write does, and reads the old value again after the lock. It finds the people in the database, and writes their versions and their entries with a few statements for the whole realm. With 50,000 such people the update of the realm takes about 1 second, and the other writes of the realm wait that long. See [performance.md](performance.md#a-change-of-the-order-of-the-names).
+One change can give every person of the realm a new version. So it takes the lock of the realm alone, as a bulk write does, and reads the old value again after the lock. It finds the people in the database, and writes their versions and their entries with a few statements for the whole realm. With 50,000 such people the update of the realm takes about 1 to 1.4 seconds, and the other writes of the realm wait that long. See [performance.md](performance.md#a-change-of-the-order-of-the-names).
 
 The extension finds these people from the names in the tables of Keycloak. A user that only a user storage provider holds, such as one of LDAP with "Import Users" off, is not there. Its person gets no propagated change, and its read changes with no new version.
 
