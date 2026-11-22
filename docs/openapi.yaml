@@ -7621,7 +7621,11 @@ paths:
         \ `hierarchy` of the body. So a read in any hierarchy is a valid body. With\
         \ `source` and `externalId`, the unit gets that ID of that system. Another\
         \ `source` with no `externalId` fails with 400 and `invalid.value_fixed`.\
-        \ No other org unit may have the same code on a date of the change."
+        \ No other org unit may have the same code on a date of the change. Another\
+        \ work location or cost center changes the read of each unit below and each\
+        \ assignment that takes it on a date. Each of them gets a new version and\
+        \ a propagated change in the change log. Such a write holds the lock of the\
+        \ realm alone."
       operationId: changeOrgUnitDetails
       tags:
       - org-units
@@ -8181,7 +8185,11 @@ paths:
     put:
       summary: Gives an org unit a new parent in a hierarchy from a date.
       description: "The response has the parent in that hierarchy, and the code of\
-        \ that hierarchy in `hierarchy`."
+        \ that hierarchy in `hierarchy`. A move in the default hierarchy changes the\
+        \ work location and the cost center that apply to the unit, to the units below,\
+        \ and to their assignments. Each unit and assignment whose read changes gets\
+        \ a new version and a propagated change in the change log. Such a move holds\
+        \ the lock of the realm alone."
       operationId: moveOrgUnit
       tags:
       - org-units
@@ -10010,7 +10018,11 @@ paths:
         \ names the `version` of the unit that the caller read. An old version fails\
         \ with 409 and `version.conflict`, and `step` in the values of the error.\
         \ A step that gives a field that its operation does not read fails with 400\
-        \ and `reorganization.field_unused` before any step runs."
+        \ and `reorganization.field_unused` before any step runs. A step `change`\
+        \ or `move` can change the work location and the cost center that apply below\
+        \ its unit. Each unit and assignment whose read changes gets a new version\
+        \ and a propagated change. A reorganization with such a step holds the lock\
+        \ of the realm alone."
       operationId: applyReorganization
       tags:
       - org-units
