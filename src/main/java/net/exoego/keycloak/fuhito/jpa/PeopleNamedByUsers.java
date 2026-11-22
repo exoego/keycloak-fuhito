@@ -23,12 +23,11 @@ public final class PeopleNamedByUsers {
 
     // A read with one part, or with the same part twice, stays the same in either order.
     private static final String REORDERED = """
-            select s.ID from (
-              select p.ID, btrim(u.FIRST_NAME, :spaces) as GIVEN, btrim(u.LAST_NAME, :spaces) as FAMILY
-              from FUHITO_PERSON p join USER_ENTITY u on u.ID = p.USER_ID
-              where p.REALM_ID = :realmId and u.REALM_ID = :realmId
-              and not exists (select 1 from FUHITO_PERSON_NAME n where n.PERSON_ID = p.ID)) s
-            where s.GIVEN <> '' and s.FAMILY <> '' and s.GIVEN <> s.FAMILY""";
+            select p.id as id from PersonEntity p, UserEntity u
+            where u.id = p.userId and p.realmId = :realmId and u.realmId = :realmId
+            and not exists (select 1 from PersonNameEntity n where n.personId = p.id)
+            and %1$s <> '' and %2$s <> '' and %1$s <> %2$s"""
+            .formatted(stripped("u.firstName"), stripped("u.lastName"));
 
     private PeopleNamedByUsers() {
     }
@@ -58,5 +57,10 @@ public final class PeopleNamedByUsers {
                 .setParameter("realmId", realmId)
                 .setParameter("last", last)
                 .executeUpdate();
+    }
+
+    // JPQL trims one character only.
+    private static String stripped(String path) {
+        return "cast(sql('btrim(?, ?)', %s, :spaces) as String)".formatted(path);
     }
 }

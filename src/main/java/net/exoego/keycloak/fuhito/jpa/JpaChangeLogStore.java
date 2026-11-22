@@ -79,25 +79,25 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     /**
-     * Adds a propagated change of each resource that a select finds, with one statement for all of them. The entries
+     * Adds a propagated change of each resource that a query finds, with one statement for all of them. The entries
      * come in the order of the IDs. No write of the API caused them, so they have no change order.
      *
      * @param recordedAt when the cause happened
      * @param value the derived value that changed
      * @param cause what changed it
-     * @param resourceIds a select of native SQL with the column {@code ID}. It may use the parameter
-     *        {@code realmId}.
+     * @param resourceIds a select of the IDs as {@code id}. It may use the parameter {@code realmId}.
      * @param parameters the other parameters of the select
      * @return the sequence number before the first new entry
      */
     long appendPropagated(Instant recordedAt, DerivedValue value, ChangeLogEntry.Cause cause, String resourceIds,
             Map<String, Object> parameters) {
         long last = lastSequence(0);
-        Query insert = em.createNativeQuery("""
-                        insert into FUHITO_CHANGE_LOG (ID, REALM_ID, SEQUENCE_NUMBER, RECORDED_AT, KIND, RESOURCE_TYPE,
-                          RESOURCE_ID, OPERATION, RESOURCE_PATH, CAUSE)
-                        select cast(gen_random_uuid() as varchar), :realmId, :last + row_number() over (order by r.ID),
-                          :recordedAt, 'PROPAGATED', :resourceType, r.ID, 'UPDATE', :path || r.ID, :cause
+        Query insert = em.createQuery("""
+                        insert into ChangeLogEntity (id, realmId, sequence, recordedAt, kind, resourceType, resourceId,
+                          operation, resourcePath, cause)
+                        select cast(sql('gen_random_uuid()') as String), :realmId,
+                          :last + row_number() over (order by r.id), :recordedAt, 'PROPAGATED', :resourceType, r.id,
+                          'UPDATE', :path || r.id, :cause
                         from (%s) r""".formatted(resourceIds))
                 .setParameter("realmId", realmId)
                 .setParameter("last", last)
