@@ -366,7 +366,7 @@ public class AttributeSyncService {
                         today.toString(), null, jobTitle, codeOf(current.occupationId()), codeOf(current.kindId()),
                         codeOf(current.workLocationId()), codeOf(current.costCenterId()), current.head(),
                         current.primary(), false, current.allocationPercent(), current.displayOrder(),
-                        current.attributes(), null, null)), false, "/details");
+                        current.attributes(), null, null)).view(), false, "/details");
                 tally.assignmentsChanged++;
             }
         }
@@ -442,7 +442,7 @@ public class AttributeSyncService {
         LocalDate end = firstEnd(lifeOf(orgUnitId).to(), employment.period().to());
         AssignmentView added = from.assignmentService().add(new AssignmentValues(employment.id(), orgUnitId,
                 today.toString(), Objects.toString(end, null), jobTitle, null, null, null, !hasPrimary, false, null,
-                null, null, null, SOURCE));
+                null, null, null, SOURCE)).view();
         written(added, true, "");
         return added.assignmentId();
     }
@@ -472,7 +472,9 @@ public class AttributeSyncService {
             record.accept(Write.Removed.assignment(row.assignmentId()));
             return;
         }
-        written(from.assignmentService().end(row.assignmentId(), today.toString()), false, "/end");
+        AssignmentService.Written ended = from.assignmentService().end(row.assignmentId(), today.toString());
+        written(ended.view(), false, "/end");
+        ended.others().forEach(record);
     }
 
     private void syncManager(Values user, String assignmentId, LocalDate today) {

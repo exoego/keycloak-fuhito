@@ -297,7 +297,7 @@ class ProjectionServiceTest {
         String employment = employments.start(new NewEmployment(userId, "2026-04-01", null, null, null, null, null,
                 null, null, null, null)).employment().id();
         return assignments.add(new AssignmentValues(employment, orgUnitId, validFrom, null, null, null, null, null,
-                null, null, null, null, null, null, null)).assignmentId();
+                null, null, null, null, null, null, null)).view().assignmentId();
     }
 
     private ProjectionReport rebuild() {

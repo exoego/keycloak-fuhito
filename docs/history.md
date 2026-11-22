@@ -307,6 +307,7 @@ Checked by `EmploymentsIT`, `MembershipIT`, and `TwoWaysIT.aPersonOrAManagerByBo
 ## The change log and change orders
 
 Every successful write adds one entry to the change log.
+A write that changes other records too adds one entry for each of them, with the same user and change order. An example is an end of an employment, which ends or removes its assignments, its roles over org units, and their reporting lines. See "Other records that a write changes" in [keycloak-integration.md](keycloak-integration.md).
 An entry says who wrote, when, which resource, which operation, and which change order.
 It does not keep the state of the resource. A reader that needs the state reads the resource again.
 A write with the query parameter `changeOrder` belongs to that change order.
@@ -368,7 +369,7 @@ The erase adds one entry of the type `FUHITO_PERSON_DATA` with the operation `DE
 It stands for every row that the erase removed, also the reporting lines where the person is the manager. A reader can use it to remove its own copy of those rows.
 A mask adds an entry of the same type with the operation `UPDATE`. A reader can use it to clear the personal data in its own copy.
 
-Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber`, `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`, `ChangeLogIT.anEntryHasNoStateOfTheResource`, `UserRemovalIT.aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn`, `PropagatedChangesIT`, `LinkedUserChangesIT`, `UserNameChangesIT`, `NameOrderChangesIT`, and `ChangeLogServiceTest`.
+Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber`, `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`, `ChangeLogIT.anEntryHasNoStateOfTheResource`, `UserRemovalIT.aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn`, `PropagatedChangesIT`, `LinkedUserChangesIT`, `UserNameChangesIT`, `NameOrderChangesIT`, `EndedRecordsIT`, and `ChangeLogServiceTest`.
 
 ### Learning when a dated change takes effect
 

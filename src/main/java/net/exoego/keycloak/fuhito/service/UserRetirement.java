@@ -28,6 +28,7 @@ public class UserRetirement {
     private final EmploymentStore employments;
     private final EmploymentService employmentService;
     private final AssignmentStore assignments;
+    private final AssignmentService assignmentService;
     private final ReportingLineStore lines;
     private final PersonStore people;
     private final UnitRoleStore unitRoles;
@@ -40,6 +41,7 @@ public class UserRetirement {
      * @param employments the storage of employments of the realm
      * @param employmentService the operations on employments of the realm
      * @param assignments the storage of assignments of the realm
+     * @param assignmentService the operations on assignments of the realm
      * @param lines the storage of reporting lines of the realm
      * @param people the storage of people of the realm
      * @param unitRoles the storage of roles over org units of the realm
@@ -47,21 +49,23 @@ public class UserRetirement {
      * @param clock the clock that decides what "today" is
      */
     public UserRetirement(EmploymentStore employments, EmploymentService employmentService,
-            AssignmentStore assignments, ReportingLineStore lines, PersonStore people, UnitRoleStore unitRoles,
-            ExternalIdStore externalIds, Clock clock) {
+            AssignmentStore assignments, AssignmentService assignmentService, ReportingLineStore lines,
+            PersonStore people, UnitRoleStore unitRoles, ExternalIdStore externalIds, Clock clock) {
         this.people = people;
         this.unitRoles = unitRoles;
         this.externalIds = externalIds;
         this.employments = employments;
         this.employmentService = employmentService;
         this.assignments = assignments;
+        this.assignmentService = assignmentService;
         this.lines = lines;
         this.clock = clock;
     }
 
     /**
      * Ends today what would still hold for a removed user, and keeps everything else.
-     * An employment that is open today ends today, with its terms, its assignments, and their reporting lines.
+     * An employment that is open today ends today, with its terms, its assignments, its roles over org units, and
+     * the reporting lines of its assignments. Those that would start today or later are removed.
      * An employment that would start today or later is removed, because it never held.
      * A reporting line where the user is the manager ends today.
      *
@@ -83,7 +87,13 @@ public class UserRetirement {
                         && employment.period().endsAfter(today))
                 .map(Employment::id)
                 .toList();
-        employmentService.endAll(open, today).forEach(view -> written.add(new Write.OfEmployment(false, "/end", view)));
+        List<EmploymentService.Ended> ended = employmentService.endAll(open, today);
+        List<List<Write>> cuts = CutRecords.writes(ended.stream().map(EmploymentService.Ended::cut).toList(),
+                assignmentService);
+        for (int i = 0; i < ended.size(); i++) {
+            written.add(new Write.OfEmployment(false, "/end", ended.get(i).view()));
+            written.addAll(cuts.get(i));
+        }
         List<ReportingLine> managed = people.findByUser(userId).map(person -> lines.findByManager(person.id()))
                 .orElse(List.of());
         for (ReportingLine line : managed) {

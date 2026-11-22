@@ -170,7 +170,7 @@ final class AssignmentImport {
         // With no end of its own, an assignment ends with its employment.
         if (validTo == null && !Objects.equals(storedEnd, Objects.toString(document.people.employments()
                 .find(first.employmentId()).orElseThrow().period().to(), null))) {
-            written("/end", first, () -> service.removeEnd(id));
+            written("/end", first, () -> new AssignmentService.Written(service.removeEnd(id), List.of()));
             changed = true;
         } else if (validTo != null && !validTo.equals(storedEnd)) {
             written("/end", first, () -> service.end(id, validTo));
@@ -194,12 +194,13 @@ final class AssignmentImport {
                 null);
     }
 
-    private void written(String suffix, Assignment first, Supplier<AssignmentView> write) {
+    private void written(String suffix, Assignment first, Supplier<AssignmentService.Written> write) {
         added.insert();
-        AssignmentView after = write.get();
+        AssignmentService.Written after = write.get();
         stored.remove(first.assignmentId());
         added.forget(first.employmentId());
-        writes.add(() -> new Write.OfAssignment(false, suffix, after));
+        writes.add(() -> new Write.OfAssignment(false, suffix, after.view()));
+        after.others().forEach(other -> writes.add(() -> other));
     }
 
     // A row with an ID changes that assignment. An external ID beside it must be one of that assignment.

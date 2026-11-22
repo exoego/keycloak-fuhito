@@ -161,8 +161,9 @@ components:
         switchPrimary:
           type: boolean
           description: "True to take the primary flag away from other assignments\
-            \ of the employment for the same dates. True needs `primary` true. Without\
-            \ it, the request fails with `assignment.switch_primary_unused`."
+            \ of the employment for the same dates. Each of them gets an entry of\
+            \ its own in the change log. True needs `primary` true. Without it, the\
+            \ request fails with `assignment.switch_primary_unused`."
           writeOnly: true
         allocationPercent:
           type: number
@@ -253,8 +254,9 @@ components:
         switchPrimary:
           type: boolean
           description: "True to take the primary flag away from other assignments\
-            \ of the employment for the same dates. True needs `primary` true. Without\
-            \ it, the request fails with `assignment.switch_primary_unused`."
+            \ of the employment for the same dates. Each of them gets an entry of\
+            \ its own in the change log. True needs `primary` true. Without it, the\
+            \ request fails with `assignment.switch_primary_unused`."
           writeOnly: true
         allocationPercent:
           type: number
@@ -5107,9 +5109,12 @@ paths:
           $ref: "#/components/responses/Conflict"
     put:
       summary: Sets the end of an assignment.
-      description: Its history stays readable. The end can move earlier or later.
-        A later end of a primary assignment that would then share a date with another
-        primary assignment of the employment fails with 409 and `assignment.primary_exists`.
+      description: "Its history stays readable. The end can move earlier or later.\
+        \ An earlier end also ends the reporting lines of the assignment on the date,\
+        \ and removes the ones that would start later. Each of them gets an entry\
+        \ of its own in the change log. A later end of a primary assignment that would\
+        \ then share a date with another primary assignment of the employment fails\
+        \ with 409 and `assignment.primary_exists`."
       operationId: endAssignment
       tags:
       - assignments
@@ -5153,7 +5158,8 @@ paths:
         \ the allocation, and the attributes. It keeps the job title unless the request\
         \ gives one. The head flag, the display order, the work location, and the\
         \ cost center belong to the old org unit and are not kept. The reporting lines\
-        \ of the old assignment end with it. A failure writes nothing."
+        \ of the old assignment end with it, and each gets an entry of its own in\
+        \ the change log. A failure writes nothing."
       operationId: moveAssignment
       tags:
       - assignments
@@ -6387,11 +6393,13 @@ paths:
           $ref: "#/components/responses/Conflict"
     put:
       summary: Sets the end of an employment.
-      description: "An earlier end is how a person leaves. It also ends the terms\
-        \ and the assignments on that date, and removes the ones that would start\
-        \ later. A later end extends a fixed-term employment. A later end that comes\
-        \ after the start of an employment that continues this one fails with 409\
-        \ and `employment.continues_holds`."
+      description: "An earlier end is how a person leaves. It also ends the terms,\
+        \ the assignments, the roles over org units, and the reporting lines of the\
+        \ assignments on that date, and removes the ones that would start later. Each\
+        \ assignment, role, and line that it ends or removes gets an entry of its\
+        \ own in the change log. A later end extends a fixed-term employment. A later\
+        \ end that comes after the start of an employment that continues this one\
+        \ fails with 409 and `employment.continues_holds`."
       operationId: endEmployment
       tags:
       - employments
@@ -6602,7 +6610,8 @@ paths:
         \ on the date or later goes away from the old employment, and its copy takes\
         \ its IDs of other systems. One that holds before the date only ends and keeps\
         \ its IDs. Its copy gets none, and the `endedOnStart` of the copy lists it.\
-        \ A failure writes nothing. An employment with an external employer cannot\
+        \ Each old one that ends or goes away gets an entry of its own in the change\
+        \ log. A failure writes nothing. An employment with an external employer cannot\
         \ move. End it and start another employment."
       operationId: transferEmployment
       tags:
