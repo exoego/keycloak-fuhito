@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import net.exoego.keycloak.fuhito.domain.DerivedValue;
 import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
@@ -13,6 +14,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.service.PersonView.NameSource;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -120,7 +122,7 @@ class PersonServiceTest {
 
         // The person gets an account later.
         PersonView changed = service.replace(id, new PersonValues("taro", "en",
-                Map.of("en", new PersonName("Taro", "やまだ")), null, "E-9", "payroll"));
+                Map.of("en", new PersonName("Taro", "やまだ")), null, "E-9", "payroll")).view();
 
         assertEquals("taro", changed.person().userId());
         assertEquals(Localized.of("en", new PersonName("Taro", "やまだ")), changed.person().names());
@@ -131,13 +133,29 @@ class PersonServiceTest {
         assertEquals("hr", changed.person().source());
 
         // With no names of its own, the person shows the name of Keycloak again.
-        PersonView nameless = service.replace(id, linked("taro", null));
+        PersonView nameless = service.replace(id, linked("taro", null)).view();
         assertNull(nameless.person().names());
         assertEquals(NameSource.KEYCLOAK, nameless.nameSource());
 
         // Keeping the same link is no conflict. Leaving it out removes it.
-        assertEquals("taro", service.replace(id, linked("taro", "山田")).person().userId());
-        assertNull(service.replace(id, named("山田")).person().userId());
+        assertEquals("taro", service.replace(id, linked("taro", "山田")).view().person().userId());
+        assertNull(service.replace(id, named("山田")).view().person().userId());
+    }
+
+    @Test
+    void aLinkAnUnlinkAndAnotherUserCountUpTheRecordsOfThePersonAndKeepingTheUserDoesNot() {
+        String id = service.create(named("山田 太郎")).person().id();
+        List<PropagatedChange> records = List.of(new PropagatedChange(DerivedValue.EMPLOYMENT_USER_ID, "e1"),
+                new PropagatedChange(DerivedValue.REPORTING_LINE_MANAGER_USER_ID, "l1"));
+        store.readsOfUser.put(id, records);
+
+        assertEquals(records, service.replace(id, linked("taro", "山田 太郎")).propagated());
+        assertEquals(List.of(), service.replace(id, linked("taro", "山田")).propagated());
+        assertEquals(records, service.replace(id, linked("hanako", "山田")).propagated());
+        assertEquals(records, service.replace(id, named("山田")).propagated());
+        assertEquals(List.of(), service.replace(id, named("山田 花子")).propagated());
+
+        assertEquals(List.of(id, id, id), store.countedUp);
     }
 
     @Test

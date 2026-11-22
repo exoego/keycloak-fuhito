@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
+import net.exoego.keycloak.fuhito.domain.DerivedValue;
 import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
@@ -21,6 +22,7 @@ import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.OrgUnitName;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.Qualification;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefItemName;
@@ -2547,6 +2549,26 @@ class ImportServiceTest {
         assertEquals(List.of("invalid.blank primaryLanguage"), fields(rows("2026-04-01", "people", """
                 {"externalId": "P", "primaryLanguage": ""}
                 """)));
+    }
+
+    @Test
+    void aRowThatChangesTheUserOfAStoredPersonGivesTheRecordsWhoseReadChanged() {
+        rows("2026-04-01", "people", """
+                {"externalId": "P", "username": "nurse", "primaryLanguage": "ja", "names": {"ja": {"name": "山田"}}}
+                """);
+        String id = stored(ExternalId.Kind.PERSON, "import", "P");
+        List<PropagatedChange> records = List.of(new PropagatedChange(DerivedValue.EMPLOYMENT_USER_ID, "e1"));
+        personStore.readsOfUser.put(id, records);
+
+        ImportReport renamed = rows("2026-04-01", "people", """
+                {"externalId": "P", "names": {"ja": {"name": "山田 花子"}}}
+                """);
+        ImportReport unlinked = rows("2026-04-01", "people", """
+                {"externalId": "P", "username": null}
+                """);
+
+        assertEquals(List.of(List.of()), renamed.writes().stream().map(ImportReport.Write::propagated).toList());
+        assertEquals(List.of(records), unlinked.writes().stream().map(ImportReport.Write::propagated).toList());
     }
 
     @Test

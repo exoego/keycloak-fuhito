@@ -166,7 +166,10 @@ public class PeopleResource {
             summary = "Replaces the names, the attributes, and the link to a Keycloak user.",
             description = "A body with no `userId` removes the link. The person keeps `source`. With `source` and "
                     + "`externalId`, the person gets that ID of that system. Another `source` with no `externalId` "
-                    + "fails with 400 and `invalid.value_fixed`.")
+                    + "fails with 400 and `invalid.value_fixed`. Another `userId` changes the read of each "
+                    + "employment, assignment, qualification, and role over org units of the person, and of each "
+                    + "reporting line where the person is the manager. Each of them gets a new version and a "
+                    + "propagated change in the change log.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The changed person.")
     @BadRequest
@@ -179,12 +182,14 @@ public class PeopleResource {
                     schema = @Schema(allOf = {PersonRepresentation.class, VersionCheckRepresentation.class})))
             PersonRepresentation body) {
         context.requireWrite();
-        return Calls.guarded(context, body, () -> version(id), () -> {
+        // A change of the user writes the versions of the records of the person too.
+        return Calls.guarded(context, body, () -> version(id), () -> data.ofPerson(id), () -> {
             PersonView stored = service.get(id);
             Writes.requireSource(stored.person().source(), body.source(), body.externalId());
             Writes.requireRead(body, () -> represent(stored), PersonRepresentation.READ_ONLY);
-            var person = represent(service.replace(id, body.toValues()));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), person);
+            PersonService.Replaced replaced = service.replace(id, body.toValues());
+            var person = represent(replaced.view());
+            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, path(id), person, replaced.propagated());
             return person;
         });
     }

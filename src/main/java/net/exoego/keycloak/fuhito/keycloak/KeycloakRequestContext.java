@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Messages;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.RowLocks;
@@ -256,7 +258,20 @@ final class KeycloakRequestContext implements RequestContext {
                     Instant.now().truncatedTo(ChronoUnit.MILLIS), actorUserId, change.resourceType(),
                     change.resourceId(), change.change().name(), change.resourcePath(), changeOrderId));
         }
-        new JpaChangeLogStore(entityManager, realm.getId()).appendAll(entries);
+        JpaChangeLogStore log = new JpaChangeLogStore(entityManager, realm.getId());
+        List<ChangeLogEntry> writes = log.appendAll(entries);
+        // The entries of the writes need their numbers first, so that each propagated change can name its cause.
+        Map<List<Object>, ChangeLogEntry> propagated = new LinkedHashMap<>();
+        for (int i = 0; i < changes.size(); i++) {
+            ChangeLogEntry write = writes.get(i);
+            for (PropagatedChange read : changes.get(i).propagated()) {
+                propagated.computeIfAbsent(List.of(read.value().resourceType(), read.resourceId()),
+                        resource -> write.causing(UUID.randomUUID().toString(), read));
+            }
+        }
+        if (!propagated.isEmpty()) {
+            log.appendAll(List.copyOf(propagated.values()));
+        }
     }
 
     @Override

@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.OptionalInt;
 
 import jakarta.ws.rs.core.Response;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.ResourceType;
 
 /**
@@ -160,9 +161,24 @@ public interface RequestContext {
      * @param resourceId the ID of the changed resource
      * @param resourcePath the path of the request below the realm
      * @param representation the new state, or null
+     * @param propagated the other resources whose read the change changed. Their versions are counted up already.
      */
     record ChangeRecord(Change change, ResourceType resourceType, String resourceId, String resourcePath,
-            Object representation) {
+            Object representation, List<PropagatedChange> propagated) {
+
+        /**
+         * Makes the record of a change that changed no read of another resource.
+         *
+         * @param change the kind of the change
+         * @param resourceType the type of the changed resource
+         * @param resourceId the ID of the changed resource
+         * @param resourcePath the path of the request below the realm
+         * @param representation the new state, or null
+         */
+        public ChangeRecord(Change change, ResourceType resourceType, String resourceId, String resourcePath,
+                Object representation) {
+            this(change, resourceType, resourceId, resourcePath, representation, List.of());
+        }
     }
 
     /**
@@ -177,11 +193,31 @@ public interface RequestContext {
      */
     default void recordChange(Change change, ResourceType resourceType, String resourceId, String resourcePath,
             Object representation) {
-        recordChanges(List.of(new ChangeRecord(change, resourceType, resourceId, resourcePath, representation)));
+        recordChange(change, resourceType, resourceId, resourcePath, representation, List.of());
     }
 
     /**
-     * Records successful changes in their order, as {@link #recordChange} does for each.
+     * Records a successful change as {@link #recordChange(Change, ResourceType, String, String, Object)} does, and a
+     * propagated change of each other resource whose read it changed.
+     *
+     * @param change the kind of the change
+     * @param resourceType the type of the changed resource
+     * @param resourceId the ID of the changed resource
+     * @param resourcePath the path of the request below the realm
+     * @param representation the new state, or null
+     * @param propagated the other resources whose read the change changed. Their versions are counted up already.
+     */
+    default void recordChange(Change change, ResourceType resourceType, String resourceId, String resourcePath,
+            Object representation, List<PropagatedChange> propagated) {
+        recordChanges(List.of(new ChangeRecord(change, resourceType, resourceId, resourcePath, representation,
+                propagated)));
+    }
+
+    /**
+     * Records successful changes in their order, as {@link #recordChange} does for each. Each change gets an admin
+     * event and an entry of the kind {@code WRITE}. The propagated changes come after all those entries, with no
+     * admin event. Each has the time and the change order of the first change that caused it, and names its entry in
+     * {@code causeSequence}. A resource gets one propagated change, also when several of the changes changed its read.
      *
      * @param changes the changes
      */

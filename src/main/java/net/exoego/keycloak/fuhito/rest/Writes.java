@@ -202,6 +202,7 @@ final class Writes {
             case Write.Removed removed -> null;
         };
         Change change = write.deleted() ? Change.DELETE : write.created() ? Change.CREATE : Change.UPDATE;
-        return new ChangeRecord(change, write.resourceType(), write.resourceId(), write.path(), representation);
+        return new ChangeRecord(change, write.resourceType(), write.resourceId(), write.path(), representation,
+                write.propagated());
     }
 }
