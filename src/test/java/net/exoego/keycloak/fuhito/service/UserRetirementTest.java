@@ -42,8 +42,8 @@ class UserRetirementTest {
                     people),
             CLOCK);
     private final UserRetirement retirement =
-            new UserRetirement(employmentStore, employments, assignmentStore, lines, people, unitRoles, externalIds,
-                    CLOCK);
+            new UserRetirement(employmentStore, employments, assignmentStore, assignments, lines, people, unitRoles,
+                    externalIds, CLOCK);
 
     private String unit;
 
@@ -59,7 +59,7 @@ class UserRetirementTest {
 
     private String assign(String employmentId, String from) {
         return assignments.add(new AssignmentValues(employmentId, unit, from, null, null, null, null, null, null,
-                null, null, null, null, null, null)).assignmentId();
+                null, null, null, null, null, null)).view().assignmentId();
     }
 
     private static List<String> describe(List<Write> written) {
@@ -91,14 +91,16 @@ class UserRetirementTest {
         String open = employ("alice", "2022-04-01", null);
         String openAssignment = assign(open, "2022-04-01");
         employments.changeTerms(open, new TermsChange("2024-04-01", null, null, "ON_LEAVE", null, null));
-        lineService.add(openAssignment, "boss", null, "2022-04-01", null);
+        String openLine = lineService.add(openAssignment, "boss", null, "2022-04-01", null).id();
         lineService.add(pastAssignment, "boss", null, "2015-04-01", null);
         String other = employ("bob", "2022-04-01", null);
         assign(other, "2022-04-01");
 
         List<Write> written = retirement.retire("alice");
 
-        assertEquals(List.of("UPDATE FUHITO_EMPLOYMENT " + open), describe(written));
+        // The end of the employment ends the assignment and its line too.
+        assertEquals(List.of("UPDATE FUHITO_EMPLOYMENT " + open, "UPDATE FUHITO_REPORTING_LINE " + openLine,
+                "UPDATE FUHITO_ASSIGNMENT " + openAssignment), describe(written));
         assertEquals(List.of("2015-04-01 2020-04-01", "2022-04-01 2026-06-15"), employmentsOf("alice"));
         assertEquals(List.of("2015-04-01 2020-04-01"), rowsOf(past));
         assertEquals(List.of("2022-04-01 2026-06-15"), rowsOf(open));
@@ -112,7 +114,7 @@ class UserRetirementTest {
     @Test
     void anEmploymentThatEndsLaterEndsTodayAndOneThatNeverHeldIsRemoved() {
         String fixed = employ("alice", "2026-04-01", "2027-04-01");
-        assign(fixed, "2026-04-01");
+        String fixedAssignment = assign(fixed, "2026-04-01");
         String startsToday = employ("alice", "2026-06-15", null);
         String todayAssignment = assign(startsToday, "2026-06-15");
         lineService.add(todayAssignment, "boss", null, "2026-06-15", null);
@@ -124,7 +126,8 @@ class UserRetirementTest {
         // Every write is for the change log, the removals too. The later employment goes first.
         assertEquals(List.of("DELETE FUHITO_ASSIGNMENT", "DELETE FUHITO_EMPLOYMENT " + future,
                 "DELETE FUHITO_REPORTING_LINE", "DELETE FUHITO_ASSIGNMENT " + todayAssignment,
-                "DELETE FUHITO_EMPLOYMENT " + startsToday, "UPDATE FUHITO_EMPLOYMENT " + fixed),
+                "DELETE FUHITO_EMPLOYMENT " + startsToday, "UPDATE FUHITO_EMPLOYMENT " + fixed,
+                "UPDATE FUHITO_ASSIGNMENT " + fixedAssignment),
                 describe(written).stream().map(w -> w.startsWith("DELETE FUHITO_ASSIGNMENT ")
                         && !w.endsWith(todayAssignment) ? "DELETE FUHITO_ASSIGNMENT" : w)
                         .map(w -> w.startsWith("DELETE FUHITO_REPORTING_LINE") ? "DELETE FUHITO_REPORTING_LINE" : w)
@@ -133,6 +136,34 @@ class UserRetirementTest {
         assertEquals(1, assignmentStore.rows.size());
         assertEquals(1, employmentStore.terms.size());
         assertEquals(List.of(), allLines());
+    }
+
+    @Test
+    void theEndOfAnOpenEmploymentGivesAWriteOfEachRecordThatItEndsOrRemoves() {
+        String open = employ("alice", "2022-04-01", null);
+        String assignment = assign(open, "2022-04-01");
+        String later = assign(open, "2026-07-01");
+        String line = lineService.add(assignment, "boss", null, "2022-04-01", null).id();
+        String laterLine = lineService.add(later, "boss", null, "2026-07-01", null).id();
+        unitRoles.insert(new UnitRole("role-1", open, null, "alice", unit, "hr-contact", false,
+                ValidPeriod.startingAt(LocalDate.parse("2022-04-01")), 1));
+        unitRoles.insert(new UnitRole("role-2", open, null, "alice", unit, "hr-contact", false,
+                ValidPeriod.startingAt(LocalDate.parse("2026-07-01")), 1));
+
+        List<Write> written = retirement.retire("alice");
+
+        // A removed record comes before the records that it refers to.
+        assertEquals(List.of("UPDATE FUHITO_EMPLOYMENT " + open, "DELETE FUHITO_UNIT_ROLE role-2",
+                "UPDATE FUHITO_UNIT_ROLE role-1", "DELETE FUHITO_REPORTING_LINE " + laterLine,
+                "UPDATE FUHITO_REPORTING_LINE " + line, "DELETE FUHITO_ASSIGNMENT " + later,
+                "UPDATE FUHITO_ASSIGNMENT " + assignment), describe(written));
+        assertEquals(List.of("fuhito/employments/" + open + "/end", "fuhito/unit-roles/role-2",
+                "fuhito/unit-roles/role-1/end", "fuhito/reporting-lines/" + laterLine,
+                "fuhito/reporting-lines/" + line + "/end", "fuhito/assignments/" + later,
+                "fuhito/assignments/" + assignment + "/end"), written.stream().map(Write::path).toList());
+        assertEquals(List.of("2026-06-15"), unitRoles.findByEmployment(open).stream()
+                .map(role -> role.period().to().toString()).toList());
+        assertEquals(List.of("2022-04-01 2026-06-15"), rowsOf(open));
     }
 
     @Test

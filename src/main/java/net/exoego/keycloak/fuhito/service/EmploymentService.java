@@ -32,6 +32,7 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
 import net.exoego.keycloak.fuhito.domain.ValidPeriod;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
@@ -406,6 +407,16 @@ public class EmploymentService {
     }
 
     /**
+     * An employment after an end, and the records of it that the end changed.
+     *
+     * @param view the employment with all its terms
+     * @param cut the assignments, the roles over org units, and the reporting lines of the employment that the end
+     *        ended on its date or removed
+     */
+    public record Ended(EmploymentView view, CutRecords cut) {
+    }
+
+    /**
      * Sets the end of an employment.
      * An earlier end is how a person leaves. It also ends the terms, the assignments, and the roles over org units
      * on that date, and removes stored changes that would start on or after it.
@@ -415,11 +426,11 @@ public class EmploymentService {
      * @param id the ID of the employment
      * @param validTo the first date on which the employment no longer holds, as {@code YYYY-MM-DD}
      * @param endReason the code of the end reason, or null
-     * @return the employment with all its terms
+     * @return the employment with all its terms, and the records of it that the end changed
      * @throws FuhitoException when the date is not after the start of the employment, a value is bad, or the
      *         employment would hold on the start of an employment that continues it
      */
-    public EmploymentView end(String id, String validTo, String endReason) {
+    public Ended end(String id, String validTo, String endReason) {
         return end(id, validTo, endReason, true);
     }
 
@@ -430,10 +441,10 @@ public class EmploymentService {
      * @param validTo the first date on which the employment no longer holds, as {@code YYYY-MM-DD}
      * @param endReason the code of the end reason, or null
      * @param checkNext false when the caller checks the employments that continue this one itself
-     * @return the employment with all its terms
+     * @return the employment with all its terms, and the records of it that the end changed
      * @throws FuhitoException as {@link #end(String, String, String)} does
      */
-    EmploymentView end(String id, String validTo, String endReason, boolean checkNext) {
+    Ended end(String id, String validTo, String endReason, boolean checkNext) {
         LocalDate to = Checks.date("validTo", validTo);
         Employment employment = get(id).employment();
         if (!to.isAfter(employment.period().from())) {
@@ -443,8 +454,8 @@ public class EmploymentService {
         if (checkNext) {
             requireEndsByNext(employment, to);
         }
-        setEnd(List.of(employment), to, any -> idOf(reason));
-        return get(id);
+        CutRecords cut = setEnd(List.of(employment), to, any -> idOf(reason)).get(id);
+        return new Ended(get(id), cut);
     }
 
     /**
@@ -453,16 +464,17 @@ public class EmploymentService {
      *
      * @param ids the IDs of employments that start before the date and hold on it
      * @param to the date
-     * @return the employments with all their terms, in the order of the IDs
+     * @return the employments with all their terms, and the records of each that the end changed, in the order of
+     *         the IDs
      * @throws FuhitoException when an employer does not exist until the end
      */
-    List<EmploymentView> endAll(List<String> ids, LocalDate to) {
+    List<Ended> endAll(List<String> ids, LocalDate to) {
         if (ids.isEmpty()) {
             return List.of();
         }
-        setEnd(store.findAll(ids), to, Employment::endReasonId);
+        Map<String, CutRecords> cuts = setEnd(store.findAll(ids), to, Employment::endReasonId);
         Map<String, EmploymentView> ended = getAll(ids);
-        return ids.stream().map(ended::get).toList();
+        return ids.stream().map(id -> new Ended(ended.get(id), cuts.get(id))).toList();
     }
 
     /**
@@ -517,9 +529,10 @@ public class EmploymentService {
      * @param assignmentIds the IDs of the assignments that the new employment got
      * @param reportingLines the reporting lines that the new assignments got
      * @param unitRoles the roles over org units that the new employment got
+     * @param cut the records of the old employment that the end ended on the date or removed
      */
     public record Transfer(EmploymentView ended, EmploymentView started, List<String> assignmentIds,
-            List<ReportingLine> reportingLines, List<UnitRoleService.View> unitRoles) {
+            List<ReportingLine> reportingLines, List<UnitRoleService.View> unitRoles, CutRecords cut) {
     }
 
     /**
@@ -648,7 +661,7 @@ public class EmploymentService {
                 gone.computeIfAbsent(kind, any -> new HashMap<>()).putAll(copyIds)));
         externalIds.moveAll(gone);
         String reasonId = reason.map(RefItem::id).orElse(null);
-        writeEnd(olds, date, any -> reasonId, rows);
+        Map<String, CutRecords> cuts = writeEnd(olds, date, any -> reasonId, rows);
         store.insertAll(copies.stream().map(Copy::started).toList());
         copies.forEach(copy -> copy.terms().forEach(store::insertTerms));
         assignments.insertAll(copies.stream().flatMap(copy -> copy.rows().stream()).toList());
@@ -666,7 +679,7 @@ public class EmploymentService {
             transfers.add(new Transfer(views.get(ids.get(i)), views.get(copy.started().id()), copy.assignmentIds(),
                     copy.lines(), copy.roles().stream()
                             .map(role -> new UnitRoleService.View(role, cachedCode(codes, role.roleId())))
-                            .toList()));
+                            .toList(), cuts.get(ids.get(i))));
         }
         return transfers;
     }
@@ -799,11 +812,12 @@ public class EmploymentService {
         return get(id);
     }
 
-    private void setEnd(List<Employment> employments, LocalDate to, Function<Employment, String> endReasonId) {
+    private Map<String, CutRecords> setEnd(List<Employment> employments, LocalDate to,
+            Function<Employment, String> endReasonId) {
         checkEnd(employments, to);
         List<Assignment> rows = to == null ? List.of()
                 : assignments.rowsOfEmployments(employments.stream().map(Employment::id).toList());
-        writeEnd(employments, to, endReasonId, rows);
+        return writeEnd(employments, to, endReasonId, rows);
     }
 
     // Every check of an end comes before its first write.
@@ -817,8 +831,9 @@ public class EmploymentService {
         }
     }
 
-    private void writeEnd(List<Employment> employments, LocalDate to, Function<Employment, String> endReasonId,
-            List<Assignment> rows) {
+    // The records that the end changed, by the ID of their employment. Without an end, there are none.
+    private Map<String, CutRecords> writeEnd(List<Employment> employments, LocalDate to,
+            Function<Employment, String> endReasonId, List<Assignment> rows) {
         for (Employment employment : employments) {
             store.update(new Employment(employment.id(), employment.personId(), employment.userId(),
                     employment.employer(), employment.period().endingAt(to), employment.staffNumber(),
@@ -828,21 +843,36 @@ public class EmploymentService {
         List<String> ids = employments.stream().map(Employment::id).toList();
         endTerms(ids, to);
         if (to == null) {
-            return;
+            return Map.of();
         }
+        Map<String, List<Write>> others = new HashMap<>();
+        ids.forEach(id -> others.put(id, new ArrayList<>()));
         List<String> removedRoles = new ArrayList<>();
         List<UnitRole> endedRoles = new ArrayList<>();
+        Set<String> endedRoleIds = new HashSet<>();
         for (UnitRole role : unitRoles.findByEmployments(ids)) {
             if (!role.period().from().isBefore(to)) {
                 removedRoles.add(role.id());
+                others.get(role.employmentId()).add(Write.Removed.unitRole(role.id()));
             } else if (role.period().endsAfter(to)) {
                 endedRoles.add(role.withPeriod(role.period().endingAt(to)));
+                endedRoleIds.add(role.id());
             }
         }
         unitRoles.deleteAll(removedRoles);
         unitRoles.updateAll(endedRoles);
-        // A reporting line cannot outlast its assignment.
-        reportingLines.truncate(rows.stream().map(Assignment::assignmentId).distinct().toList(), to);
+        if (!endedRoleIds.isEmpty()) {
+            Map<String, String> codes = new HashMap<>();
+            // The read gives the versions that the write counted up.
+            unitRoles.findByEmployments(ids).stream()
+                    .filter(role -> endedRoleIds.contains(role.id()))
+                    .forEach(role -> others.get(role.employmentId()).add(new Write.OfUnitRole(false, "/end",
+                            new UnitRoleService.View(role, cachedCode(codes, role.roleId())))));
+        }
+        Map<String, List<Assignment>> rowsById = rows.stream()
+                .collect(Collectors.groupingBy(Assignment::assignmentId, LinkedHashMap::new, Collectors.toList()));
+        CutRecords.cutLines(reportingLines, rowsById.keySet(), to).forEach((assignmentId, lines) ->
+                others.get(rowsById.get(assignmentId).getFirst().employmentId()).addAll(lines));
         List<String> removedRows = new ArrayList<>();
         List<Assignment> endedRows = new ArrayList<>();
         for (Assignment row : rows) {
@@ -854,6 +884,19 @@ public class EmploymentService {
         }
         assignments.deleteAll(removedRows);
         assignments.updateAll(endedRows);
+        // An assignment that had a row on the date or later changed. With no row before the date, it is gone.
+        Map<String, List<String>> cutAssignments = new HashMap<>();
+        rowsById.forEach((assignmentId, ofAssignment) -> {
+            String employmentId = ofAssignment.getFirst().employmentId();
+            if (ofAssignment.stream().allMatch(row -> !row.period().from().isBefore(to))) {
+                others.get(employmentId).add(Write.Removed.assignment(assignmentId));
+            } else if (ofAssignment.stream().anyMatch(row -> row.period().endsAfter(to))) {
+                cutAssignments.computeIfAbsent(employmentId, any -> new ArrayList<>()).add(assignmentId);
+            }
+        });
+        Map<String, CutRecords> cuts = new HashMap<>();
+        ids.forEach(id -> cuts.put(id, new CutRecords(cutAssignments.getOrDefault(id, List.of()), others.get(id))));
+        return cuts;
     }
 
     private void endTerms(List<String> employmentIds, LocalDate to) {

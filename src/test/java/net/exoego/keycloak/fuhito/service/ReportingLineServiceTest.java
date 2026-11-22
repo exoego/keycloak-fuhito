@@ -81,7 +81,7 @@ class ReportingLineServiceTest {
 
     private String assign(String employmentId, String orgUnitId, boolean head) {
         return assignments.add(new AssignmentValues(employmentId, orgUnitId, "2026-04-01", null, null, null, null,
-                head, null, null, null, null, null, null, null)).assignmentId();
+                head, null, null, null, null, null, null, null)).view().assignmentId();
     }
 
     private static List<String> summary(List<Reporting> list) {
@@ -180,7 +180,7 @@ class ReportingLineServiceTest {
                 true, false, true));
         String headNurse = employmentStore.findByPerson("head-nurse").getFirst().id();
         String acting = assignments.add(new AssignmentValues(employ("idle"), nursing, "2026-04-01", null, null,
-                null, "acting", true, null, null, null, null, null, null, null)).assignmentId();
+                null, "acting", true, null, null, null, null, null, null, null)).view().assignmentId();
 
         // The acting head leads also while the head nurse is active, for example on a sick leave that is not a
         // status of the employment.

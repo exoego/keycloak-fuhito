@@ -1738,8 +1738,11 @@ class ImportServiceTest {
         var nurse = employments.get(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1"));
         assertEquals(List.of("ACTIVE", "ON_LEAVE"),
                 nurse.terms().stream().map(t -> t.terms().status().name()).toList());
-        assertEquals(List.of("/terms", "/end", "/end", ""), report.writes().stream()
-                .map(w -> w.path().substring(w.path().indexOf('/', 7) + 37)).toList());
+        // The end of the doctor ends the assignment of the doctor too.
+        assertEquals(List.of("FUHITO_EMPLOYMENT /terms", "FUHITO_EMPLOYMENT /end", "FUHITO_ASSIGNMENT /end",
+                "FUHITO_ASSIGNMENT /end", "FUHITO_ASSIGNMENT "), report.writes().stream()
+                .map(w -> w.resourceType() + " " + w.path().substring(w.path().indexOf('/', 7) + 37)).toList());
+        assertEquals(stored(ExternalId.Kind.ASSIGNMENT, "import", "A2"), report.writes().get(2).resourceId());
 
         // The same second document again changes nothing, the ended rows included.
         ImportReport again = importPeople("2027-04-01",

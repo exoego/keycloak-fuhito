@@ -25,10 +25,12 @@ import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.AssignmentService;
 import net.exoego.keycloak.fuhito.service.Cursor;
+import net.exoego.keycloak.fuhito.service.CutRecords;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.EmploymentView;
 import net.exoego.keycloak.fuhito.service.ExternalIdLists;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.LeaveService;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.OrgUnitState;
@@ -283,10 +285,12 @@ public class EmploymentsResource {
     @Operation(
             operationId = "endEmployment",
             summary = "Sets the end of an employment.",
-            description = "An earlier end is how a person leaves. It also ends the terms and the assignments on "
-                    + "that date, and removes the ones that would start later. A later end extends a fixed-term "
-                    + "employment. A later end that comes after the start of an employment that continues this one "
-                    + "fails with 409 and `employment.continues_holds`.")
+            description = "An earlier end is how a person leaves. It also ends the terms, the assignments, the roles "
+                    + "over org units, and the reporting lines of the assignments on that date, and removes the ones "
+                    + "that would start later. Each assignment, role, and line that it ends or removes gets an entry "
+                    + "of its own in the change log. A later end extends a fixed-term employment. A later end that "
+                    + "comes after the start of an employment that continues this one fails with 409 and "
+                    + "`employment.continues_holds`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
     @BadRequest
@@ -298,8 +302,11 @@ public class EmploymentsResource {
             EmploymentEndRepresentation body) {
         context.requireWrite();
         return Calls.guarded(context, body, () -> version(id), () -> scopes.employment(id), () -> {
-            var employment = represent(service.end(id, body.validTo(), body.endReason()));
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment);
+            EmploymentService.Ended ended = service.end(id, body.validTo(), body.endReason());
+            var employment = represent(ended.view());
+            Writes.recordAll(context, externalIds, List.of(new RequestContext.ChangeRecord(Change.UPDATE,
+                    RESOURCE_TYPE, id, "fuhito/employments/" + id + "/end", employment)),
+                    ended.cut().writes(assignments));
             return employment;
         });
     }
@@ -404,7 +411,8 @@ public class EmploymentsResource {
                     + "before the date. An assignment, a line, or a role that "
                     + "starts on the date or later goes away from the old employment, and its copy takes its IDs "
                     + "of other systems. One that holds before the date only ends and keeps its IDs. Its copy "
-                    + "gets none, and the `endedOnStart` of the copy lists it. A failure writes nothing. An "
+                    + "gets none, and the `endedOnStart` of the copy lists it. Each old one that ends or goes away "
+                    + "gets an entry of its own in the change log. A failure writes nothing. An "
                     + "employment with an external employer cannot move. End it and start another employment.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
@@ -486,6 +494,11 @@ public class EmploymentsResource {
                 .flatMap(transfer -> transfer.reportingLines().stream()).toList(), externalIds).iterator();
         Iterator<UnitRoleRepresentation> newRoles = UnitRolesResource.represent(transfers.stream()
                 .flatMap(transfer -> transfer.unitRoles().stream()).toList(), externalIds).iterator();
+        List<List<Write>> cuts = CutRecords.writes(transfers.stream().map(EmploymentService.Transfer::cut).toList(),
+                assignments);
+        Iterator<RequestContext.ChangeRecord> cutChanges = Writes.changes(context, externalIds,
+                cuts.stream().flatMap(List::stream).toList()).iterator();
+        Iterator<List<Write>> cutOfTransfer = cuts.iterator();
         List<RequestContext.ChangeRecord> changes = new ArrayList<>();
         List<TransferRepresentation> recorded = new ArrayList<>();
         for (EmploymentService.Transfer transfer : transfers) {
@@ -493,6 +506,7 @@ public class EmploymentsResource {
             var started = employments.next();
             changes.add(new RequestContext.ChangeRecord(Change.UPDATE, RESOURCE_TYPE, ended.id(),
                     "fuhito/employments/" + ended.id() + "/transfer", ended));
+            changes.addAll(take(cutChanges, cutOfTransfer.next().size()));
             changes.add(new RequestContext.ChangeRecord(Change.CREATE, RESOURCE_TYPE, started.id(),
                     "fuhito/employments/" + started.id(), started));
             var assignmentsOfTransfer = take(newAssignments, transfer.assignmentIds().size());
