@@ -136,7 +136,7 @@ A rebuild does its work in pieces, and each piece is one transaction. One transa
 So a rebuild that fails in the middle keeps the pieces that it finished. The groups are then partly up to date. The next rebuild does the rest.
 
 Only one rebuild runs for a realm at a time, on all nodes of a cluster. A second call fails with `projection.running` and the status 409.
-The timer skips a realm whose rebuild is still going on, and records no run for it. It looks at the realm again at its next check, a minute later.
+The timer skips a realm whose rebuild is still going on, and records no run for it. It looks at the realm again at its next check, a minute later by default.
 After the timer takes the lock of a realm, it reads the last run of the realm again. So a realm that another node ran in the meantime does not run a second time.
 The lock goes away by itself after six hours, for the case that a node dies with it.
 
@@ -152,8 +152,9 @@ A dated change becomes true on its date with no write on that day, so the timer 
 - A realm runs after its day start, from `fuhito.timeZone` and `fuhito.dayStart`.
 - It also runs after the day start of each org unit that has a time zone or a day start of its own. The units below such a unit follow its time.
 - After each day start, a realm waits for a fixed time of 0 to 15 minutes. The time comes from the ID of the realm and is the same every day. So the realms do not all start at once.
-- The timer checks once a minute. It runs a realm when a day start plus the wait of the realm has passed since the start of the last run of the timer that was done.
-- A server that was down at that time runs the realm at its first check, one minute after it starts. A realm that the timer never ran also runs at the next check.
+- The timer checks once a minute by default. The server option `spi-admin-realm-restapi-extension--fuhito--projection-timer-interval` sets the number of seconds between two checks. A value below 1 fails the start of Keycloak.
+- The timer runs a realm when a day start plus the wait of the realm has passed since the start of the last run of the timer that was done.
+- A server that was down at that time runs the realm at its first check, a minute after it starts by default. A realm that the timer never ran also runs at the next check.
 - A run that fails runs again 15 minutes after it failed, until one is done.
 - A call of `POST /projection/rebuild` does not count as the run of the day.
 - In a cluster, only one node runs the timer at a time. The extension uses the same runner as the scheduled tasks of Keycloak itself. A run with nothing to change writes nothing.
@@ -161,7 +162,6 @@ A dated change becomes true on its date with no write on that day, so the timer 
 - A realm with no usable time zone is skipped. So is a realm with an org unit whose time setting is bad. Each node logs one warning for such a realm.
 - The timer keeps its last run in `FUHITO_JOB_RUN` as the job `projection-timer`. `GET /projection/last-run` does not read that row.
 - The timer is on by default. The server option `spi-admin-realm-restapi-extension--fuhito--projection-timer-enabled` with `false` turns it off.
-- The server option `spi-admin-realm-restapi-extension--fuhito--projection-timer-interval` sets the number of seconds between two checks of the timer. The default is 60 seconds. A value below 1 fails the start of Keycloak.
 
 A write to the API does not run the projection. The timer picks the change up after the next day start.
 When a change must reach Keycloak at once, the app that writes to the API calls `POST /projection/rebuild` after its writes.
@@ -944,7 +944,7 @@ A scheduled task removes the propagated changes that are older than the realm ke
 |---|---|---|
 | `fuhito.changeLog.keepPropagatedDays` | The number of days to keep a propagated change, 0 or more | 90 |
 
-- The task runs every 15 minutes. The server option `spi-admin-realm-restapi-extension--fuhito--change-log-cleanup-interval` sets the number of seconds between two runs.
+- The task runs every 15 minutes by default. The server option `spi-admin-realm-restapi-extension--fuhito--change-log-cleanup-interval` sets the number of seconds between two runs. A value below 1 fails the start of Keycloak.
 - In a cluster, one node runs it at a time, with the same runner as the scheduled tasks of Keycloak itself.
 - A realm with a value that is not such a number keeps every propagated change. Each node logs one warning for it.
 - A failure in one realm is logged and does not stop the other realms.
