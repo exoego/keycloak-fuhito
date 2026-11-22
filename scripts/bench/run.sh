@@ -19,6 +19,9 @@ FILL="${FILL:-1}"
 # PLACES=0 leaves out the changes of the work location of org units, which change the reads of the units below and
 # of their members. They come after the reads too.
 PLACES="${PLACES:-1}"
+# ORDER=0 leaves out the changes of the realm attribute fuhito.nameOrder. They come last, because they take the
+# names out of the person records.
+ORDER="${ORDER:-1}"
 
 # A caller that built the jar already can name it in JAR, as a path from the root of the project.
 if [ -z "${JAR:-}" ]; then
@@ -206,6 +209,38 @@ if [ "${FILL}" = 1 ]; then
       write "Clear of ${target}, round ${round}" "${rows}" DELETE \
         "/attribute-definitions/${DEFINITION}?version=${VERSION}&clearValues=true" ""
     done
+  done
+fi
+
+if [ "${ORDER}" = 1 ]; then
+  if [ "${BATCH}" != 1 ]; then
+    docker exec -i fuhito-bench-pg psql -q -U keycloak -d keycloak -v ON_ERROR_STOP=1 -v realm="${REALM_ID}" \
+      -v people="${PEOPLE}" -v units="${UNITS}" < scripts/bench/seed-users.sql
+  fi
+  docker exec -i fuhito-bench-pg psql -q -U keycloak -d keycloak -v ON_ERROR_STOP=1 -v realm="${REALM_ID}" \
+    < scripts/bench/seed-names.sql
+  # Keycloak reads the users again, with the names of the seed.
+  curl -s -o /dev/null -X POST -H "Authorization: Bearer $(token)" "${BASE}/admin/realms/${REALM}/clear-user-cache"
+  # Prints the time of one update of the realm in milliseconds, with its status and the propagated changes that it
+  # added. Keycloak removes each attribute that an update of the realm leaves out, so the update sends every one.
+  order() {
+    local name="$1" value="$2" before line after
+    before="$(curl -s -H "Authorization: Bearer $(token)" "${API}/change-log/count?kind=PROPAGATED" | jq .count)"
+    line="$(curl -s -H "Authorization: Bearer $(token)" "${BASE}/admin/realms/${REALM}" \
+      | jq -c --arg value "${value}" '{attributes: (.attributes + {"fuhito.nameOrder": $value})}' \
+      | curl -s -o /dev/null -w '%{time_total} %{http_code}' --max-time 3600 -X PUT \
+        -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' -d @- "${BASE}/admin/realms/${REALM}")"
+    after="$(curl -s -H "Authorization: Bearer $(token)" "${API}/change-log/count?kind=PROPAGATED" | jq .count)"
+    printf '| %s | %s | %s | %s |\n' "${name}" "$(awk '{printf "%d", $1 * 1000}' <<<"${line}")" \
+      "$(awk '{print $2}' <<<"${line}")" "$((after - before))"
+  }
+  echo
+  echo '| Update of the realm | ms | Status | Propagated changes |'
+  echo '|---|---|---|---|'
+  for round in 1 2 3; do
+    order "To family-first, round ${round}" family-first
+    order "Family-first again, round ${round}" family-first
+    order "To given-first, round ${round}" given-first
   done
 fi
 

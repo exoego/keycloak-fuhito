@@ -23,11 +23,14 @@ final class UserNames {
     }
 
     static String of(String firstName, String lastName, String order) {
-        Stream<String> parts = FAMILY_FIRST.equals(order) ? Stream.of(lastName, firstName)
-                : Stream.of(firstName, lastName);
+        Stream<String> parts = familyFirst(order) ? Stream.of(lastName, firstName) : Stream.of(firstName, lastName);
         return parts.filter(part -> part != null && !part.isBlank())
                 .map(String::strip)
                 .collect(Collectors.joining(" "));
+    }
+
+    static boolean familyFirst(String order) {
+        return FAMILY_FIRST.equals(order);
     }
 
     static String of(RealmModel realm, UserModel user) {

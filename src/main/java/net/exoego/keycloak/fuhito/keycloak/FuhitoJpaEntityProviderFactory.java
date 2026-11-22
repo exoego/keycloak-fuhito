@@ -43,7 +43,7 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
 
     @Override
     public void postInit(KeycloakSessionFactory factory) {
-        // Each event runs in the transaction that removes the realm or the user, so both happen or neither does.
+        // Each event runs in the transaction of the change in Keycloak, so both happen or neither does.
         factory.register(event -> {
             switch (event) {
                 // Realms from before the extension, or from before its roles, get the roles at the start.
@@ -63,6 +63,11 @@ public class FuhitoJpaEntityProviderFactory implements JpaEntityProviderFactory 
                 case UserModel.UserRemovedEvent removed ->
                         UserRemovalHandler.retire(entityManager(removed.getKeycloakSession()), removed.getRealm(),
                                 removed.getUser());
+                // Keycloak sends it only when the value changes, also for a write that records no admin event.
+                case RealmModel.RealmAttributeUpdateEvent updated
+                        when UserNames.ORDER_ATTRIBUTE.equals(updated.getAttributeName()) ->
+                        NameOrderChangeHandler.record(updated.getKeycloakSession(), updated.getRealm().getId(),
+                                updated.getAttributeValue());
                 case OrganizationModel.OrganizationRemovedEvent removed -> {
                     KeycloakSession session = removed.getKeycloakSession();
                     OrganizationRemovalHandler.unlink(entityManager(session), session.getContext().getRealm().getId(),
