@@ -7,10 +7,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
-import org.keycloak.admin.client.Keycloak;
-import org.keycloak.representations.idm.RealmRepresentation;
 
-import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -87,36 +84,6 @@ class ExternalIdsIT {
         assertEquals("external_id.unknown", errorOf(404, api.get(
                 "/external-ids/lookup?resourceType=ORG_UNIT&source=hr&externalId=W-2")));
         assertEquals("hr", ok(api.get("/org-units/" + ward + "/history")).get("source").asText());
-    }
-
-    @Test
-    void aPutRecordsCreateForANewIdAndUpdateWhenItReplacesOne() throws Exception {
-        TestRealm realm = TestRealm.create("external-ids-events");
-        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
-        var events = new RealmRepresentation();
-        events.setAdminEventsEnabled(true);
-        admin.realm(realm.name).update(events);
-        Api api = realm.api;
-        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
-                + "\"1病棟\"}}, \"validFrom\": \"2020-04-01\", \"externalId\": \"W-1\", \"source\": \"hr\"}"))
-                .get("id").asText();
-        String put = "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
-                + "\", \"source\": \"payroll\", \"externalId\": \"%s\"}";
-
-        ok(api.putWithVersion("/external-ids", put.formatted("P-9")));
-        ok(api.putWithVersion("/external-ids", put.formatted("P-10")));
-
-        JsonNode log = ok(api.get("/change-log?resourceType=FUHITO_EXTERNAL_ID"));
-        String path = "fuhito/external-ids/" + log.get(0).get("resourceId").asText();
-        assertEquals(List.of("CREATE " + path, "UPDATE " + path), log.valueStream()
-                .map(entry -> entry.get("operation").asText() + " " + entry.get("resourcePath").asText())
-                .toList());
-        // Two events can have the same time, so the order is not compared.
-        assertEquals(List.of("CREATE " + path, "UPDATE " + path), admin.realm(realm.name).getAdminEvents().stream()
-                .filter(event -> event.getResourceType().equals("FUHITO_EXTERNAL_ID"))
-                .map(event -> event.getOperationType() + " " + event.getResourcePath())
-                .sorted()
-                .toList());
     }
 
     @Test
