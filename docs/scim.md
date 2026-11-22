@@ -13,7 +13,8 @@ These facts come from the documentation and the source code of Keycloak 26.8.2.
 - So the name of the user attribute is the choice of the administrator. The Keycloak documentation uses `employeeNumber`, `department`, and `manager` in its examples.
 - `manager.value` is one attribute, and `manager.displayName` is another. The first holds the SCIM ID of the manager, which is the Keycloak user ID.
 - The core attribute `title` is not mapped by default. An administrator maps it the same way.
-- Keycloak publishes an event to extensions when a user is removed. It publishes none when a user attribute changes.
+- Keycloak publishes the provider event `UserModel.UserRemovedEvent` to extensions when a user is removed. It has no provider event for a change of a user attribute.
+- Event listeners get an admin event `UPDATE` of `USER` from some changes of a user. The admin endpoint `PUT /admin/realms/{realm}/users/{id}` sends it, and the admin console uses that endpoint. The SCIM server sends it for a `PUT` or a `PATCH` of a user. Some other changes send no event. See "An explicit sync".
 
 ## What SCIM does not carry
 
