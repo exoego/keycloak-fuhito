@@ -35,9 +35,10 @@ public enum DerivedValue {
 
     /** The name of a person with no names in the record, which is the name of the linked Keycloak user. */
     PERSON_NAME(ResourceType.FUHITO_PERSON, "people", "name",
-            "The first name and the last name of the linked Keycloak user",
-            "A change of the name of the user in Keycloak, when Keycloak sends an event of it, and the removal of "
-                    + "the user");
+            "The first name and the last name of the linked Keycloak user, in the order of the realm attribute "
+                    + "fuhito.nameOrder",
+            "A change of the name of the user in Keycloak, when Keycloak sends an event of it, the removal of the "
+                    + "user, and a change of the realm attribute fuhito.nameOrder");
 
     private final ResourceType resourceType;
     private final String collection;

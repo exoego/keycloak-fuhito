@@ -44,7 +44,9 @@ public record ChangeLogEntry(String id, long sequence, Instant recordedAt, Kind 
         /** A change of the first name or the last name of a user in Keycloak. */
         KEYCLOAK_USER_NAME_CHANGED,
         /** The removal of a user in Keycloak. */
-        KEYCLOAK_USER_REMOVED
+        KEYCLOAK_USER_REMOVED,
+        /** A change of the realm attribute that says whether the family name of a user comes first. */
+        KEYCLOAK_REALM_NAME_ORDER_CHANGED
     }
 
     /**

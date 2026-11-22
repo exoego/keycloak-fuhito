@@ -1,7 +1,9 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
 import java.lang.reflect.Proxy;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.keycloak.models.RealmModel;
@@ -23,6 +25,13 @@ class UserNamesTest {
         assertEquals("Taro Yamada", UserNames.of("Taro", "Yamada", "given-first"));
         assertEquals("Taro Yamada", UserNames.of("Taro", "Yamada", "something else"));
         assertEquals("山田 太郎", UserNames.of("太郎", "山田", "family-first"));
+    }
+
+    // A change from no value to given-first or to any other text changes no read.
+    @Test
+    void onlyFamilyFirstPutsTheFamilyNameFirst() {
+        assertEquals(List.of(true, false, false, false, false), Stream.of("family-first", "given-first", null, "",
+                "Family-First").map(UserNames::familyFirst).toList());
     }
 
     @Test
