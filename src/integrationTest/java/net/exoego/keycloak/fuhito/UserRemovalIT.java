@@ -229,6 +229,11 @@ class UserRemovalIT {
         JsonNode log = Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + employment));
         assertEquals("DELETE", log.get(log.size() - 1).get("operation").asText());
         assertFalse(log.get(log.size() - 1).has("actorUserId"));
+        // The entries of the employment stand for its ID, from the write of the ID to the removal.
+        assertEquals("UPDATE fuhito/employments/" + employment,
+                log.get(1).get("operation").asText() + " " + log.get(1).get("resourcePath").asText());
+        List<String> types = Api.json(api.get("/change-log?max=1000")).findValuesAsText("resourceType");
+        assertFalse(types.contains("FUHITO_EXTERNAL_ID"), types.toString());
     }
 
     // The removal ends the two open employments in one write, and removes what would start later in each.

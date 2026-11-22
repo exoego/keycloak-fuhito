@@ -150,7 +150,7 @@ An end keeps the past. A read of a date before the end still finds the resource.
 - An org unit must have had no children, and no assignment, employment, role, or succession may name it. It must have no link to a Keycloak organization.
 - An employment must have no assignment and no role over an org unit, and no employment may continue it.
 - An assignment must have no reporting line.
-- The IDs that other systems have for the resource go with it.
+- The IDs that other systems have for the resource go with it. The entry of a resource stands for the changes of its IDs, so the delete adds no entry of each ID. A write of an ID, such as `PUT /external-ids` or `DELETE /external-ids`, records `UPDATE` of its resource.
 - The change log keeps every entry of the resource, and gets one for the delete. A product that copied the resource learns of it there.
 
 Checked by `RemovalsIT.aResourceMadeByMistakeGoesWhenNothingRefersToIt`.

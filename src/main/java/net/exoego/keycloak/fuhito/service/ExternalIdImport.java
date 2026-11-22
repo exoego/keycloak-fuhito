@@ -22,14 +22,17 @@ final class ExternalIdImport {
     static final String EXTERNAL_IDS = "externalIds";
 
     private final ExternalIdService externalIds;
+    private final RealmKindService refKinds;
     private final String defaultSource;
     private final ImportReport report;
     private final Set<String> seen = new HashSet<>();
     private final Runnable rowDone;
 
-    ExternalIdImport(ExternalIdService externalIds, String defaultSource, ImportReport report, Runnable rowDone) {
+    ExternalIdImport(ExternalIdService externalIds, RealmKindService refKinds, String defaultSource,
+            ImportReport report, Runnable rowDone) {
         this.rowDone = rowDone;
         this.externalIds = externalIds;
+        this.refKinds = refKinds;
         this.defaultSource = defaultSource;
         this.report = report;
     }
@@ -65,15 +68,15 @@ final class ExternalIdImport {
             if (stored.isEmpty()) {
                 return Outcome.UNCHANGED;
             }
-            report.write(ImportReport.Write.Removed.externalId(
-                    externalIds.remove(kind, resourceId, source).rowId()));
+            ExternalIdService.View removed = externalIds.remove(kind, resourceId, source);
+            report.write(Write.OfExternalIds.of(removed, externalIds, refKinds));
             return Outcome.CHANGED;
         }
         if (stored.isPresent() && stored.get().externalId().equals(value)) {
             return Outcome.UNCHANGED;
         }
         ExternalIdService.Put put = externalIds.put(kind, resourceId, source, value);
-        report.write(new Write.OfExternalId(put.created(), put.view()));
+        report.write(Write.OfExternalIds.of(put.view(), externalIds, refKinds));
         return put.created() ? Outcome.CREATED : Outcome.CHANGED;
     }
 }

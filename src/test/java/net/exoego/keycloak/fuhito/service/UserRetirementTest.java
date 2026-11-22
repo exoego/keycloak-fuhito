@@ -177,13 +177,20 @@ class UserRetirementTest {
         String next = employments.transfer(joins, new TransferRequest("other", "2026-10-01", null, null))
                 .started().employment().id();
 
-        retirement.retire("alice");
+        List<Write> written = retirement.retire("alice");
 
         assertEquals(List.of(), employmentsOf("alice"));
         assertEquals(List.of(), unitRoles.findByEmployment(joins));
         assertEquals(List.of(), unitRoles.findByEmployment(next));
         assertEquals(List.of(), externalIds.rows);
         assertEquals(0, assignmentStore.rows.size());
+        // The entries of the employment and of the assignment stand for their IDs.
+        List<String> known = List.of(next, joins, assignment, "role-1");
+        assertEquals(List.of("DELETE FUHITO_UNIT_ROLE", "DELETE FUHITO_ASSIGNMENT", "DELETE FUHITO_EMPLOYMENT " + next,
+                "DELETE FUHITO_UNIT_ROLE role-1", "DELETE FUHITO_ASSIGNMENT " + assignment,
+                "DELETE FUHITO_EMPLOYMENT " + joins), describe(written).stream()
+                .map(w -> known.contains(w.substring(w.lastIndexOf(' ') + 1)) ? w : w.substring(0, w.lastIndexOf(' ')))
+                .toList());
     }
 
     @Test

@@ -68,7 +68,7 @@ public class ChangeLogResource {
                     schema = @Schema(enumeration = {"FUHITO_ORG_UNIT", "FUHITO_PERSON", "FUHITO_PERSON_DATA",
                             "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_QUALIFICATION", "FUHITO_REPORTING_LINE",
                             "FUHITO_UNIT_ROLE", "FUHITO_CHANGE_ORDER", "FUHITO_REF_ITEM", "FUHITO_REF_KIND",
-                            "FUHITO_HIERARCHY", "FUHITO_ATTRIBUTE_DEFINITION", "FUHITO_EXTERNAL_ID", "FUHITO_RESTORE"}))
+                            "FUHITO_HIERARCHY", "FUHITO_ATTRIBUTE_DEFINITION", "FUHITO_RESTORE"}))
             @QueryParam("resourceType") String resourceType,
             @Parameter(description = "The ID of the resource. Without it, the writes to every resource are listed.")
             @QueryParam("resourceId") String resourceId,
@@ -105,7 +105,7 @@ public class ChangeLogResource {
                     schema = @Schema(enumeration = {"FUHITO_ORG_UNIT", "FUHITO_PERSON", "FUHITO_PERSON_DATA",
                             "FUHITO_EMPLOYMENT", "FUHITO_ASSIGNMENT", "FUHITO_QUALIFICATION", "FUHITO_REPORTING_LINE",
                             "FUHITO_UNIT_ROLE", "FUHITO_CHANGE_ORDER", "FUHITO_REF_ITEM", "FUHITO_REF_KIND",
-                            "FUHITO_HIERARCHY", "FUHITO_ATTRIBUTE_DEFINITION", "FUHITO_EXTERNAL_ID", "FUHITO_RESTORE"}))
+                            "FUHITO_HIERARCHY", "FUHITO_ATTRIBUTE_DEFINITION", "FUHITO_RESTORE"}))
             @QueryParam("resourceType") String resourceType,
             @Parameter(description = "The ID of the resource. Without it, the writes to every resource are counted.")
             @QueryParam("resourceId") String resourceId,

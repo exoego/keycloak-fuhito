@@ -800,12 +800,11 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_HIERARCHY` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/hierarchies/{id}` |
 | `FUHITO_ATTRIBUTE_DEFINITION` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/attribute-definitions/{id}` |
 | `FUHITO_REF_KIND` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-kinds/{code}` |
-| `FUHITO_EXTERNAL_ID` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/external-ids/{id}`, with the ID of the stored row |
 | `FUHITO_RESTORE` | `CREATE` into an empty realm, `UPDATE` for a replace | `fuhito/restore`, with the ID of the realm |
 
 An import, a reorganization, a transfer, a promotion, and the other writes of several records record an event of each record. Each event has the path that the same write has in its own endpoint.
 No endpoint writes the path `fuhito/org-units/{id}/succession`. An end that names the units that follow the unit records it, in the step `succeed` of a reorganization and in an import.
-`PUT /external-ids` and an import record `CREATE` when the resource had no ID of the system, and `UPDATE` when they replace its ID.
+`PUT /external-ids`, `DELETE /external-ids`, and a row of `externalIds` in an import record `UPDATE` of the resource that has the ID, with the path of that resource. The event has every ID of the resource after the write, as `GET /external-ids` lists them. A delete of the last ID gives an empty list.
 A restore records one event for the whole realm, with the number of rows of each list.
 Checked by `AdminEventTableTest`, which compares this table with the writes in the source.
 
@@ -823,6 +822,11 @@ An entry has its sequence number in the realm, the time, the kind, the user who 
 It has no state of the resource. A reader that needs the state reads the resource again.
 Entries are only added. No endpoint changes or removes one.
 Another system can follow the log from a sequence number. See [history.md](history.md).
+
+The IDs that other systems have for a resource are part of it, so the entry of a resource stands for the changes of its IDs.
+A write of an ID records `UPDATE` of its resource, with the type, the ID, and the path of that resource, such as `FUHITO_ORG_UNIT` and `fuhito/org-units/{id}`. These writes are `PUT /external-ids`, `DELETE /external-ids`, and a row of `externalIds` in an import.
+A delete of a resource and the removal of a user in Keycloak record the entry of each record that they remove, and none of each ID that goes with it.
+Checked by `AdminEventsIT.aWriteOfAnIdOfEveryKindOfResourceRecordsAnUpdateOfThatResourceAndNoneOfTheId` and `UserRetirementTest.anEmploymentThatNeverHeldGoesWithItsRolesItsIdsAndWhatContinuesIt`.
 
 ### Other records that a write changes
 

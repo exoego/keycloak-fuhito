@@ -49,7 +49,7 @@ class ExternalIdsIT {
                 Api.externalIds(ok(api.get("/org-units/" + ward + "?asOf=2020-04-01"))));
         assertEquals(ward, ok(api.get("/external-ids/lookup?resourceType=ORG_UNIT&source=payroll&externalId=P-9"))
                 .get("resourceId").asText());
-        assertFalse(Api.json(api.get("/change-log?resourceType=FUHITO_EXTERNAL_ID")).isEmpty());
+        assertEquals(List.of("CREATE", "UPDATE", "UPDATE"), ok(api.get("/change-log?resourceId=" + ward)).findValuesAsText("operation"));
         // A change of the details can give the unit the ID of one more system.
         assertEquals(List.of("hr=W-1", "budget=B-3", "ledger=L-1", "payroll=P-9"), Api.externalIds(ok(api.putWithVersion(
                 "/org-units/" + ward, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"1病棟\"}}, \"validFrom\": \"2020-04-01\", \"source\": \"ledger\", "
@@ -127,7 +127,7 @@ class ExternalIdsIT {
                 .findValuesAsText("source"));
         assertEquals("external_id.unknown", errorOf(404, api.get(
                 "/external-ids/lookup?resourceType=PERSON&source=payroll&externalId=E-77")));
-        assertFalse(api.get("/change-log?resourceType=FUHITO_EXTERNAL_ID").body().contains("E-77"));
+        assertFalse(api.get("/change-log?max=1000").body().contains("E-77"));
 
         // Each kind of resource keeps the IDs of every system.
         realm.refItem("QUALIFICATION", "license", "免許");
