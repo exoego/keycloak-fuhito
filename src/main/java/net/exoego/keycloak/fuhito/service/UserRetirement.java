@@ -124,19 +124,17 @@ public class UserRetirement {
             assignmentIds.add(row.assignmentId());
         }
         assignmentIds.forEach(id -> {
-            removeExternalIds(ExternalId.Kind.ASSIGNMENT, id, written);
+            removeExternalIds(ExternalId.Kind.ASSIGNMENT, id);
             written.add(Write.Removed.assignment(id));
         });
-        removeExternalIds(ExternalId.Kind.EMPLOYMENT, employment.id(), written);
+        removeExternalIds(ExternalId.Kind.EMPLOYMENT, employment.id());
         employments.terms(employment.id()).forEach(terms -> employments.deleteTerms(terms.id()));
         employments.delete(employment.id());
         written.add(Write.Removed.employment(employment.id()));
     }
 
-    private void removeExternalIds(ExternalId.Kind kind, String resourceId, List<Write> written) {
-        externalIds.ofResource(kind, resourceId).forEach(row -> {
-            externalIds.delete(row.id());
-            written.add(Write.Removed.externalId(row.id()));
-        });
+    // The entry of the removed resource stands for its IDs.
+    private void removeExternalIds(ExternalId.Kind kind, String resourceId) {
+        externalIds.ofResource(kind, resourceId).forEach(row -> externalIds.delete(row.id()));
     }
 }

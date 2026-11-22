@@ -31,8 +31,6 @@ public enum ResourceType {
     FUHITO_HIERARCHY,
     /** The definition of a free attribute. */
     FUHITO_ATTRIBUTE_DEFINITION,
-    /** An ID of another system. */
-    FUHITO_EXTERNAL_ID,
     /** The restore of a realm from an export. */
     FUHITO_RESTORE
 }

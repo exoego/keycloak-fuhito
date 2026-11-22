@@ -15,9 +15,8 @@ import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.Checks;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
-import net.exoego.keycloak.fuhito.domain.ResourceType;
-import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
 import net.exoego.keycloak.fuhito.service.ExternalIdService;
+import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.OrgUnitService;
 import net.exoego.keycloak.fuhito.service.RealmKindService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -33,11 +32,6 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(ref = Tags.GENERAL)
 public class ExternalIdsResource {
-
-    /**
-     * The resource type of IDs of other systems in the admin event log.
-     */
-    public static final ResourceType RESOURCE_TYPE = ResourceType.FUHITO_EXTERNAL_ID;
 
     private static final String KINDS = "ORG_UNIT, PERSON, EMPLOYMENT, ASSIGNMENT, QUALIFICATION, REPORTING_LINE, "
             + "UNIT_ROLE, CHANGE_ORDER, REF_ITEM, REF_KIND, HIERARCHY, or ATTRIBUTE_DEFINITION.";
@@ -137,15 +131,12 @@ public class ExternalIdsResource {
             Calls.body(body);
             lockOwner(body.resourceType(), body.resourceId());
             requireVersion(body.resourceType(), body.resourceId(), body.source(), body.version());
-            ExternalIdService.Put put = service.put(body.resourceType(), body.resourceId(), body.source(),
-                    body.externalId());
-            ExternalIdService.View view = put.view();
+            ExternalIdService.View view = service.put(body.resourceType(), body.resourceId(), body.source(),
+                    body.externalId()).view();
             // Whether the system made the resource does not depend on the ID, so the response has the value of a read.
             Checks.fixed("own", view.own(), body.own());
-            var stored = ExternalIdRepresentation.of(view);
-            context.recordChange(put.created() ? Change.CREATE : Change.UPDATE, RESOURCE_TYPE, view.rowId(),
-                    path(view.rowId()), stored);
-            return stored;
+            recordOwner(view);
+            return ExternalIdRepresentation.of(view);
         });
     }
 
@@ -175,8 +166,7 @@ public class ExternalIdsResource {
         return Calls.run(context, () -> {
             lockOwner(resourceType, resourceId);
             requireVersion(resourceType, resourceId, source, version);
-            ExternalIdService.View view = service.remove(resourceType, resourceId, source);
-            context.recordChange(Change.DELETE, RESOURCE_TYPE, view.rowId(), path(view.rowId()), null);
+            recordOwner(service.remove(resourceType, resourceId, source));
             return Response.noContent().build();
         });
     }
@@ -188,24 +178,15 @@ public class ExternalIdsResource {
         if (resourceId == null) {
             return;
         }
-        String collection = switch (kind) {
-            case ORG_UNIT -> "org-units";
-            case PERSON -> "people";
-            case EMPLOYMENT -> "employments";
-            case ASSIGNMENT -> "assignments";
-            case QUALIFICATION -> "qualifications";
-            case REPORTING_LINE -> "reporting-lines";
-            case UNIT_ROLE -> "unit-roles";
-            case CHANGE_ORDER -> "change-orders";
-            case REF_ITEM -> "ref-items";
-            case REF_KIND -> "ref-kinds";
-            case HIERARCHY -> "hierarchies";
-            case ATTRIBUTE_DEFINITION -> "attribute-definitions";
-        };
         // The rows of a kind of reference data are locked by the code that its path names.
         List<String> ids = kind == ExternalId.Kind.REF_KIND ? refKinds.codeOf(resourceId).stream().toList()
                 : List.of(resourceId);
-        context.lock(Map.of(collection, ids));
+        context.lock(Map.of(Write.OfExternalIds.collection(kind), ids));
+    }
+
+    // A write of an ID is a write of its resource, so both logs name the resource.
+    private void recordOwner(ExternalIdService.View written) {
+        Writes.record(context, service, Write.OfExternalIds.of(written, service, refKinds));
     }
 
     // A new ID needs no version. JPA checks the version of the row again when it writes it.
@@ -222,9 +203,5 @@ public class ExternalIdsResource {
         } else {
             context.requireRead();
         }
-    }
-
-    private static String path(String rowId) {
-        return "fuhito/external-ids/" + rowId;
     }
 }

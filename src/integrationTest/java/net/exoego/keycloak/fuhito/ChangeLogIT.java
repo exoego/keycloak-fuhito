@@ -154,7 +154,7 @@ class ChangeLogIT {
         for (String type : List.of("FUHITO_ORG_UNIT", "FUHITO_PERSON", "FUHITO_PERSON_DATA", "FUHITO_EMPLOYMENT",
                 "FUHITO_ASSIGNMENT", "FUHITO_QUALIFICATION", "FUHITO_REPORTING_LINE", "FUHITO_UNIT_ROLE",
                 "FUHITO_CHANGE_ORDER", "FUHITO_REF_ITEM", "FUHITO_REF_KIND", "FUHITO_HIERARCHY",
-                "FUHITO_ATTRIBUTE_DEFINITION", "FUHITO_EXTERNAL_ID", "FUHITO_RESTORE")) {
+                "FUHITO_ATTRIBUTE_DEFINITION", "FUHITO_RESTORE")) {
             JsonNode entries = ok(api.get("/change-log?max=1000&resourceType=" + type));
             Set<String> types = new TreeSet<>(entries.findValuesAsText("resourceType"));
             assertTrue(types.isEmpty() || types.equals(Set.of(type)), type + " " + types);
@@ -172,7 +172,8 @@ class ChangeLogIT {
 
     @Test
     void rejectsATypeThatTheChangeLogDoesNotWrite() throws Exception {
-        for (String type : List.of("ORG_UNIT", "fuhito_org_unit", "UNKNOWN")) {
+        // A write of an ID of another system is a write of its resource, so the log has no type of its own for it.
+        for (String type : List.of("ORG_UNIT", "fuhito_org_unit", "UNKNOWN", "FUHITO_EXTERNAL_ID")) {
             for (String path : List.of("/change-log", "/change-log/count")) {
                 HttpResponse<String> response = api.get(path + "?resourceType=" + type);
                 assertEquals(400, response.statusCode(), path + " " + response.body());

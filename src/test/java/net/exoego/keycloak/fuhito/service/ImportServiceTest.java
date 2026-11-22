@@ -1419,6 +1419,16 @@ class ImportServiceTest {
         return service.apply(ImportDocument.of("2026-04-01", false, null, "externalIds", List.of(rows)));
     }
 
+    // Each write of IDs with its resource, its path, and the IDs that the resource has after it.
+    private static List<String> idWrites(ImportReport report) {
+        return report.writes().stream()
+                .map(write -> (write.deleted() ? "DELETE " : write.created() ? "CREATE " : "UPDATE ")
+                        + write.resourceType() + " " + write.resourceId() + " " + write.path() + " "
+                        + ((ImportReport.Write.OfExternalIds) write).state().stream()
+                                .map(id -> id.source() + "=" + id.externalId()).toList())
+                .toList();
+    }
+
     @Test
     void importsTheIdsOfOtherSystemsAndRemovesOneWithNull() {
         externalIdStore.resource(ExternalId.Kind.ORG_UNIT, "u-1", "hr");
@@ -1432,13 +1442,16 @@ class ImportServiceTest {
                 ImportRows.clearing(new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null), "externalId"));
 
         assertEquals(Map.of("externalIds", new Counts(1, 0, 0)), first.counts());
-        assertEquals("fuhito/external-ids/" + first.writes().getFirst().resourceId(), first.writes().getFirst().path());
-        assertTrue(first.writes().getFirst().created());
+        // A write of an ID is an update of its resource.
+        assertEquals(List.of("UPDATE FUHITO_ORG_UNIT u-1 fuhito/org-units/u-1 [hr=H, payroll=P-1]"),
+                idWrites(first));
         assertEquals(Map.of("externalIds", new Counts(0, 0, 1)), again.counts());
+        assertEquals(List.of(), again.writes());
         assertEquals(Map.of("externalIds", new Counts(0, 1, 0)), changed.counts());
-        assertFalse(changed.writes().getFirst().created());
+        assertEquals(List.of("UPDATE FUHITO_ORG_UNIT u-1 fuhito/org-units/u-1 [hr=H, payroll=P-2]"),
+                idWrites(changed));
         assertEquals(Map.of("externalIds", new Counts(0, 1, 1)), removed.counts());
-        assertTrue(removed.writes().getFirst().deleted());
+        assertEquals(List.of("UPDATE FUHITO_ORG_UNIT u-1 fuhito/org-units/u-1 [hr=H]"), idWrites(removed));
         assertEquals(List.of("H"), externalIdStore.rows.stream().map(ExternalId::externalId).toList());
         // A row of the system that made the resource replaces its ID too. A row that leaves out the ID keeps it.
         assertEquals(List.of("externalIds[1] import.duplicate_row", "externalIds[3] external_id.resource_unknown",
@@ -1449,6 +1462,24 @@ class ImportServiceTest {
                         new ExternalIdRow("ORG_UNIT", "nope", "payroll", "P-5"),
                         new ExternalIdRow("ORG_UNIT", "u-1", "ledger", null),
                         new ExternalIdRow("ORG_UNIT", "u-1", "audit", " "))));
+    }
+
+    @Test
+    void aRowOfAnIdWritesAKindOfReferenceDataByItsCodeAndTheLastRemovalLeavesNoIds() {
+        service.apply(kinds(List.of(new RefKindRow(null, null, "SITE", "site", "ja",
+                Map.of("ja", new RefKindName("拠点"))))));
+        String site = kinds.get("site").id();
+        externalIdStore.resource(ExternalId.Kind.REF_KIND, site, null);
+
+        ImportReport added = importExternalIds(new ExternalIdRow("REF_KIND", site, "hr", "S-1"));
+        ImportReport removed = importExternalIds(
+                ImportRows.clearing(new ExternalIdRow("REF_KIND", site, "hr", null), "externalId"),
+                ImportRows.clearing(new ExternalIdRow("REF_KIND", site, "import", null), "externalId"));
+
+        assertEquals(List.of("UPDATE FUHITO_REF_KIND site fuhito/ref-kinds/site [hr=S-1, import=SITE]"),
+                idWrites(added));
+        assertEquals(List.of("UPDATE FUHITO_REF_KIND site fuhito/ref-kinds/site [import=SITE]",
+                "UPDATE FUHITO_REF_KIND site fuhito/ref-kinds/site []"), idWrites(removed));
     }
 
     private static ChangeOrderRow order(String id, String externalId, String number, String title,

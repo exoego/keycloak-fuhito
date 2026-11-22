@@ -212,7 +212,9 @@ final class Writes {
                     ids.apply(ExternalId.Kind.UNIT_ROLE));
             case Write.OfQualification qualification -> QualificationRepresentation.of(qualification.state(),
                     ids.apply(ExternalId.Kind.QUALIFICATION));
-            case Write.OfExternalId externalId -> ExternalIdRepresentation.of(externalId.state());
+            // The IDs as GET /external-ids lists them for the resource.
+            case Write.OfExternalIds externalIds -> externalIds.state().stream().map(ExternalIdRepresentation::of)
+                    .toList();
             case Write.OfChangeOrder order -> ChangeOrderRepresentation.of(order.state(),
                     ids.apply(ExternalId.Kind.CHANGE_ORDER));
             case Write.Removed removed -> null;

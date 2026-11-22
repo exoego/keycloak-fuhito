@@ -187,7 +187,7 @@ public class ImportService {
                     document.effectiveDate(), defaultSource, report, rowDone).run(document.reportingLines());
         }
         if (document.externalIds() != null) {
-            new ExternalIdImport(records.externalIds(), defaultSource, report, rowDone)
+            new ExternalIdImport(records.externalIds(), setup.kinds(), defaultSource, report, rowDone)
                     .run(document.externalIds());
         }
         return report;

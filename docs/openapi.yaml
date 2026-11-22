@@ -5537,7 +5537,6 @@ paths:
           - FUHITO_REF_KIND
           - FUHITO_HIERARCHY
           - FUHITO_ATTRIBUTE_DEFINITION
-          - FUHITO_EXTERNAL_ID
           - FUHITO_RESTORE
         name: resourceType
         in: query
@@ -5608,7 +5607,6 @@ paths:
           - FUHITO_REF_KIND
           - FUHITO_HIERARCHY
           - FUHITO_ATTRIBUTE_DEFINITION
-          - FUHITO_EXTERNAL_ID
           - FUHITO_RESTORE
         name: resourceType
         in: query

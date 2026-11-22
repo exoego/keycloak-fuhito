@@ -8,6 +8,7 @@ import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
+import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
 import net.exoego.keycloak.fuhito.domain.PropagatedChange;
@@ -564,26 +565,83 @@ public final class ImportReport {
         }
 
         /**
-         * A write of an ID of another system.
+         * A write that stores, replaces, or removes an ID that another system has for a resource. The IDs are part of
+         * the resource, so the write is an update of the resource.
          *
-         * @param created true for a new ID, false for a change
-         * @param state the ID after the write
+         * @param kind the kind of the resource
+         * @param resourceId the ID of the resource in its path, which is the code for a kind of reference data
+         * @param state the IDs of the resource after the write
          */
-        record OfExternalId(boolean created, ExternalIdService.View state) implements Write {
+        record OfExternalIds(ExternalId.Kind kind, String resourceId, List<ExternalIdService.View> state)
+                implements Write {
 
-            @Override
-            public ResourceType resourceType() {
-                return ResourceType.FUHITO_EXTERNAL_ID;
+            /**
+             * Makes the write of an ID that a write stored, replaced, or removed, with every ID that its resource has
+             * now.
+             *
+             * @param written the ID
+             * @param externalIds the operations on the IDs of other systems of the realm
+             * @param refKinds the operations on the kinds of reference data of the realm
+             * @return the write
+             */
+            public static OfExternalIds of(ExternalIdService.View written, ExternalIdService externalIds,
+                    RealmKindService refKinds) {
+                List<ExternalIdService.View> state = externalIds.list(written.kind().name(), written.resourceId());
+                // The path of a kind of reference data names its code.
+                String id = written.kind() == ExternalId.Kind.REF_KIND
+                        ? refKinds.codeOf(written.resourceId()).orElseThrow() : written.resourceId();
+                return new OfExternalIds(written.kind(), id, state);
+            }
+
+            /**
+             * Returns the first part of the path of a resource of a kind.
+             *
+             * @param kind the kind of the resource
+             * @return the part, for example {@code org-units}
+             */
+            public static String collection(ExternalId.Kind kind) {
+                return switch (kind) {
+                    case ORG_UNIT -> "org-units";
+                    case PERSON -> "people";
+                    case EMPLOYMENT -> "employments";
+                    case ASSIGNMENT -> "assignments";
+                    case QUALIFICATION -> "qualifications";
+                    case REPORTING_LINE -> "reporting-lines";
+                    case UNIT_ROLE -> "unit-roles";
+                    case CHANGE_ORDER -> "change-orders";
+                    case REF_ITEM -> "ref-items";
+                    case REF_KIND -> "ref-kinds";
+                    case HIERARCHY -> "hierarchies";
+                    case ATTRIBUTE_DEFINITION -> "attribute-definitions";
+                };
             }
 
             @Override
-            public String resourceId() {
-                return state.rowId();
+            public boolean created() {
+                return false;
+            }
+
+            @Override
+            public ResourceType resourceType() {
+                return switch (kind) {
+                    case ORG_UNIT -> ResourceType.FUHITO_ORG_UNIT;
+                    case PERSON -> ResourceType.FUHITO_PERSON;
+                    case EMPLOYMENT -> ResourceType.FUHITO_EMPLOYMENT;
+                    case ASSIGNMENT -> ResourceType.FUHITO_ASSIGNMENT;
+                    case QUALIFICATION -> ResourceType.FUHITO_QUALIFICATION;
+                    case REPORTING_LINE -> ResourceType.FUHITO_REPORTING_LINE;
+                    case UNIT_ROLE -> ResourceType.FUHITO_UNIT_ROLE;
+                    case CHANGE_ORDER -> ResourceType.FUHITO_CHANGE_ORDER;
+                    case REF_ITEM -> ResourceType.FUHITO_REF_ITEM;
+                    case REF_KIND -> ResourceType.FUHITO_REF_KIND;
+                    case HIERARCHY -> ResourceType.FUHITO_HIERARCHY;
+                    case ATTRIBUTE_DEFINITION -> ResourceType.FUHITO_ATTRIBUTE_DEFINITION;
+                };
             }
 
             @Override
             public String path() {
-                return "fuhito/external-ids/" + resourceId();
+                return "fuhito/" + collection(kind) + "/" + resourceId;
             }
         }
 
@@ -661,10 +719,6 @@ public final class ImportReport {
 
             static Removed unitRole(String id) {
                 return new Removed(ResourceType.FUHITO_UNIT_ROLE, id, "fuhito/unit-roles/" + id);
-            }
-
-            static Removed externalId(String id) {
-                return new Removed(ResourceType.FUHITO_EXTERNAL_ID, id, "fuhito/external-ids/" + id);
             }
         }
     }
