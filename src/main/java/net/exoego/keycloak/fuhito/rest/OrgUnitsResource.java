@@ -685,8 +685,7 @@ public class OrgUnitsResource {
             MemberQuery query = new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max,
                     hierarchy, after, seconded, workLocation, costCenter);
             Locale language = context.nameLanguage();
-            return Pages.of(context, membership.members(id, query).stream()
-                            .map(member -> MemberRepresentation.of(member, language)).toList(),
+            return Pages.of(context, MemberRepresentation.of(membership.members(id, query), language, membership),
                     Page.of(first, max).max(),
                     // The values that the order of the list uses, as MembershipService reads them back.
                     member -> Cursor.encode(Cursor.MEMBERS, member.orgUnitId(),

@@ -120,8 +120,7 @@ The sync does not see such a user. It reports no error, and the user gets no ass
 An attribute that only LDAP holds is not in the tables either. A mapper of the federation must import it.
 
 A change that the sync makes and takes back on the same day leaves no trace.
-An assignment that started today is removed, not ended, because it never held.
-When another assignment continues it, as after a move, the user fails with `assignment.in_use`, as the delete of that assignment does.
+An assignment that started today is removed, not ended, because it never held. That holds also when another assignment starts on its end, as after a move.
 
 The user attributes must reach Keycloak first.
 With the default user profile, Keycloak drops attributes that the profile does not define.

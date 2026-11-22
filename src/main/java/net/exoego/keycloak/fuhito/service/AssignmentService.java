@@ -6,12 +6,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -121,22 +119,8 @@ public class AssignmentService {
      *         the external ID belongs to another assignment
      */
     public AssignmentView add(AssignmentValues request) {
-        return add(request, null);
-    }
-
-    /**
-     * Adds an assignment that continues another assignment of the same person, as a transfer between employers
-     * does. The link is written with the new assignment, and it never changes.
-     *
-     * @param request the values of the request. The assignment keeps the source as the system that made it.
-     * @param continuesAssignmentId the ID of the assignment that the new one continues, or null
-     * @return the new assignment
-     * @throws FuhitoException as {@link #add(AssignmentValues)} does, and when the assignment to continue does not
-     *         exist or is of another person
-     */
-    AssignmentView add(AssignmentValues request, String continuesAssignmentId) {
         NewAssignments adds = new NewAssignments(externalIds);
-        String id = adds.add(request, continuesAssignmentId);
+        String id = adds.add(request);
         adds.insert();
         return get(id);
     }
@@ -214,14 +198,13 @@ public class AssignmentService {
         }
 
         /**
-         * Checks a new assignment as {@link AssignmentService#add(AssignmentValues, String)} does, and keeps it for
+         * Checks a new assignment as {@link AssignmentService#add(AssignmentValues)} does, and keeps it for
          * {@link #insert}.
          *
          * @param request the values of the request
-         * @param continuesAssignmentId the ID of the assignment that the new one continues, or null
          * @return the ID of the new assignment
          */
-        String add(AssignmentValues request, String continuesAssignmentId) {
+        String add(AssignmentValues request) {
             Checks.required("body", request);
             String employmentId = Checks.required("employmentId", request.employmentId());
             String orgUnitId = Checks.required("orgUnitId", request.orgUnitId());
@@ -233,20 +216,10 @@ public class AssignmentService {
             requireInsideEmployment(employmentId, employment.period(), period);
             requireOrgUnitCovers(orgUnitId, period, lives.computeIfAbsent(orgUnitId, AssignmentService.this::lifeOf));
             ExternalId.Pair externalId = ids.check(null, request.source(), request.externalId());
-            if (continuesAssignmentId != null) {
-                List<Assignment> previous = added.containsKey(continuesAssignmentId)
-                        ? List.of(added.get(continuesAssignmentId)) : store.rows(continuesAssignmentId);
-                if (previous.isEmpty()) {
-                    throw FuhitoException.invalid("assignment.continues_unknown", Map.of("id", continuesAssignmentId));
-                }
-                requireSamePerson(continuesAssignmentId,
-                        employment(previous.getFirst().employmentId()).map(Employment::personId).orElse(null),
-                        employment.personId());
-            }
 
             String assignmentId = newId();
             Assignment row = row(newId(), assignmentId, employmentId, orgUnitId, period, request, null,
-                    Checks.optionalCode("source", request.source()), continuesAssignmentId);
+                    Checks.optionalCode("source", request.source()));
             if (claimPrimary(row, request, rowsOf(employmentId))) {
                 forget(employmentId);
             }
@@ -304,14 +277,14 @@ public class AssignmentService {
 
         if (current.period().from().equals(from)) {
             Assignment corrected = row(current.rowId(), id, current.employmentId(), current.orgUnitId(),
-                    current.period(), request, current, current.source(), current.continuesAssignmentId());
+                    current.period(), request, current, current.source());
             claimPrimary(corrected, request);
             store.update(corrected);
         } else {
             List<ValidPeriod> parts = current.period().splitAt(from);
             // Build the new row first, so that a bad value fails before anything is written.
             Assignment next = row(newId(), id, current.employmentId(), current.orgUnitId(), parts.get(1), request,
-                    current, current.source(), current.continuesAssignmentId());
+                    current, current.source());
             claimPrimary(next, request);
             store.update(current.withPeriod(parts.getFirst()));
             store.insert(next);
@@ -322,28 +295,13 @@ public class AssignmentService {
     /**
      * Sets the end of an assignment. Its history stays readable.
      * The end can move earlier or later. A later end must stay inside the employment and the life of the org unit.
-     * It cannot pass the start of an assignment that continues this one.
      *
      * @param id the ID of the assignment
      * @param validTo the first date on which the assignment no longer holds, as {@code YYYY-MM-DD}
      * @return the assignment with all its details
-     * @throws FuhitoException when the date would cut off a stored change, the new period is not covered, or the
-     *         assignment would hold on the start of an assignment that continues it
+     * @throws FuhitoException when the date would cut off a stored change, or the new period is not covered
      */
     public AssignmentView end(String id, String validTo) {
-        return end(id, validTo, true);
-    }
-
-    /**
-     * Sets the end of an assignment, as {@link #end(String, String)} does.
-     *
-     * @param id the ID of the assignment
-     * @param validTo the first date on which the assignment no longer holds, as {@code YYYY-MM-DD}
-     * @param checkNext false when the caller checks the assignments that continue this one itself
-     * @return the assignment with all its details
-     * @throws FuhitoException as {@link #end(String, String)} does
-     */
-    AssignmentView end(String id, String validTo, boolean checkNext) {
         LocalDate to = Checks.date("validTo", validTo);
         List<Assignment> rows = requireRows(id);
         if (!to.isAfter(rows.getFirst().period().from())) {
@@ -353,78 +311,8 @@ public class AssignmentService {
         if (!to.isAfter(last.period().from())) {
             throw FuhitoException.conflict("assignment.later_changes_exist", Map.of("id", id, "validTo", validTo));
         }
-        if (checkNext) {
-            requireEndsByNext(last, to);
-        }
         setEnd(last, to);
         return get(id);
-    }
-
-    /**
-     * Finds the assignments that continue some assignments. Such an assignment is of the same person.
-     *
-     * @param assignments a row of each assignment that others may continue
-     * @return the first row of each assignment that continues one of them
-     */
-    Collection<Assignment> continuing(Collection<Assignment> assignments) {
-        Set<String> ids = new HashSet<>();
-        Set<String> employmentIds = new HashSet<>();
-        assignments.forEach(row -> {
-            ids.add(row.assignmentId());
-            employmentIds.add(row.employmentId());
-        });
-        Set<String> personIds = employments.findAll(employmentIds).stream().map(Employment::personId)
-                .collect(Collectors.toSet());
-        List<String> all = employments.findByPeople(personIds).stream().map(Employment::id).toList();
-        Map<String, Assignment> firsts = new LinkedHashMap<>();
-        store.rowsOfEmployments(all).stream()
-                .filter(row -> ids.contains(row.continuesAssignmentId()))
-                .forEach(row -> firsts.putIfAbsent(row.assignmentId(), row));
-        return firsts.values();
-    }
-
-    /**
-     * Requires that an assignment continues only an assignment of the same person.
-     *
-     * @param continuesAssignmentId the ID of the assignment that it continues
-     * @param previousPersonId the ID of the person of that assignment, or null when its employment is not found
-     * @param personId the ID of the person of the assignment that continues it
-     * @throws FuhitoException when they are not the same person
-     */
-    static void requireSamePerson(String continuesAssignmentId, String previousPersonId, String personId) {
-        if (!personId.equals(previousPersonId)) {
-            throw FuhitoException.invalid("assignment.continues_other", Map.of("id", continuesAssignmentId));
-        }
-    }
-
-    /**
-     * Checks that an assignment ends by the start of an assignment that continues it.
-     *
-     * @param id the ID of the assignment
-     * @param period the period of the last row of the assignment
-     * @param from the start of the assignment that continues it
-     * @return the error when the assignment still holds on that start
-     */
-    static Optional<FuhitoException> stillHolds(String id, ValidPeriod period, LocalDate from) {
-        if (!period.endsAfter(from)) {
-            return Optional.empty();
-        }
-        return Optional.of(FuhitoException.conflict("assignment.continues_holds",
-                Map.of("id", id, "date", from.toString())));
-    }
-
-    // Only a later end or no end can make the assignment hold on the start of one that continues it.
-    private void requireEndsByNext(Assignment last, LocalDate to) {
-        LocalDate stored = last.period().to();
-        if (stored == null || (to != null && !to.isAfter(stored))) {
-            return;
-        }
-        ValidPeriod period = last.period().endingAt(to);
-        for (Assignment next : continuing(List.of(last))) {
-            stillHolds(last.assignmentId(), period, next.period().from()).ifPresent(e -> {
-                throw e;
-            });
-        }
     }
 
     /**
@@ -439,8 +327,8 @@ public class AssignmentService {
     /**
      * Moves a person to another org unit on a date, in one write.
      * The assignment ends on the date, and a new assignment of the same employment to the new org unit starts on
-     * the same date. The new one lasts as long as the old one would have, and names the old one as the one that
-     * it continues. It keeps the occupation, the kind, the primary flag, the allocation, and the attributes.
+     * the same date. The new one lasts as long as the old one would have. It keeps the occupation, the kind, the
+     * primary flag, the allocation, and the attributes.
      * It keeps the job title unless the request gives one. It does not keep the head flag, the display order, the
      * work location, or the cost center, because those belong to the old org unit. The request can give new ones.
      * The reporting lines of the old assignment end with it. The new assignment has none.
@@ -472,7 +360,7 @@ public class AssignmentService {
                 last.occupationId(), last.kindId(), idOf(RefKind.WORK_LOCATION, request.workLocation(), null),
                 idOf(RefKind.COST_CENTER, request.costCenter(), null), Boolean.TRUE.equals(request.head()),
                 last.primary(), last.allocationPercent(), request.displayOrder() == null ? 0 : request.displayOrder(),
-                last.attributes(), null, id, 1);
+                last.attributes(), null, 1);
         // The end rejects a change that is stored for the date or later, and ends the reporting lines.
         AssignmentView ended = end(id, request.validFrom());
         store.insert(next);
@@ -481,18 +369,15 @@ public class AssignmentService {
 
     /**
      * Removes the end of an assignment. The assignment then lasts as long as its employment.
-     * It cannot then hold on the start of an assignment that continues it.
      *
      * @param id the ID of the assignment
      * @return the assignment with all its details
-     * @throws FuhitoException when the org unit does not cover the new period, or the assignment would hold on the
-     *         start of an assignment that continues it
+     * @throws FuhitoException when the org unit does not cover the new period
      */
     public AssignmentView removeEnd(String id) {
         List<Assignment> rows = requireRows(id);
         Assignment last = rows.getLast();
         LocalDate employmentEnd = employments.find(last.employmentId()).orElseThrow().period().to();
-        requireEndsByNext(last, employmentEnd);
         setEnd(last, employmentEnd);
         return get(id);
     }
@@ -571,6 +456,7 @@ public class AssignmentService {
         Function<String, String> code = UnitPlaces.codes(refItems);
         List<Assignment> all = ids.stream().flatMap(id -> rowsById.get(id).stream()).toList();
         List<LocationAndCost> places = UnitPlaces.ofRows(all, row -> dates.get(row.assignmentId()), orgUnits, code);
+        Map<String, List<Assignment>> ended = store.endedOnStart(ids);
         List<AssignmentView> views = new ArrayList<>();
         int at = 0;
         for (String id : ids) {
@@ -579,9 +465,9 @@ public class AssignmentService {
             at += rows.size();
             views.add(new AssignmentView(id, userIds.get(rows.getFirst().employmentId()),
                     new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to()),
-                    rows.getFirst().continuesAssignmentId(), IntStream.range(0, rows.size())
+                    IntStream.range(0, rows.size())
                             .mapToObj(i -> row(rows.get(i), code, ofRows.get(i)))
-                            .toList()));
+                            .toList(), ended.getOrDefault(id, List.of())));
         }
         return views;
     }
@@ -604,7 +490,8 @@ public class AssignmentService {
 
     /**
      * Lists a page of the assignments that hold on a date, by ID, each with its details over time.
-     * The rows have their own work location and cost center, and not the ones that apply.
+     * The rows have their own work location and cost center, and not the ones that apply. The assignments that end on
+     * the start of each one are not read.
      *
      * @param date the date
      * @param afterId the ID of the assignment after which the page starts, or null for the start
@@ -627,9 +514,9 @@ public class AssignmentService {
             Employment employment = employmentsById.get(rows.getFirst().employmentId());
             return new AssignmentView(id, employment == null ? null : employment.userId(),
                     new ValidPeriod(rows.getFirst().period().from(), rows.getLast().period().to()),
-                    rows.getFirst().continuesAssignmentId(), rows.stream()
+                    rows.stream()
                             .map(r -> row(r, code, UnitPlaces.ownOfRow(r, code)))
-                            .toList());
+                            .toList(), List.of());
         }).toList();
     }
 
@@ -732,8 +619,7 @@ public class AssignmentService {
 
     // A row may keep a reference item that was deactivated after the row got it.
     private Assignment row(String rowId, String assignmentId, String employmentId, String orgUnitId,
-            ValidPeriod period, AssignmentValues values, Assignment current, String source,
-            String continuesAssignmentId) {
+            ValidPeriod period, AssignmentValues values, Assignment current, String source) {
         return new Assignment(rowId, assignmentId, employmentId, orgUnitId, period,
                 idOf(RefKind.JOB_TITLE, values.jobTitle(), current == null ? null : current.jobTitleId()),
                 idOf(RefKind.OCCUPATION, values.occupation(), current == null ? null : current.occupationId()),
@@ -745,7 +631,7 @@ public class AssignmentService {
                 Checks.optionalPercent("allocationPercent", values.allocationPercent()),
                 values.displayOrder() == null ? 0 : values.displayOrder(),
                 attributeRules.check(AttributeDefinition.Target.ASSIGNMENT, values.attributes()),
-                source, continuesAssignmentId, current == null ? 1 : current.version());
+                source, current == null ? 1 : current.version());
     }
 
     private String idOf(RefKind kind, String code, String currentId) {

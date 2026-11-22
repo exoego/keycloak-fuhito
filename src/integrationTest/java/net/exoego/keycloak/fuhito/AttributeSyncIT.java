@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Test;
 import org.keycloak.admin.client.CreatedResponseUtil;
@@ -315,31 +314,29 @@ class AttributeSyncIT {
     }
 
     @Test
-    void theSyncKeepsAnAssignmentOfTodayThatAnotherAssignmentContinues() throws Exception {
+    void theSyncRemovesAnAssignmentOfTodayAlsoWhenAnotherStartsOnItsEnd() throws Exception {
         createRealm(Map.of("fuhito.sync.enabled", "true"));
         unit("内科", "naika", null);
         String surgery = unit("外科", null, null);
         String alice = user("alice", Map.of("department", "naika"));
         assertEquals(1, run("").get("assignmentsAdded").asInt());
         String synced = assignmentsOf(alice).get(0).get("assignmentId").asText();
-        // An administrator moves alice from tomorrow. The new assignment continues the one of the sync.
+        // An administrator moves alice from tomorrow.
         String tomorrow = LocalDate.now(ZoneOffset.UTC).plusDays(1).toString();
         HttpResponse<String> move = api.postWithVersion("/assignments/" + synced + "/move", "{\"orgUnitId\": \""
                 + surgery + "\", \"validFrom\": \"" + tomorrow + "\"}");
         assertEquals(201, move.statusCode(), move.body());
-        HttpResponse<String> delete = api.deleteWithVersion("/assignments/" + synced);
-        assertEquals(409, delete.statusCode(), delete.body());
-        ObjectNode before = RealmExportIT.export(api);
+        String next = Api.json(move).get("started").get("id").asText();
+        assertEquals(List.of(synced), Api.json(api.get("/assignments/" + next)).get("endedOnStart")
+                .findValuesAsText("assignmentId"));
 
-        // The department goes. The sync would remove its assignment, which started today and never held.
+        // The department goes. The sync removes its assignment, which started today and never held.
         setAttributes(alice, Map.of("title", "部長"));
         JsonNode report = run("");
 
-        JsonNode failed = report.get("failed");
-        assertEquals(1, failed.size(), report.toString());
-        assertEquals(alice, failed.get(0).get("userId").asText());
-        assertEquals(Api.json(delete).get("error").asText(), failed.get(0).get("error").asText());
-        assertEquals(before, RealmExportIT.export(api));
+        assertEquals(0, report.path("failed").size(), report.toString());
+        assertEquals(404, api.get("/assignments/" + synced).statusCode());
+        assertFalse(Api.json(api.get("/assignments/" + next)).has("endedOnStart"));
     }
 
     @Test

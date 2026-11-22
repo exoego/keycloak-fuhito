@@ -55,7 +55,7 @@ final class MemoryAssignmentStore implements AssignmentStore {
                 .sorted(order)
                 .filter(row -> after == null || order.compare(row, new Assignment(null, after.assignmentId(), null,
                         after.orgUnitId(), ValidPeriod.startingAt(after.validFrom()), null, null, null, null, null,
-                        false, false, null, after.displayOrder(), Map.of(), null, null, 1)) > 0)
+                        false, false, null, after.displayOrder(), Map.of(), null, 1)) > 0)
                 .skip(first)
                 .limit(max)
                 .toList();
@@ -101,6 +101,36 @@ final class MemoryAssignmentStore implements AssignmentStore {
     }
 
     @Override
+    public Map<String, List<Assignment>> endedOnStart(Collection<String> assignmentIds) {
+        Map<String, List<Assignment>> found = new HashMap<>();
+        for (String id : assignmentIds) {
+            List<Assignment> own = rows(id);
+            if (own.isEmpty()) {
+                continue;
+            }
+            Assignment first = own.getFirst();
+            List<Assignment> ended = rows.stream()
+                    .map(Assignment::assignmentId)
+                    .distinct()
+                    .map(other -> rows(other).getLast())
+                    .filter(last -> personOf(last).equals(personOf(first))
+                            && first.period().from().equals(last.period().to()) && last.primary() == first.primary())
+                    .sorted(Comparator.comparing(Assignment::assignmentId))
+                    .toList();
+            if (!ended.isEmpty()) {
+                found.put(id, ended);
+            }
+        }
+        return found;
+    }
+
+    // A test that sets no store of employments has one person for each employment.
+    private String personOf(Assignment row) {
+        return employments == null ? row.employmentId()
+                : employments.find(row.employmentId()).map(Employment::personId).orElse(row.employmentId());
+    }
+
+    @Override
     public long assignmentsHoldingFrom(String orgUnitId, LocalDate date) {
         return rows.stream()
                 .filter(r -> r.orgUnitId().equals(orgUnitId) && r.period().endsAfter(date))
@@ -140,7 +170,7 @@ final class MemoryAssignmentStore implements AssignmentStore {
                 row.assignmentId(), row.employmentId(), row.orgUnitId(), row.period(), row.jobTitleId(),
                 row.occupationId(), row.kindId(), row.workLocationId(), row.costCenterId(), row.head(),
                 row.primary(), row.allocationPercent(), row.displayOrder(), row.attributes(), row.source(),
-                r.continuesAssignmentId(), r.version()) : r));
+                r.version()) : r));
     }
 
     @Override

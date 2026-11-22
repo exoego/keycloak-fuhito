@@ -25,15 +25,13 @@ import java.util.Map;
  * @param attributes free values that the realm defines
  * @param source the name of the system that made the assignment, or null. Its IDs in each system are stored
  *        apart.
- * @param continuesAssignmentId the ID of the assignment that this one continues, after a move to another org unit
- *        or a transfer to another employer, or null
  * @param version the number that each write of the assignment counts up. Every row of one assignment has the
  *        same one. A new assignment has 1.
  */
 public record Assignment(String rowId, String assignmentId, String employmentId, String orgUnitId,
         ValidPeriod period, String jobTitleId, String occupationId, String kindId, String workLocationId,
         String costCenterId, boolean head, boolean primary, BigDecimal allocationPercent, int displayOrder,
-        Map<String, Object> attributes, String source, String continuesAssignmentId, long version) {
+        Map<String, Object> attributes, String source, long version) {
 
     /**
      * Returns a copy of this row for another period, with another row ID and another primary flag.
@@ -46,7 +44,7 @@ public record Assignment(String rowId, String assignmentId, String employmentId,
     public Assignment part(String newRowId, ValidPeriod newPeriod, boolean newPrimary) {
         return new Assignment(newRowId, assignmentId, employmentId, orgUnitId, newPeriod, jobTitleId, occupationId,
                 kindId, workLocationId, costCenterId, head, newPrimary, allocationPercent, displayOrder, attributes,
-                source, continuesAssignmentId, version);
+                source, version);
     }
 
     /**
@@ -58,6 +56,6 @@ public record Assignment(String rowId, String assignmentId, String employmentId,
     public Assignment withPeriod(ValidPeriod newPeriod) {
         return new Assignment(rowId, assignmentId, employmentId, orgUnitId, newPeriod, jobTitleId, occupationId,
                 kindId, workLocationId, costCenterId, head, primary, allocationPercent, displayOrder, attributes,
-                source, continuesAssignmentId, version);
+                source, version);
     }
 }

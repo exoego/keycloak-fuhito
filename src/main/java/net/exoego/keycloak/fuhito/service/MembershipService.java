@@ -241,16 +241,30 @@ public class MembershipService {
 
     private UserHistory history(String personId, String userId, List<Employment> ofUser,
             EmploymentService employmentService, AssignmentService assignmentService) {
-        List<AssignmentView> assignmentViews = ofUser.stream()
-                .flatMap(employment -> assignments.rowsOfEmployment(employment.id()).stream())
-                .map(Assignment::assignmentId)
-                .distinct()
-                .map(assignmentService::get)
+        // The views of all assignments are read together, so each read of them is one statement for all.
+        List<AssignmentView> assignmentViews = assignmentService.getAll(ofUser.stream()
+                        .flatMap(employment -> assignments.rowsOfEmployment(employment.id()).stream())
+                        .map(Assignment::assignmentId)
+                        .distinct()
+                        .toList()).stream()
                 .sorted(Comparator.comparing((AssignmentView view) -> view.period().from())
                         .thenComparing(AssignmentView::assignmentId))
                 .toList();
         return new UserHistory(personId, userId, ofUser.stream().map(e -> employmentService.get(e.id())).toList(),
                 assignmentViews);
+    }
+
+    /**
+     * Finds the assignments that end on the start of the assignment of each member, with one read for all of them,
+     * as {@link AssignmentView#endedOnStart()} has them.
+     *
+     * @param members the members
+     * @return the last row of each assignment that ends on the start of the assignment of a member, by the ID of
+     *         that assignment. An assignment with none is left out.
+     */
+    public Map<String, List<Assignment>> endedOnStart(List<Member> members) {
+        return assignments.endedOnStart(members.stream().map(member -> member.assignment().assignmentId())
+                .distinct().toList());
     }
 
     private List<Member> toMembers(List<Assignment> rows, LocalDate date, Function<String, OrgUnitState> unitOf,

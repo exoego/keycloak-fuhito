@@ -69,7 +69,7 @@ The source of a row is the system of the external IDs that the row gives. A row 
 | `orgUnits` | `externalId`, `parentExternalId`, and `successorExternalIds` | Fails unless it is the `source` of the unit |
 | `people` | `externalId` | Fails unless it is the `source` of the person |
 | `employments` | `externalId`, `personExternalId`, `employerExternalId`, and `continuesEmploymentExternalId` | Fails unless it is the `source` of the employment |
-| `assignments` | `externalId`, `employmentExternalId`, `orgUnitExternalId`, and `continuesAssignmentExternalId` | Fails unless it is the `source` of the assignment |
+| `assignments` | `externalId`, `employmentExternalId`, and `orgUnitExternalId` | Fails unless it is the `source` of the assignment |
 | `qualifications` | `externalId` and `personExternalId` | Fails unless it is the `source` of the qualification |
 | `orgUnitParents` | `orgUnitExternalId` and `parentExternalId` | A row has no `id`. A row with `source` and neither of them fails, because a parent keeps no source |
 | `externalIds` | `externalId`. `source` is part of the key of the row | A row has no `id`. Every row uses `source` |
@@ -168,8 +168,9 @@ The lists are applied in the order change orders, kinds of reference data, attri
 - A new employment names its employer by `employerExternalId`. It is the external ID of an org unit that is a legal entity. A row can leave it out when the realm has exactly one legal entity.
 - A row of an employment can name an external employer, such as a staffing agency, by `externalEmployer`. It is the code of a reference item of the kind `EXTERNAL_EMPLOYER`. The CSV header is `外部の雇用主`. A row gives the employer or the external employer, not both, or it fails with `employment.employer_twice`. A new employment needs an active item. An unknown code fails with `employment.external_employer_unknown`, and an inactive item with `employment.external_employer_inactive`. The list `refItems` comes before the employments, so one document can add the agency and the people it employs.
 - The employer of a stored employment never changes. A row that names another employer or another external employer is rejected with `import.employer_mismatch`. A row of a stored employment may name an external employer that is no longer active.
-- After a transfer between employers, a row of the new employment can name the one it continues by `continuesEmploymentExternalId` or `continuesEmploymentId`. A row of a new assignment can name the assignment it continues by `continuesAssignmentExternalId` or `continuesAssignmentId`. Both must be of the same person. The link is set when the row makes the new thing. A stored one with another link fails with `import.continues_mismatch`.
-- The one that a new employment or assignment continues must end on the start of the new one or before. A gap between the two is fine. Otherwise the row of the new one fails with `employment.continues_holds` or `assignment.continues_holds`, and the error names the one it continues. An assignment ends on its own end or on the end of its employment. So a file of a transfer ends the old employment with `validTo` on the start of the new one. The row that ends it and the row of the new one can come in any order. A row that sets the end of an employment or an assignment that another one continues fails the same way when the end comes after the start of the other one. So a later file cannot open the old one again. A row that ends an employment earlier fails with `assignment.in_use` when the end would remove an assignment that another assignment continues, as `PUT /employments/{id}/end` does.
+- After a transfer between employers, a row of the new employment can name the one it continues by `continuesEmploymentExternalId` or `continuesEmploymentId`. It must be of the same person. The link is set when the row makes the new employment. A stored one with another link fails with `import.continues_mismatch`.
+- The employment that a new one continues must end on the start of the new one or before. A gap between the two is fine. Otherwise the row of the new one fails with `employment.continues_holds`, and the error names the one it continues. So a file of a transfer ends the old employment with `validTo` on the start of the new one. The row that ends it and the row of the new one can come in any order. A row that sets the end of an employment that another one continues fails the same way when the end comes after the start of the other one. So a later file cannot open the old one again.
+- An assignment names no assignment that it continues. A read of the new assignment lists the old one in `endedOnStart` when the old one ends on its start with the same primary flag. An assignment ends on its own end or on the end of its employment.
 - A row of a unit type can carry `legalEntity`. The CSV header is `法人`. A row that leaves it out keeps the mark of a stored item.
 - A row of an assignment kind can carry `actingHead`. The CSV header is `代行`. A row that leaves it out keeps the mark of a stored item.
 - A row of a unit type can carry `lateral`. The CSV header is `横断`. A row that leaves it out keeps the mark of a stored item.
@@ -195,7 +196,7 @@ Kinds, definitions, hierarchies, reference items, reporting lines, roles over or
 
 `GET /imports/csv/employments?asOf=` gives the employments that hold on the date, with the terms of that date. Each row has `id`, and `continuesEmploymentId` for an employment that continues another. It names the person by `personId` and the employer by `employerId`, because many have no external ID of the source of the row. An employment with an external employer names it by its code in `externalEmployer`, and has no `employerId`. A row of an employment that starts later is not in the file.
 
-`GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details. An assignment that continues another has `continuesAssignmentId`.
+`GET /imports/csv/assignments?asOf=` gives the assignments that hold on the date the same way, with the details of that date. It names the employment by `employmentId` and the org unit by `orgUnitId`. `validFrom` and `validTo` are the dates of the whole assignment, not of the details.
 The files of org units and of assignments have the work location and the cost center of the record itself, not the ones that apply. So a value that comes from a unit above is not copied into the rows.
 `GET /imports/csv/reporting-lines?asOf=` gives the reporting lines that hold on the date. It names the assignment by `assignmentId` and the manager by `managerPersonId`.
 `GET /imports/csv/unit-roles?asOf=` gives the roles that hold on the date. It names the employment by `employmentId` and the unit by `orgUnitId`.
@@ -417,8 +418,6 @@ Assignments.
 | `id` | `ID` |
 | `employmentId` | `雇用のID` |
 | `orgUnitId` | `組織のID` |
-| `continuesAssignmentExternalId` | `引き継ぎ元の所属の外部ID` |
-| `continuesAssignmentId` | `引き継ぎ元の所属のID` |
 
 Reporting lines.
 
@@ -645,8 +644,6 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
   | `assignments` | The rows of an assignment have one employment and one org unit, as a write never changes them. | `employmentId`, `orgUnitId` | None |
   | `assignments` | A row lies inside its employment. | `validFrom`, `validTo` | `assignment.outside_employment` |
   | `assignments` | A row lies inside the life of its org unit. | `validFrom`, `validTo` | `assignment.org_unit_not_valid` |
-  | `assignments` | An assignment continues only an assignment of the same person. | `continuesAssignmentId` | `assignment.continues_other` |
-  | `assignments` | An assignment ends by the start of an assignment that continues it. The row is the last row of the one that it continues. | `validTo` | `assignment.continues_holds` |
   | `reporting-lines` | The kind is a choice of a write, such as `SOLID`. | `kind` | `invalid.choice` |
   | `reporting-lines` | A line lies inside its assignment, from its first row to the end of its last. | `validFrom`, `validTo` | `reporting_line.outside_assignment` |
   | `reporting-lines` | The manager is not the person of the assignment. | `managerPersonId` | `reporting_line.self` |

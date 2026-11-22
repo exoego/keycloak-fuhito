@@ -127,10 +127,11 @@ The end of an org unit, an assignment, or an employment can move earlier or late
 - An earlier end of an org unit needs the same as a first end. The parents that ended with it end on the new date.
 - A later end of an org unit, or no end, lengthens its last details and the parents that ended with it. Each parent must exist on the new dates.
 - The end of an org unit that other units follow after a merger or a split does not move. It fails with `org_unit.has_successors`.
-- The end of an employment or an assignment that another one continues, as after a transfer or a move, does not move past the start of that one. A later end and `DELETE .../end` then fail with `employment.continues_holds` or `assignment.continues_holds`. An end on that start or before it is fine, and so is a gap. The import has the same rule.
-- An earlier end of an employment does not remove an assignment that another assignment continues, as after a transfer or a move. It fails with `assignment.in_use` and writes nothing, as the delete of that assignment does. An end that removes the assignment and the one that continues it is fine, and so is an end that only shortens the assignment. A transfer, a merger, and the import have the same rule.
+- The end of an employment that another one continues, as after a transfer, does not move past the start of that one. A later end and `DELETE .../end` then fail with `employment.continues_holds`. An end on that start or before it is fine, and so is a gap. The import has the same rule.
+- A later end of a primary assignment, or no end, must not reach another primary assignment of the employment. It fails with `assignment.primary_exists`. So after a move of a primary assignment, the old one cannot hold on beside the new one. An assignment that is not primary can, because a person may hold two posts.
+- An earlier end of an employment removes every assignment of it that would start on the end or later, also one that ends on the start of another assignment of the person. A transfer, a merger, and the import do the same.
 
-Checked by `EndRemovalsIT`.
+Checked by `EndRemovalsIT` and `EndedOnStartIT.aMoveBeforeALaterAssignmentGivesThatOneTheNewAssignment`.
 
 ## A delete and an end
 
@@ -148,7 +149,7 @@ An end keeps the past. A read of a date before the end still finds the resource.
 - A delete works only when nothing refers to the resource. Otherwise it fails with `org_unit.in_use`, `employment.in_use`, or `assignment.in_use`, and `uses` names what refers to it.
 - An org unit must have had no children, and no assignment, employment, role, or succession may name it. It must have no link to a Keycloak organization.
 - An employment must have no assignment and no role over an org unit, and no employment may continue it.
-- An assignment must have no reporting line, and no assignment may continue it.
+- An assignment must have no reporting line.
 - The IDs that other systems have for the resource go with it.
 - The change log keeps every entry of the resource, and gets one for the delete. A product that copied the resource learns of it there.
 
@@ -234,13 +235,29 @@ An assignment never changes its org unit. A move is the end of one assignment an
 `POST /assignments/{id}/move` does both in one write.
 
 - The new assignment starts on the date that the old one ends on, so the person is in one place on every date.
-- It lasts as long as the old one would have, and names the old one in `continuesAssignmentId`.
+- It lasts as long as the old one would have. Its `endedOnStart` lists the old one, as the next section says.
 - It keeps the occupation, the kind, the primary flag, the allocation, and the attributes. It keeps the job title unless the request gives one.
 - The head flag, the display order, the work location, and the cost center belong to the old org unit, so they are not kept. The request can give a new work location and cost center. Without them, the new assignment takes the ones of its org unit.
 - The reporting lines of the old assignment end with it. The new assignment gets its manager from the head of its org unit, until a line is stored.
 - A change of the old assignment that is stored for the date or later rejects the move.
 
 Checked by `AssignmentsIT.aMoveTakesAPersonToAnotherOrgUnitInOneWrite`.
+
+## The assignments that end on the start of another
+
+A read of an assignment has `endedOnStart`. It lists the assignments of the same person whose `validTo` is the `validFrom` of this one, and that have the same primary flag on their last day as this one on its first day.
+Each entry has `assignmentId`, `orgUnitId`, and `primary`.
+
+- Every employment of the person counts. So the copy of a transfer or a merger lists the assignment that it copies.
+- All of them are in the list, by `assignmentId`. Two posts can end and start on one day with no tie between them, so the list states only the dates. fuhito does not pick one.
+- A gap gives none. A leave does not end an assignment, so a return to another unit is a move with no gap. A gap is a rehire, which is no move.
+- The list is missing when there is none.
+- A read works it out from the other assignments each time, and nothing stores it. So no write can leave a list that names the wrong assignment. A move of an assignment that ends on the start of a later one gives the later one the new assignment.
+- The REST reads of assignments have it, also every list of them, such as `GET /assignments`, the members of an org unit, and the history of a person. A list reads it for all its entries with one query. The CSV export and the realm export do not have it.
+- A create takes a read as its body, and may leave the list out. A list that differs from the one that the new assignment gets fails with 400 and `invalid.value_fixed`, and writes nothing.
+- A change of the dates or of the primary flag of one assignment can change the list of another. That does not count up the version of the other one, and the change log gets no entry for it.
+
+Checked by `EndedOnStartIT`.
 
 ## A promotion
 

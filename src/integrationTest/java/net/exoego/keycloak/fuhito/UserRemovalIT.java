@@ -230,10 +230,9 @@ class UserRemovalIT {
         assertFalse(log.get(log.size() - 1).has("actorUserId"));
     }
 
-    // The removal ends the two open employments in one write. So the end of the first may remove an assignment
-    // that an assignment of the second continues, as the end of the second removes that one too.
+    // The removal ends the two open employments in one write, and removes what would start later in each.
     @Test
-    void removingAUserRemovesAFutureAssignmentAndTheOneOfAnotherEmploymentThatContinuesIt() throws Exception {
+    void removingAUserRemovesAFutureAssignmentAndTheOneOfAnotherEmploymentAfterIt() throws Exception {
         TestRealm realm = TestRealm.withEmployer("user-removal-continued");
         Api api = realm.api;
         String unit = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"課\"}}, \"validFrom\": \"2020-04-01\"}")).get("id").asText();
@@ -251,8 +250,7 @@ class UserRemovalIT {
         String first = Api.json(planned).get("id").asText();
         HttpResponse<String> imported = api.post("/imports", "{\"effectiveDate\": \"" + TODAY + "\", \"source\": "
                 + "\"sheet\", \"assignments\": [{\"externalId\": \"C-1\", \"employmentId\": \"" + employments.get(1)
-                + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"" + later + "\", \"continuesAssignmentId\": \""
-                + first + "\"}]}");
+                + "\", \"orgUnitId\": \"" + unit + "\", \"validFrom\": \"" + later + "\"}]}");
         assertEquals(200, imported.statusCode(), imported.body());
         String continuing = ImportIT.lookup(api, "ASSIGNMENT", "C-1");
 

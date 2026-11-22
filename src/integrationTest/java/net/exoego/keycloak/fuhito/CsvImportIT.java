@@ -731,7 +731,7 @@ class CsvImportIT {
             assertEquals(3, exported.body().split("\r\n").length, exported.body());
             assertTrue(exported.body().contains(header.equals("en") ? ",assignmentKind,workLocation,costCenter,head,"
                     : ",所属区分,勤務地,コストセンター,長,"), exported.body());
-            assertTrue(exported.body().contains(",nurse,,,,false,true,70,0,2020-04-01,,,\"3F, east\""),
+            assertTrue(exported.body().contains(",nurse,,,,false,true,70,0,2020-04-01,,\"3F, east\""),
                     exported.body());
             assertTrue(exported.body().contains(",A-2,hr,"), exported.body());
             // The file has the work location of the assignment, and not the cost center of the lab.
