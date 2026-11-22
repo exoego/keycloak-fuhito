@@ -27,6 +27,7 @@ import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
@@ -674,7 +675,7 @@ public class EmploymentService {
         Map<String, String> employmentOf = employmentOf(rows);
         copies.forEach(copy -> copy.rows().forEach(row -> employmentOf.put(row.assignmentId(),
                 copy.started().continuesEmploymentId())));
-        Map<String, CutRecords> cuts = CutRecords.withPropagated(ended, endings.changedBy(), employmentOf::get);
+        Map<String, CutRecords> cuts = withPropagated(ended, endings.changedBy(), employmentOf);
 
         List<String> both = new ArrayList<>(ids);
         copies.forEach(copy -> both.add(copy.started().id()));
@@ -827,13 +828,28 @@ public class EmploymentService {
                 : assignments.rowsOfEmployments(employments.stream().map(Employment::id).toList());
         EndedOnStartChanges endings = new EndedOnStartChanges(assignments);
         Map<String, CutRecords> cuts = writeEnd(employments, to, endReasonId, rows, endings);
-        return CutRecords.withPropagated(cuts, endings.changedBy(), employmentOf(rows)::get);
+        return withPropagated(cuts, endings.changedBy(), employmentOf(rows));
     }
 
     private static Map<String, String> employmentOf(List<Assignment> rows) {
         Map<String, String> employmentOf = new HashMap<>();
         rows.forEach(row -> employmentOf.put(row.assignmentId(), row.employmentId()));
         return employmentOf;
+    }
+
+    // The records of each end get the propagated changes that the assignments of its employment caused.
+    private static Map<String, CutRecords> withPropagated(Map<String, CutRecords> cuts,
+            Map<String, List<PropagatedChange>> changed, Map<String, String> employmentOf) {
+        if (changed.isEmpty()) {
+            return cuts;
+        }
+        Map<String, List<PropagatedChange>> byEmployment = new HashMap<>();
+        changed.forEach((assignmentId, propagated) -> byEmployment.computeIfAbsent(employmentOf.get(assignmentId),
+                any -> new ArrayList<>()).addAll(propagated));
+        Map<String, CutRecords> all = new HashMap<>();
+        cuts.forEach((id, cut) -> all.put(id, new CutRecords(cut.assignmentIds(), cut.others(),
+                List.copyOf(byEmployment.getOrDefault(id, List.of())))));
+        return all;
     }
 
     // Every check of an end comes before its first write.
