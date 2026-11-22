@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import jakarta.ws.rs.Consumes;
@@ -167,7 +166,7 @@ public class RefKindsResource {
     private List<RefKindRepresentation> represent(List<RealmKindService.View> kinds) {
         ExternalIdLists ids = externalIds.lists(ExternalId.Kind.REF_KIND,
                 kinds.stream().map(RealmKindService.View::id).filter(Objects::nonNull).toList());
-        Locale language = context.nameLanguage();
+        String language = context.nameLanguage();
         return kinds.stream().map(kind -> RefKindRepresentation.of(kind, ids, language)).toList();
     }
 

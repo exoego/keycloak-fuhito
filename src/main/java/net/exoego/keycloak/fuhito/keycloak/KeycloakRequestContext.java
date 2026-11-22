@@ -10,14 +10,16 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import java.util.regex.Pattern;
 
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
@@ -54,6 +56,8 @@ final class KeycloakRequestContext implements RequestContext {
      * may read it on.
      */
     static final String DAYS_AHEAD_ATTRIBUTE = "fuhito.structure.daysAhead";
+
+    private static final Pattern Q_VALUE = Pattern.compile("0(\\.[0-9]{0,3})?|1(\\.0{0,3})?");
 
     private final KeycloakSession session;
     private final RealmModel realm;
@@ -226,19 +230,55 @@ final class KeycloakRequestContext implements RequestContext {
     }
 
     @Override
-    public Locale nameLanguage() {
-        return nameLanguage(session);
+    public String nameLanguage() {
+        return nameLanguage(session.getContext().getHttpRequest().getHttpHeaders()
+                .getHeaderString(HttpHeaders.ACCEPT_LANGUAGE));
     }
 
     static Locale locale(KeycloakSession session) {
-        return Objects.requireNonNullElse(nameLanguage(session), Locale.ENGLISH);
-    }
-
-    private static Locale nameLanguage(KeycloakSession session) {
         return session.getContext().getHttpRequest().getHttpHeaders().getAcceptableLanguages().stream()
                 .filter(locale -> !"*".equals(locale.getLanguage()))
                 .findFirst()
-                .orElse(null);
+                .orElse(Locale.ENGLISH);
+    }
+
+    /**
+     * Picks the language of names from {@code Accept-Language}. It is the first tag of the highest {@code q}, and
+     * never {@code *}. A tag with {@code q=0} is not acceptable, as RFC 9110 says, so it is never picked. The tag
+     * stays as the header writes it, because {@link Locale} would turn {@code iw} into {@code he}.
+     *
+     * @param header the value of the header, or null
+     * @return the tag, or null when the header names no language with a weight above 0
+     */
+    static String nameLanguage(String header) {
+        if (header == null) {
+            return null;
+        }
+        String language = null;
+        double highest = 0;
+        for (String range : header.split(",", -1)) {
+            String[] parts = range.split(";", -1);
+            String tag = parts[0].strip();
+            OptionalDouble weight = weight(parts);
+            if (!tag.isEmpty() && !tag.equals("*") && weight.isPresent() && weight.getAsDouble() > highest) {
+                language = tag;
+                highest = weight.getAsDouble();
+            }
+        }
+        return language;
+    }
+
+    // A range with a q that is not a number from 0 to 1, as HTTP writes it, counts as no range.
+    private static OptionalDouble weight(String[] parts) {
+        for (int i = 1; i < parts.length; i++) {
+            String parameter = parts[i].strip();
+            if (parameter.regionMatches(true, 0, "q=", 0, 2)) {
+                String value = parameter.substring(2);
+                return Q_VALUE.matcher(value).matches() ? OptionalDouble.of(Double.parseDouble(value))
+                        : OptionalDouble.empty();
+            }
+        }
+        return OptionalDouble.of(1);
     }
 
     @Override

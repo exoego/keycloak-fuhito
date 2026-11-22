@@ -406,12 +406,13 @@ public final class Checks {
     }
 
     /**
-     * Reads a language tag, for example {@code ja}, {@code en-US}, or {@code zh-Hant}.
+     * Reads a language tag, for example {@code ja}, {@code en-US}, or {@code zh-Hant}. The tag stays as sent, so
+     * {@code JA} stays {@code JA}.
      *
      * @param field the name of the field, for the error
      * @param tag the tag
-     * @return the tag in the form of {@link Locale#toLanguageTag()}
-     * @throws FuhitoException when the tag is missing, bad, or too long
+     * @return the tag
+     * @throws FuhitoException when the tag is missing, bad, {@code und}, or too long
      */
     public static String languageTag(String field, String tag) {
         FuhitoException bad =
@@ -421,11 +422,11 @@ public final class Checks {
         }
         try {
             // An empty tag gives "und", with no exception.
-            String normalized = new Locale.Builder().setLanguageTag(tag).build().toLanguageTag();
-            if (normalized.equals("und") || !fits(normalized, MAX_LANGUAGE_TAG_LENGTH)) {
+            if (new Locale.Builder().setLanguageTag(tag).build().toLanguageTag().equals("und")
+                    || !fits(tag, MAX_LANGUAGE_TAG_LENGTH)) {
                 throw bad;
             }
-            return normalized;
+            return tag;
         } catch (IllformedLocaleException e) {
             throw bad.causedBy(e);
         }

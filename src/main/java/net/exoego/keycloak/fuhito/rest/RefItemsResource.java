@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import jakarta.ws.rs.Consumes;
@@ -261,7 +260,7 @@ public class RefItemsResource {
     // The IDs of every item of a list are read with one query.
     private List<RefItemRepresentation> represent(List<RefItem> items) {
         ExternalIdLists ids = externalIds.lists(ExternalId.Kind.REF_ITEM, items.stream().map(RefItem::id).toList());
-        Locale language = context.nameLanguage();
+        String language = context.nameLanguage();
         return items.stream().map(item -> RefItemRepresentation.of(item, ids, language)).toList();
     }
 

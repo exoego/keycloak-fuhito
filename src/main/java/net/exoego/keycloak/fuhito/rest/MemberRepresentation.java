@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -110,18 +109,18 @@ public record MemberRepresentation(
             @Schema(description = "The name of the org unit on the date, in the language of the request.")
             String name) {
 
-        static PathEntry of(OrgUnitState state, Locale language) {
+        static PathEntry of(OrgUnitState state, String language) {
             return new PathEntry(state.unit().id(), state.version().names().in(language).name());
         }
     }
 
     // The assignments that end on the start of every member of a list are read with one query.
-    static List<MemberRepresentation> of(List<Member> members, Locale language, MembershipService membership) {
+    static List<MemberRepresentation> of(List<Member> members, String language, MembershipService membership) {
         Map<String, List<Assignment>> endedOnStart = membership.endedOnStart(members);
         return members.stream().map(member -> of(member, language, endedOnStart)).toList();
     }
 
-    private static MemberRepresentation of(Member member, Locale language,
+    private static MemberRepresentation of(Member member, String language,
             Map<String, List<Assignment>> endedOnStart) {
         var row = member.assignment();
         var terms = member.terms();

@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.service;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -209,10 +210,18 @@ class RestoreCheckTest {
     }
 
     @Test
-    void aValueIsInTheFormThatAWriteStores() {
-        assertBadValue(names(null, null, "JA"), "ref-item-names", "n-1", "primaryLanguage");
-        assertBadValue(person("ja", Map.of("JA", new PersonName("Hanako", null))), "people", "p-1", "names.JA");
-        assertDoesNotThrow(() -> check(person("en-US", Map.of("en-US", new PersonName("Hanako Yamada", null)))));
+    void aLanguageTagIsStoredAsTheDocumentHasIt() {
+        assertDoesNotThrow(() -> check(person("JA", Map.of("JA", new PersonName("Hanako", null)))));
+        assertDoesNotThrow(() -> check(person("en-us", Map.of("en-us", new PersonName("Hanako Yamada", null)))));
+        assertDoesNotThrow(() -> check(person("iw", Map.of("iw", new PersonName("Hanako", null)))));
+        assertBroken(names(null, null, "JA"), "ref-item-names", "n-1", "primaryLanguage",
+                "invalid.primary_language");
+        assertBroken(person("ja", Map.of("JA", new PersonName("Hanako", null))), "people", "p-1", "primaryLanguage",
+                "invalid.primary_language");
+        Map<String, PersonName> twice = new LinkedHashMap<>();
+        twice.put("ja", new PersonName("花子", null));
+        twice.put("JA", new PersonName("Hanako", null));
+        assertBroken(person("ja", twice), "people", "p-1", "names.JA", "invalid.duplicate_language");
     }
 
     @Test

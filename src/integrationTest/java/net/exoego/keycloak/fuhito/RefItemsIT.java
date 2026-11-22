@@ -61,9 +61,9 @@ class RefItemsIT {
         assertEquals(36, item.get("id").asText().length());
         assertEquals("UNIT_TYPE", item.get("kind").asText());
         assertEquals("病棟", item.get("name").asText());
-        assertEquals("ja", item.get("primaryLanguage").asText());
-        assertEquals("Ward", item.get("names").get("en-US").get("name").asText());
-        assertEquals("病棟", item.get("names").get("ja").get("name").asText());
+        assertEquals("JA", item.get("primaryLanguage").asText());
+        assertEquals("Ward", item.get("names").get("en-us").get("name").asText());
+        assertEquals("病棟", item.get("names").get("JA").get("name").asText());
         assertTrue(item.get("active").asBoolean());
 
         JsonNode read = Api.json(api.get("/ref-items/" + item.get("id").asText()));

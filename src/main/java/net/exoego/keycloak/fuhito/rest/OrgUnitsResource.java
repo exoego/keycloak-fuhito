@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
-import java.util.Locale;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -691,7 +690,7 @@ public class OrgUnitsResource {
         return Calls.run(context, () -> {
             MemberQuery query = new MemberQuery(asOf, includeDescendants, occupation, jobTitle, status, first, max,
                     hierarchy, after, seconded, workLocation, costCenter);
-            Locale language = context.nameLanguage();
+            String language = context.nameLanguage();
             return Pages.of(context, MemberRepresentation.of(membership.members(id, query), language, membership),
                     Page.of(first, max).max(),
                     // The values that the order of the list uses, as MembershipService reads them back.
@@ -895,7 +894,7 @@ public class OrgUnitsResource {
     private List<OrgUnitRepresentation> represent(List<OrgUnitState> states) {
         ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
                 states.stream().map(state -> state.unit().id()).toList());
-        Locale language = context.nameLanguage();
+        String language = context.nameLanguage();
         return states.stream().map(limit::readable).map(state -> OrgUnitRepresentation.of(state, ids, language))
                 .toList();
     }

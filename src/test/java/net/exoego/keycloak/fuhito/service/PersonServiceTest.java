@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.service;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -76,13 +75,13 @@ class PersonServiceTest {
         Person person = view.person();
         assertEquals(36, person.id().length());
         assertNull(person.userId());
-        assertEquals(new Localized<>("ja", Map.of("ja", new PersonName("山田 太郎", "やまだ たろう"), "en",
+        assertEquals(new Localized<>("JA", Map.of("JA", new PersonName("山田 太郎", "やまだ たろう"), "en",
                 new PersonName("Taro Yamada", null))), person.names());
         assertEquals(Map.of("派遣元", "A社"), person.attributes());
         assertEquals(Optional.of(person.id()), externalIds.idOf(ExternalId.Kind.PERSON, "hr", "P-1"));
         assertEquals("hr", person.source());
         assertEquals(new PersonName("山田 太郎", "やまだ たろう"), view.names(null));
-        assertEquals(new PersonName("Taro Yamada", null), view.names(Locale.US));
+        assertEquals(new PersonName("Taro Yamada", null), view.names("en-US"));
         assertEquals(NameSource.RECORD, view.nameSource());
         assertEquals(view, service.get(person.id()));
     }
@@ -92,7 +91,7 @@ class PersonServiceTest {
         PersonView view = service.create(linked("taro", null));
 
         assertNull(view.person().names());
-        assertEquals(new PersonName("Taro Yamada", null), view.names(Locale.JAPANESE));
+        assertEquals(new PersonName("Taro Yamada", null), view.names("ja"));
         assertEquals(NameSource.KEYCLOAK, view.nameSource());
         assertEquals(Map.of(), view.person().attributes());
         // A request with no languages has no names either.
@@ -103,7 +102,7 @@ class PersonServiceTest {
     void theNameOfTheRecordWinsOverTheNameOfKeycloak() {
         PersonView view = service.create(linked("taro", "山田 太郎"));
 
-        assertEquals("山田 太郎", view.names(Locale.ENGLISH).name());
+        assertEquals("山田 太郎", view.names("en").name());
         assertEquals(NameSource.RECORD, view.nameSource());
     }
 

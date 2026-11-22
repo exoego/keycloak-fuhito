@@ -44,11 +44,11 @@ public record ReorganizationStep(
                 maxLength = 64,
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
-        @Schema(description = "The language tag of the primary names, for a create or a change. It matches a key "
-                + "of `names` in standard form.")
+        @Schema(description = "The language tag of the primary names, for a create or a change. It is the same "
+                + "text as a key of `names`.")
         String primaryLanguage,
-        @Schema(description = "The names by language tag, for a create or a change. Two keys of one tag in standard "
-                + "form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
+        @Schema(description = "The names by language tag, for a create or a change. A write stores each tag as sent. "
+                + "Two keys that differ only in case, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
         Map<String, OrgUnitName> names,
         @Schema(description = "The code of the unit type, for a create or a change.")
         String unitType,

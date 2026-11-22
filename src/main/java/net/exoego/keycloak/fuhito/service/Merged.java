@@ -101,7 +101,8 @@ final class Merged {
     }
 
     /**
-     * Merges the names of a row with the stored ones. The names of a language merge field by field.
+     * Merges the names of a row with the stored ones. The names of a language merge field by field. A tag of the row
+     * matches a stored tag with case ignored, and the names take the tag of the row.
      *
      * @param <N> the type of the names of one language
      * @param row the row
@@ -109,22 +110,24 @@ final class Merged {
      * @param stored the stored names by language tag, or null for a new thing
      * @param names merges the names of one language
      * @return the names after the row, or null when there are none
-     * @throws FuhitoException when a tag of the row is bad, or two tags of the row give one language
+     * @throws FuhitoException when a tag of the row is bad, or two tags of the row differ only in case
      */
     static <N> Map<String, N> names(ImportRow row, Map<String, N> given, Map<String, N> stored, Names<N> names) {
         if (given == null) {
             return row.nulls().contains("names") ? null : stored;
         }
-        Map<String, String> languages = Localized.languages(given);
+        Localized.checkLanguages(given);
         Map<String, N> merged = stored == null ? new LinkedHashMap<>() : new LinkedHashMap<>(stored);
-        given.forEach((tag, value) -> {
-            String language = languages.get(tag);
-            if (value == null) {
-                merged.remove(language);
-            } else {
-                String path = "names." + tag + ".";
-                merged.put(language, names.merge(value, merged.get(language), (field, mine, kept) ->
-                        mine != null || row.nulls().contains(path + field) ? mine : kept));
+        given.forEach((language, value) -> {
+            N kept = merged.keySet().stream()
+                    .filter(language::equalsIgnoreCase)
+                    .findFirst()
+                    .map(merged::remove)
+                    .orElse(null);
+            if (value != null) {
+                String path = "names." + language + ".";
+                merged.put(language, names.merge(value, kept, (field, mine, before) ->
+                        mine != null || row.nulls().contains(path + field) ? mine : before));
             }
         });
         return merged;

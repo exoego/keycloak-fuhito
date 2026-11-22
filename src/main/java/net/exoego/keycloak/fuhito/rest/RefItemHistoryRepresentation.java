@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,7 +41,7 @@ public record RefItemHistoryRepresentation(
             Map<String, RefItemName> names) {
     }
 
-    static RefItemHistoryRepresentation of(RefItemService.History history, ExternalIdLists ids, Locale language) {
+    static RefItemHistoryRepresentation of(RefItemService.History history, ExternalIdLists ids, String language) {
         var item = history.item();
         return new RefItemHistoryRepresentation(item.id(), item.version(), item.kind(), item.code(),
                 ExternalIdPairRepresentation.of(ids.of(item.id(), null)),

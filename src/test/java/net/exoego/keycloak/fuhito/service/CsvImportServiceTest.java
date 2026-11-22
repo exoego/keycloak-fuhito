@@ -169,7 +169,7 @@ class CsvImportServiceTest {
     void aBlankCellKeepsTheStoredValueAndClearRemovesIt() {
         item(RefKind.UNIT_TYPE, "ward");
         load("orgUnits", "2026-04-01", """
-                外部ID,主言語,名称,略称,よみがな,名称:en,略称:EN,組織種別,親の外部ID,表示順
+                外部ID,主言語,名称,略称,よみがな,名称:EN,略称:EN,組織種別,親の外部ID,表示順
                 H,ja,X病院,X,えっくす,X Hospital,,,,1
                 W,JA,1病棟,1病,いちびょうとう,Ward 1,W1,ward,H,5
                 """);
@@ -183,8 +183,9 @@ class CsvImportServiceTest {
         assertEquals(List.of(), errors(result));
         assertEquals(new Counts(0, 1, 1), result.report().counts().get("orgUnits"));
         OrgUnitState ward = unit("W", "2027-04-01");
-        assertEquals(new Localized<>("ja", Map.of("ja", new OrgUnitName("東病棟", null, "いちびょうとう"),
-                "en", new OrgUnitName("Ward 1", "W1", "ward one"), "zh-Hant", new OrgUnitName("東病房", null, null))),
+        // A column matches a stored tag in any case, and the names take the tag of the column.
+        assertEquals(new Localized<>("JA", Map.of("JA", new OrgUnitName("東病棟", null, "いちびょうとう"),
+                "en", new OrgUnitName("Ward 1", "W1", "ward one"), "zh-hant", new OrgUnitName("東病房", null, null))),
                 ward.version().names());
         assertNull(ward.unitType());
         assertEquals(unit("H", "2027-04-01").unit().id(), ward.parentId());
@@ -194,12 +195,12 @@ class CsvImportServiceTest {
         // Clearing the parent makes the unit a root. Clearing the name of a language removes that language.
         load("orgUnits", "2028-04-01", "外部ID,親の外部ID,名称:en,よみがな:zh-Hant\nW,#CLEAR,#CLEAR,#CLEAR\n");
         assertNull(unit("W", "2028-04-01").parentId());
-        assertEquals(new Localized<>("ja", Map.of("ja", new OrgUnitName("東病棟", null, "いちびょうとう"),
+        assertEquals(new Localized<>("JA", Map.of("JA", new OrgUnitName("東病棟", null, "いちびょうとう"),
                 "zh-Hant", new OrgUnitName("東病房", null, null))), unit("W", "2028-04-01").version().names());
 
         // The columns with no language set the names of the primary language.
         load("orgUnits", "2029-04-01", "外部ID,主言語,名称\nW,zh-Hant,東翼病房\n");
-        assertEquals(new Localized<>("zh-Hant", Map.of("ja", new OrgUnitName("東病棟", null, "いちびょうとう"),
+        assertEquals(new Localized<>("zh-Hant", Map.of("JA", new OrgUnitName("東病棟", null, "いちびょうとう"),
                 "zh-Hant", new OrgUnitName("東翼病房", null, null))), unit("W", "2029-04-01").version().names());
 
         assertEquals(List.of("line 2 row 0 invalid.language_tag", "line 3 row 1 invalid.language_tag"),
@@ -215,7 +216,8 @@ class CsvImportServiceTest {
                 """);
         Localized<OrgUnitName> stored = unit("U", "2026-04-01").version().names();
 
-        // A stored unit keeps its primary language when the cell is blank. A column writes the tag in any case.
+        // A stored unit keeps its primary language when the cell is blank. A column with the primary language in
+        // another case fails too.
         CsvImportService.Result twice = load("orgUnits", "2027-04-01", """
                 外部ID,主言語,名称,略称,よみがな,名称:JA,略称:ja,よみがな:ja
                 U,,販売部,,,営業部,,
@@ -228,7 +230,7 @@ class CsvImportServiceTest {
 
         assertEquals(List.of("line 2 row 0 invalid.duplicate_language", "line 3 row 1 invalid.duplicate_language",
                 "line 4 row 2 invalid.duplicate_language", "line 5 row 3 invalid.duplicate_language"), errors(twice));
-        assertEquals(List.of(Map.of("field", "名称:JA", "value", "ja"), Map.of("field", "略称:ja", "value", "ja"),
+        assertEquals(List.of(Map.of("field", "名称:JA", "value", "JA"), Map.of("field", "略称:ja", "value", "ja"),
                 Map.of("field", "略称:ja", "value", "ja"), Map.of("field", "よみがな:ja", "value", "ja")),
                 twice.errors().stream().map(e -> e.error().params()).toList());
         assertEquals(List.of("line 2 row 0 invalid.duplicate_language"), errors(inTheRow));
@@ -268,11 +270,11 @@ class CsvImportServiceTest {
                 rowError("orgUnits", "externalId,name:en,shortName:en\nU,#CLEAR,Sales Division\n"));
         assertEquals("csv.clear_conflict shortName:en en",
                 rowError("orgUnits", "externalId,shortName:en,name:en\nU,Sales Division,#CLEAR\n"));
-        assertEquals("csv.clear_conflict よみがな:EN en", rowError("orgUnits", "外部ID,よみがな:EN,名称:en\nU,#CLEAR,#CLEAR\n"));
+        assertEquals("csv.clear_conflict よみがな:en en", rowError("orgUnits", "外部ID,よみがな:en,名称:en\nU,#CLEAR,#CLEAR\n"));
         // The columns with no language hold names of the primary language, also the stored one.
         assertEquals("csv.clear_conflict 略称 ja", rowError("orgUnits", "外部ID,名称:ja,略称\nU,#CLEAR,営業課\n"));
         assertEquals("csv.clear_conflict よみがな ja",
-                rowError("orgUnits", "外部ID,よみがな,主言語,名称:JA\nU,えいぎょうぶ,ja,#CLEAR\n"));
+                rowError("orgUnits", "外部ID,よみがな,主言語,名称:ja\nU,えいぎょうぶ,ja,#CLEAR\n"));
         assertEquals("csv.clear_conflict phoneticName:en en",
                 rowError("people", "externalId,name:en,phoneticName:en\nP,#CLEAR,Yamada\n"));
         assertEquals("csv.clear_conflict phoneticName:en en",
@@ -291,9 +293,42 @@ class CsvImportServiceTest {
                 P,やまだ たろう,#CLEAR,
                 """)));
         assertEquals(new Localized<>("ja", Map.of("ja", new OrgUnitName("営業部", "営業課", null),
-                "zh-Hant", new OrgUnitName("營業部", "營業", null))), unit("U", "2027-04-01").version().names());
+                "zh-hant", new OrgUnitName("營業部", "營業", null))), unit("U", "2027-04-01").version().names());
         assertEquals(Localized.of("ja", new PersonName("山田", "やまだ たろう")),
                 personStore.find(person).orElseThrow().names());
+    }
+
+    // The columns with no language have the text of primaryLanguage, which may be the stored one.
+    @Test
+    void aRowWithOneLanguageInTwoTextsFails() {
+        load("orgUnits", "2026-04-01", "externalId,primaryLanguage,name\nU,ja,営業部\n");
+
+        assertEquals("invalid.duplicate_language name:JA JA",
+                rowError("orgUnits", "外部ID,名称:ja,name:JA\nU,営業,販売\n"));
+        assertEquals("invalid.duplicate_language shortName:ja ja",
+                rowError("orgUnits", "externalId,name:JA,shortName:ja\nU,営業,販売\n"));
+        assertEquals("invalid.duplicate_language shortName:JA JA",
+                rowError("orgUnits", "externalId,name,shortName:JA\nU,営業部,営業\n"));
+        assertEquals("invalid.duplicate_language 略称:EN EN",
+                rowError("orgUnits", "外部ID,主言語,名称,略称:EN\nU,en,Sales,S\n"));
+        assertEquals("invalid.duplicate_language phoneticName:en-US en-US",
+                rowError("people", """
+                        externalId,primaryLanguage,name,phoneticName:en-us,name:en-us,phoneticName:en-US
+                        P,ja,山田,x,y,z
+                        """));
+        assertEquals(Localized.of("ja", new OrgUnitName("営業部", null, null)), unit("U", "2027-04-01").version()
+                .names());
+
+        // Each row fills the columns of one text.
+        assertEquals(List.of(), errors(load("orgUnits", "2027-04-01", """
+                externalId,primaryLanguage,name,name:ja,name:JA,shortName:ja
+                U,,,,,営業
+                V,en,Planning,,企画部,
+                """)));
+        assertEquals(Localized.of("ja", new OrgUnitName("営業部", "営業", null)), unit("U", "2027-04-01").version()
+                .names());
+        assertEquals(new Localized<>("en", Map.of("en", new OrgUnitName("Planning", null, null),
+                "JA", new OrgUnitName("企画部", null, null))), unit("V", "2027-04-01").version().names());
     }
 
     // The error of the only row of a file on 2027-04-01, with its field and value.
@@ -767,12 +802,7 @@ class CsvImportServiceTest {
                     assertEquals("csv.bad_column", padded.code());
                     assertEquals(Map.of("column", column), padded.params());
                 });
-        // Two columns of one name in one language, as the tags are written in any case.
-        FuhitoException twice = failure("orgUnits", "外部ID,主言語,名称:ja,name:JA\nH,ja,x,y\n");
-        assertEquals("invalid.duplicate_language", twice.code());
-        assertEquals(Map.of("field", "name:JA", "value", "ja"), twice.params());
-        assertEquals(Map.of("field", "phoneticName:en-US", "value", "en-US"), failure("people",
-                "externalId,phoneticName:en-us,name:en-us,phoneticName:en-US\nP,x,y,z\n").params());
+        assertEquals("csv.bad_column", failure("orgUnits", "外部ID,名称:ja,name:ja\nH,x,y\n").code());
         assertEquals("csv.open_quote", failure("orgUnits", "外部ID,名称\nH,\"x\n").code());
         assertEquals("invalid.choice", failure("rooms", "a\n1\n").code());
         assertEquals("invalid.required", failure(null, "a\n1\n").code());

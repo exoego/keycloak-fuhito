@@ -69,7 +69,7 @@ class RealmKindServiceTest {
                 Map.of("ja", new RefKindName("勤務地"), "en-us", new RefKindName("Work location")));
 
         assertFalse(location.fixed());
-        assertEquals(new Localized<>("ja", Map.of("ja", new RefKindName("勤務地"), "en-US",
+        assertEquals(new Localized<>("ja", Map.of("ja", new RefKindName("勤務地"), "en-us",
                 new RefKindName("Work location"))), location.names());
         assertEquals(RefKind.values().length + 1, kinds.list().size());
         assertTrue(kinds.list().getFirst().fixed());

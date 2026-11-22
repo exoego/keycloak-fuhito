@@ -11,7 +11,7 @@ class RefItemNameTest {
 
     @Test
     void checksTheNamesOfARequest() {
-        assertEquals(new Localized<>("ja", Map.of("ja", new RefItemName("部長"), "en-US", new RefItemName("Manager"))),
+        assertEquals(new Localized<>("ja", Map.of("ja", new RefItemName("部長"), "en-us", new RefItemName("Manager"))),
                 RefItemName.check("ja", Map.of("ja", new RefItemName("部長"), "en-us", new RefItemName("Manager"))));
     }
 

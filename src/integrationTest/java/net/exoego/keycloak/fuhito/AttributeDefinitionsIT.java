@@ -249,9 +249,9 @@ class AttributeDefinitionsIT {
         JsonNode kind = created(api.post("/ref-kinds", "{\"code\": \"site\", \"primaryLanguage\": \"JA\", "
                 + "\"names\": {\"JA\": {\"name\": \"拠点\"}, \"en-us\": {\"name\": \"Site\"}}}"));
         assertEquals("拠点", kind.get("name").asText());
-        assertEquals("ja", kind.get("primaryLanguage").asText());
-        assertEquals("拠点", kind.get("names").get("ja").get("name").asText());
-        assertEquals("Site", kind.get("names").get("en-US").get("name").asText());
+        assertEquals("JA", kind.get("primaryLanguage").asText());
+        assertEquals("拠点", kind.get("names").get("JA").get("name").asText());
+        assertEquals("Site", kind.get("names").get("en-us").get("name").asText());
         assertEquals(kind, kindOf(api, "site"));
 
         assertEquals("Site", kindOf(api.withAcceptLanguage("en-US,ja;q=0.5"), "site").get("name").asText());

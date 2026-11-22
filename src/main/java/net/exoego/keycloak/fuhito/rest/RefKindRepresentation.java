@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.RefKindName;
@@ -27,22 +26,24 @@ public record RefKindRepresentation(
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
         @Schema(
-                description = "The name in the language of the request. It is the one of the first language of "
-                        + "`Accept-Language`, else the one of that language with no region, such as `en` for "
-                        + "`en-US`, else the primary one. A request with no `Accept-Language` reads the primary one. "
+                description = "The name in the language of the request. It is the one whose key is the first tag of "
+                        + "`Accept-Language` by `q`, with case ignored. Else it is the one of the language alone, such "
+                        + "as `en` for `en-GB`, else the primary one. A tag goes through no mapping, so `iw` does not "
+                        + "find `he`. A tag with `q=0` is never used. A request with no `Accept-Language`, or with no "
+                        + "tag left, reads the primary one. "
                         + "A fixed kind has none. A write of a stored kind with another value fails with 400 and "
                         + "`invalid.value_fixed`.",
                 readOnly = true)
         String name,
         @Schema(
-                description = "The language tag of the primary name, such as `ja`. It matches a key of `names` in "
-                        + "standard form. A fixed kind has none.",
+                description = "The language tag of the primary name, such as `ja`. It is the same text as a key of "
+                        + "`names`. A fixed kind has none.",
                 maxLength = 64)
         String primaryLanguage,
         @Schema(
-                description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the tags in "
-                        + "their standard form, such as `en-US` for `en-us`. A fixed kind has none. Two keys of one "
-                        + "tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
+                description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A write stores each tag "
+                        + "as sent, such as `en-us`, and a read gives it so. A fixed kind has none. Two keys that "
+                        + "differ only in case, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
         Map<String, RefKindName> names,
         @Schema(
                 description = "True for a kind that every realm has. A write of a stored kind with another value fails "
@@ -77,7 +78,7 @@ public record RefKindRepresentation(
     // The fields that only a response fills.
     static final List<String> READ_ONLY = List.of("id", "name", "fixed", "externalIds");
 
-    static RefKindRepresentation of(RealmKindService.View view, ExternalIdLists ids, Locale language) {
+    static RefKindRepresentation of(RealmKindService.View view, ExternalIdLists ids, String language) {
         if (view.names() == null) {
             return new RefKindRepresentation(null, view.code(), null, null, null, view.fixed(), view.version(), null,
                     null, null);

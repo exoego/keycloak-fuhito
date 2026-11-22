@@ -505,12 +505,14 @@ public record ImportDocument(
             @Schema(description = "A code that no other kind has. A row of a stored kind may leave it out.",
                     maxLength = 32, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
-            @Schema(description = "The language tag of the primary name, such as `ja`. It matches a key of `names` "
-                    + "in standard form.")
+            @Schema(description = "The language tag of the primary name, such as `ja`. It is the same text as a key "
+                    + "of `names`, also after the merge. So a row that changes the case of the key of the primary "
+                    + "language gives `primaryLanguage` too.")
             String primaryLanguage,
             @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. They merge with the "
-                    + "stored names by language, and `null` for a language removes its names. Two keys of one tag in "
-                    + "standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
+                    + "stored names by language, with case ignored, and take the key of the row. `null` for a "
+                    + "language removes its names. Two keys that differ only in case, such as `ja` and `JA`, fail "
+                    + "with `invalid.duplicate_language`.")
             Map<String, RefKindName> names,
             @Schema(hidden = true)
             Set<String> nulls) implements ImportRow {
@@ -542,12 +544,14 @@ public record ImportDocument(
             @Schema(description = "The ID of a Keycloak user to link. Give this or `username`. A row with both fails "
                     + "with `import.user_twice`.")
             String userId,
-            @Schema(description = "The language tag of the primary names, such as `ja`. It matches a key of `names` "
-                    + "in standard form.")
+            @Schema(description = "The language tag of the primary names, such as `ja`. It is the same text as a key "
+                    + "of `names`, also after the merge. So a row that changes the case of the key of the primary "
+                    + "language gives `primaryLanguage` too.")
             String primaryLanguage,
             @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A person with no "
-                    + "user needs them. They merge with the stored names by language and by field. Two keys of one "
-                    + "tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
+                    + "user needs them. They merge with the stored names by language, with case ignored, and by field, "
+                    + "and take the key of the row. Two keys that differ only in case, such as `ja` and `JA`, fail "
+                    + "with `invalid.duplicate_language`.")
             Map<String, PersonName> names,
             @Schema(description = "Free values of the person.")
             Map<String, Object> attributes,
@@ -862,12 +866,14 @@ public record ImportDocument(
             @Schema(description = "A code that no other item of the kind has. A row of a stored item may leave it "
                     + "out.", maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
-            @Schema(description = "The language tag of the primary name, such as `ja`. It matches a key of `names` "
-                    + "in standard form.")
+            @Schema(description = "The language tag of the primary name, such as `ja`. It is the same text as a key "
+                    + "of `names`, also after the merge. So a row that changes the case of the key of the primary "
+                    + "language gives `primaryLanguage` too.")
             String primaryLanguage,
             @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. They merge with the "
-                    + "stored names of the date by language, and `null` for a language removes its names. Two keys "
-                    + "of one tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
+                    + "stored names of the date by language, with case ignored, and take the key of the row. `null` "
+                    + "for a language removes its names. Two keys that differ only in case, such as `ja` and `JA`, "
+                    + "fail with `invalid.duplicate_language`.")
             Map<String, RefItemName> names,
             @Schema(description = "The position in lists.", defaultValue = "0")
             Integer displayOrder,
@@ -946,12 +952,14 @@ public record ImportDocument(
                     maxLength = 64,
                     pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
             String code,
-            @Schema(description = "The language tag of the primary names, such as `ja`. It matches a key of `names` "
-                    + "in standard form.")
+            @Schema(description = "The language tag of the primary names, such as `ja`. It is the same text as a key "
+                    + "of `names`, also after the merge. So a row that changes the case of the key of the primary "
+                    + "language gives `primaryLanguage` too.")
             String primaryLanguage,
             @Schema(description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. They merge with the "
-                    + "stored names by language and by field, and `null` for a language removes its names. Two keys "
-                    + "of one tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
+                    + "stored names by language, with case ignored, and by field, and take the key of the row. `null` "
+                    + "for a language removes its names. Two keys that differ only in case, such as `ja` and `JA`, "
+                    + "fail with `invalid.duplicate_language`.")
             Map<String, OrgUnitName> names,
             @Schema(description = "The code of the unit type.")
             String unitType,

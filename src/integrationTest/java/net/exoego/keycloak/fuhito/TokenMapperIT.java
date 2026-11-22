@@ -179,7 +179,7 @@ class TokenMapperIT {
         String hospital = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
                 + "\"Y病院\"}, \"en\": {\"name\": \"Y Hospital\"}}, \"validFrom\": \"2020-04-01\"}");
         String ward = post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"東病棟\"}, "
-                + "\"en\": {\"name\": \"East Ward\"}}, \"parentId\": \"" + hospital
+                + "\"EN\": {\"name\": \"East Ward\"}}, \"parentId\": \"" + hospital
                 + "\", \"validFrom\": \"2020-04-01\"}");
         for (String[] user : new String[][] {{"english-nurse", "en"}, {"japanese-nurse", null}}) {
             String employment = post("/employments", "{\"userId\": \"" + user(user[0], user[1])
@@ -191,6 +191,7 @@ class TokenMapperIT {
         JsonNode english = claims(tokens("english-nurse").get("access_token").asText()).get("org").get(0);
         JsonNode japanese = claims(tokens("japanese-nurse").get("access_token").asText()).get("org").get(0);
 
+        // The tag of the user matches a key in any case.
         assertEquals("East Ward", english.get("orgUnitName").asText());
         assertEquals(List.of("Y Hospital", "East Ward"), english.get("orgUnitPath").findValuesAsText("name"));
         // A user who picked no language gets the default language of the realm.

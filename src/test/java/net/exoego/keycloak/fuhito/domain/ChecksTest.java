@@ -270,17 +270,19 @@ class ChecksTest {
         assertEquals(3, EmploymentStatus.values().length);
     }
 
-    @Test
-    void normalizesALanguageTag() {
-        assertEquals("ja", Checks.languageTag("names", "JA"));
-        assertEquals("en-US", Checks.languageTag("names", "en-us"));
-        assertEquals("zh-Hant", Checks.languageTag("names", "zh-hant"));
+    // Locale would give ja, en-US, zh-Hant, he, tlh, and cmn-Hans.
+    @ParameterizedTest
+    @ValueSource(strings = {"JA", "en-us", "zh-hant", "iw", "i-klingon", "xx", "und-US", "zh-cmn-Hans"})
+    void keepsALanguageTagAsSent(String tag) {
+        assertEquals(tag, Checks.languageTag("names", tag));
     }
 
-    // The last one is a good tag of 65 characters, one more than the column of a name row has.
+    // The last ones are good tags of 65 characters, one more than the column of a name row has. Locale would give
+    // the last one in 62.
     @ParameterizedTest
-    @ValueSource(strings = {"", "ja_JP", "not a tag", "und",
-        "en-x-12345678-12345678-12345678-12345678-12345678-12345678-123456"})
+    @ValueSource(strings = {"", "ja_JP", "not a tag", "und", "UND", "Und",
+        "en-x-12345678-12345678-12345678-12345678-12345678-12345678-123456",
+        "zh-cmn-Hans-CN-x-12345678-12345678-12345678-12345678-12345678-123"})
     void rejectsABadLanguageTag(String tag) {
         FuhitoException e = invalid(() -> Checks.languageTag("names", tag));
         assertEquals("invalid.language_tag", e.code());
