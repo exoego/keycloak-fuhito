@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -211,5 +212,38 @@ public final class RealmData {
             unit.countUp();
         });
         return units.stream().map(unit -> unit.id).toList();
+    }
+
+    /**
+     * Finds the person of a user whose record has no names. The read of such a person gives the name of the user.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param userId the ID of the user
+     * @return the ID of the person, or empty when the user has no person or the person has names
+     */
+    public static Optional<String> personNamedByUser(EntityManager em, String realmId, String userId) {
+        return em.createQuery("""
+                        select p.id from PersonEntity p
+                        where p.realmId = :realmId and p.userId = :userId
+                        and not exists (select n.personId from PersonNameEntity n where n.personId = p.id)""",
+                        String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("userId", userId)
+                .getResultStream()
+                .findFirst();
+    }
+
+    /**
+     * Counts up the version of a person whose read changed with no write of it. The caller locked the person, and
+     * records a propagated change of it.
+     *
+     * @param em the entity manager
+     * @param realmId the ID of the realm
+     * @param personId the ID of the person
+     * @throws ArithmeticException when the person has the largest version
+     */
+    public static void countUpPerson(EntityManager em, String realmId, String personId) {
+        Versions.person(em, realmId, personId);
     }
 }

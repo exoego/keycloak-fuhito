@@ -76,9 +76,7 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
 
                     @Override
                     public Optional<String> displayName(String userId) {
-                        return Optional.ofNullable(session.users().getUserById(realm, userId))
-                                .map(user -> UserNames.of(user.getFirstName(), user.getLastName(),
-                                        realm.getAttribute(UserNames.ORDER_ATTRIBUTE)))
+                        return Optional.of(UserNames.of(realm, session.users().getUserById(realm, userId)))
                                 .filter(name -> !name.isEmpty());
                     }
 
