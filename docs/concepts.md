@@ -236,7 +236,7 @@ One language of each version is the primary one.
 - No other mapping is done. So `iw` and `he` are two languages, though both name Hebrew.
 - A read gives `name`, `shortName`, and `phoneticName` in the language of the reader, and every language in `names`.
 - The names of a reader come from the key that is the tag of the reader with case ignored. Else they come from the key that is the language of that tag alone, such as `en` for `en-GB`, else from the primary language. So a reader of `ja` gets the names of `JA`, and a reader of `he` does not get the names of `iw`.
-- A read of the API takes the tag of `Accept-Language` with the highest `q`, the first one on a tie, and skips `*`. It takes the tag as the header writes it, so `iw` stays `iw`. With no `Accept-Language`, it gives the primary names.
+- A read of the API takes the tag of `Accept-Language` with the highest `q`, the first one on a tie, and skips `*`. It takes the tag as the header writes it, so `iw` stays `iw`. A tag with `q=0`, `q=0.0`, `q=0.00`, or `q=0.000` is not acceptable, as RFC 9110 says, so it is never used. So `ja;q=0, en` gives the names of `en`. With no `Accept-Language`, or when every tag has `q=0`, it gives the primary names.
 - Other reads that name a unit, such as the path of a member or a list of role holders, give the name in the language of the request too.
 - A token gives the names in the language that the user picked, else in the default language of the realm. A realm with no languages turned on gives English. The tag of that language matches a key in the same way.
 - The Keycloak group of a unit has the primary name. So do the check of the names of siblings and the match of the attribute sync.

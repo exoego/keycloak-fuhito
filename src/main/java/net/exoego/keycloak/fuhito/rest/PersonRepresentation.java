@@ -31,7 +31,8 @@ public record PersonRepresentation(
                 description = "The name in the language of the request. It is the one whose key is the first tag of "
                         + "`Accept-Language` by `q`, with case ignored. Else it is the one of the language alone, such "
                         + "as `en` for `en-GB`, else the primary one. A tag goes through no mapping, so `iw` does not "
-                        + "find `he`. A request with no `Accept-Language` reads the primary one. "
+                        + "find `he`. A tag with `q=0` is never used. A request with no `Accept-Language`, or with no "
+                        + "tag left, reads the primary one. "
                         + "When the record has no names, it is the name of the linked user from Keycloak. A write of a "
                         + "stored person with another value fails with 400 and `invalid.value_fixed`.",
                 readOnly = true)

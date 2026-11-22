@@ -20,13 +20,15 @@ class KeycloakRequestContextTest {
         " en-GB ; q=0.8 ,EN-us | EN-us",
         "*, he;q=0.9 | he",
         "fr;q=0, en;q=0.001 | en",
+        "ja;q=0, en | en",
+        "ja;q=0, en;q=0.0, fr;q=0.00, de;q=0.000 | null",
         "ja;q=2, en;q=0.5 | en",
         "ja;q=0.1234, en;q=.5, de;q=1.0 | de",
         "* | null",
         "'' | null",
         "null | null",
     })
-    void picksTheFirstTagOfTheHighestWeight(String header, String language) {
+    void picksTheFirstTagOfTheHighestWeightAboveZero(String header, String language) {
         assertEquals(language, KeycloakRequestContext.nameLanguage(header));
     }
 }

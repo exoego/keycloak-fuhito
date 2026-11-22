@@ -82,13 +82,16 @@ class LanguageTagsIT {
         assertEquals(List.of("経理部", "Accounting (US)", "Accounting", "הנהלת חשבונות", "הנהלת חשבונות", "経理部",
                 "経理部"), List.copyOf(names.values()), names.toString());
 
-        // The tag with the highest q wins, and the first one on a tie. * names no language.
+        // The tag with the highest q wins, and the first one on a tie. * names no language, and a tag with q=0 is not
+        // acceptable.
         Map<String, String> weighted = new LinkedHashMap<>();
         weighted.put("fr;q=0.5, iw;q=0.9, en;q=0.8", "הנהלת חשבונות");
         weighted.put("*, en-GB;q=0.8, he;q=0.9", "経理部");
         weighted.put("en-GB;q=0.8, EN-us", "Accounting (US)");
         weighted.put("en;q=0.5, iw;Q=0.5", "Accounting");
         weighted.put("*", "経理部");
+        weighted.put("ja;q=0, en", "Accounting");
+        weighted.put("en;q=0, iw;q=0.000", "経理部");
         for (Map.Entry<String, String> header : weighted.entrySet()) {
             assertEquals(header.getValue(), nameIn(header.getKey(), id), header.getKey());
         }

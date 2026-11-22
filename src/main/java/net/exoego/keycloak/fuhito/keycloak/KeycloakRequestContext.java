@@ -244,18 +244,18 @@ final class KeycloakRequestContext implements RequestContext {
 
     /**
      * Picks the language of names from {@code Accept-Language}. It is the first tag of the highest {@code q}, and
-     * never {@code *}. The tag stays as the header writes it, because {@link Locale} would turn {@code iw} into
-     * {@code he}.
+     * never {@code *}. A tag with {@code q=0} is not acceptable, as RFC 9110 says, so it is never picked. The tag
+     * stays as the header writes it, because {@link Locale} would turn {@code iw} into {@code he}.
      *
      * @param header the value of the header, or null
-     * @return the tag, or null when the header names no language
+     * @return the tag, or null when the header names no language with a weight above 0
      */
     static String nameLanguage(String header) {
         if (header == null) {
             return null;
         }
         String language = null;
-        double highest = -1;
+        double highest = 0;
         for (String range : header.split(",", -1)) {
             String[] parts = range.split(";", -1);
             String tag = parts[0].strip();

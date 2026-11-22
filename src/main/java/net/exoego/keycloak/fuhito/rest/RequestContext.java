@@ -104,10 +104,10 @@ public interface RequestContext {
 
     /**
      * Returns the language that the caller reads names in. It is the tag of {@code Accept-Language} with the highest
-     * {@code q}, as the header writes it.
+     * {@code q}, as the header writes it. A tag with {@code q=0} is never the language.
      *
-     * @return the language tag, or null when the request names no language. The caller then reads the primary
-     *         names.
+     * @return the language tag, or null when the request names no language with a weight above 0. The caller then
+     *         reads the primary names.
      */
     String nameLanguage();
 

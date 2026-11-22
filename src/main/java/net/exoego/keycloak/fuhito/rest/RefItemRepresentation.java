@@ -37,9 +37,10 @@ public record RefItemRepresentation(
                 description = "The name of the date in the language of the request. It is the one whose key is "
                         + "the first tag of `Accept-Language` by `q`, with case ignored. Else it is the one of the "
                         + "language alone, such as `en` for `en-GB`, else the primary one. A tag goes through no "
-                        + "mapping, so `iw` does not find `he`. A request with no `Accept-Language` reads the primary "
-                        + "one. A write of a stored item fails with 400 and `invalid.value_fixed` when this "
-                        + "is not the name of the names that it changes.",
+                        + "mapping, so `iw` does not find `he`. A tag with `q=0` is never used. A request with no "
+                        + "`Accept-Language`, or with no tag left, reads the primary one. A write of a stored item "
+                        + "fails with 400 and `invalid.value_fixed` when this is not the name of the names that it "
+                        + "changes.",
                 readOnly = true)
         String name,
         @Schema(description = "The language tag of the primary name, such as `ja`. It is the same text as a key of "
