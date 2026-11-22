@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.domain;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -81,7 +80,7 @@ class RefItemPeriodTest {
         RefItem renamed = item.withNames(new RefItemPeriod("n", "item", APRIL, OCTOBER, head));
 
         assertEquals(head, renamed.names());
-        assertEquals("Head", renamed.names().in(Locale.ENGLISH).name());
+        assertEquals("Head", renamed.names().in("en").name());
         assertEquals(APRIL, renamed.validFrom());
         assertEquals(OCTOBER, renamed.validTo());
         assertEquals("chief", renamed.code());

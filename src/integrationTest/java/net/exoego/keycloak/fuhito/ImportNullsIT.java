@@ -108,25 +108,25 @@ class ImportNullsIT {
         // A blank primary language takes the stored one, whose names are also in the columns with no language.
         assertEquals(List.of("line 2 csv.clear_conflict shortName:en en", "line 3 csv.clear_conflict 略称 ja"),
                 rowErrors(csv(api, "org-units", "2026-05-01", """
-                        externalId,name:en,shortName:en,略称,名称:JA
+                        externalId,name:en,shortName:en,略称,名称:ja
                         U,#CLEAR,Sales Division,,
                         V,,,経理課,#CLEAR
                         """)));
         assertEquals(List.of("line 2 csv.clear_conflict shortName:en en", "line 3 csv.clear_conflict 略称 ja"),
                 rowErrors(csv(api, "org-units", "2026-05-01", """
-                        externalId,名称:JA,略称,shortName:en,name:en
+                        externalId,名称:ja,略称,shortName:en,name:en
                         U,,,Sales Division,#CLEAR
                         V,#CLEAR,経理課,,
                         """)));
         HttpResponse<String> person = api.withAcceptLanguage("ja").postBytes(
                 "/imports/csv/people?effectiveDate=2026-05-01", "text/csv; charset=UTF-8", """
-                        externalId,phoneticName:EN,name:en,name:ja,phoneticName
+                        externalId,phoneticName:en,name:en,name:ja,phoneticName
                         P,#CLEAR,#CLEAR,,
                         Q,,,#CLEAR,すずき
                         """.getBytes(StandardCharsets.UTF_8));
-        assertEquals(List.of("line 2 csv.clear_conflict phoneticName:EN en",
+        assertEquals(List.of("line 2 csv.clear_conflict phoneticName:en en",
                 "line 3 csv.clear_conflict phoneticName ja"), rowErrors(person));
-        assertEquals("行が名称の列の #CLEAR で言語「en」を削除していますが、phoneticName:EN にもその言語のセルがあります。"
+        assertEquals("行が名称の列の #CLEAR で言語「en」を削除していますが、phoneticName:en にもその言語のセルがあります。"
                 + "どちらか一方にしてください。", Api.json(person).get("errors").get(0).get("message").asText());
         assertEquals(units, export(api, "org-units"));
         assertEquals(people, export(api, "people"));

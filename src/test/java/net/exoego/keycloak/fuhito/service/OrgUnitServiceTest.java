@@ -332,7 +332,7 @@ class OrgUnitServiceTest {
         RefItem department = unitType("department", true);
         String parentId = service.create(named("Hospital", null, "2026-04-01")).unit().id();
 
-        OrgUnitState state = service.create(new NewOrgUnit("naika", "JA", Map.of("ja",
+        OrgUnitState state = service.create(new NewOrgUnit("naika", "JA", Map.of("JA",
                 new OrgUnitName("内科", "内", "ないか"), "en-us", new OrgUnitName("Internal Medicine", "IM", null)),
                 "department", parentId, "2026-04-01", 3, Map.of("floor", 2), "D-001", "hr-system"));
 
@@ -342,8 +342,8 @@ class OrgUnitServiceTest {
         assertEquals("department", state.unitType());
         assertEquals(parentId, state.parentId());
         OrgUnitVersion version = state.version();
-        assertEquals(new Localized<>("ja", Map.of("ja", new OrgUnitName("内科", "内", "ないか"),
-                "en-US", new OrgUnitName("Internal Medicine", "IM", null))), version.names());
+        assertEquals(new Localized<>("JA", Map.of("JA", new OrgUnitName("内科", "内", "ないか"),
+                "en-us", new OrgUnitName("Internal Medicine", "IM", null))), version.names());
         assertEquals(department.id(), version.unitTypeId());
         assertEquals(3, version.displayOrder());
         assertEquals(Map.of("floor", 2), version.attributes());

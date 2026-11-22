@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import jakarta.ws.rs.Consumes;
@@ -74,7 +73,7 @@ public class ReorganizationsResource {
                     ids -> context.lock(Map.of("org-units", ids)));
             ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
                     applied.stream().map(result -> result.unit().unit().id()).distinct().toList());
-            Locale language = context.nameLanguage();
+            String language = context.nameLanguage();
             List<ChangeRecord> records = new ArrayList<>();
             for (ReorganizationService.Result result : applied) {
                 var unit = OrgUnitRepresentation.of(result.unit(), ids, language);

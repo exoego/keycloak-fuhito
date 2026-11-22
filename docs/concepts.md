@@ -229,15 +229,16 @@ One language of each version is the primary one.
 }
 ```
 
-- A write sends `primaryLanguage` and `names`. `primaryLanguage` must be a key of `names`.
-- A write stores each tag in its standard form, such as `ja` for `JA` and `en-US` for `en-us`. `primaryLanguage` matches a key in that form, so `JA` matches the key `ja`.
-- A restore stores each tag as the document has it. So a tag that is not in standard form, such as `JA`, fails a restore with 400 and `restore.bad_value`. The error names the `list`, the `id` of the row, and the `field`, such as `primaryLanguage` or `names.JA`. An export always gives the standard form.
-- Two keys of one tag in standard form, such as `ja` and `JA`, fail with 400 and `invalid.duplicate_language`. The error names the second key in `field`, such as `names.JA`, and the tag in `value`. Nothing is written. This holds for a REST write and an import. A restore fails with 400 and `restore.bad_value`, which names the `list`, the `id` of the row, the second key in `field`, and `invalid.duplicate_language` in `rule`.
+- A write sends `primaryLanguage` and `names`. `primaryLanguage` must be the same text as a key of `names`. So `"primaryLanguage": "ja"` with the key `JA` fails with 400 and `invalid.primary_language`.
+- A write stores each tag as sent, and a read gives it so. `JA` stays `JA`, `en-us` stays `en-us`, and `iw` stays `iw`. This holds for a REST write, an import, and a restore.
+- A write checks only that a tag is well-formed by BCP 47 (RFC 5646). `en_US`, an empty tag, and `und` fail with 400 and `invalid.language_tag`. No registry is checked, so `xx` is stored.
+- Tags are compared with case ignored, as RFC 5646 asks. Two keys that differ only in case, such as `ja` and `JA`, fail with 400 and `invalid.duplicate_language`. The error names the second key in `field`, such as `names.JA`, and that key in `value`. Nothing is written. This holds for a REST write and an import. A restore fails with 400 and `restore.bad_value`, which names the `list`, the `id` of the row, the second key in `field`, and `invalid.duplicate_language` in `rule`.
+- No other mapping is done. So `iw` and `he` are two languages, though both name Hebrew.
 - A read gives `name`, `shortName`, and `phoneticName` in the language of the reader, and every language in `names`.
-- The names of a language come from that tag, then from the language with no region, such as `en` for `en-US`, then from the primary language.
-- A read of the API takes the first language of `Accept-Language`. With no `Accept-Language`, it gives the primary names.
+- The names of a reader come from the key that is the tag of the reader with case ignored. Else they come from the key that is the language of that tag alone, such as `en` for `en-GB`, else from the primary language. So a reader of `ja` gets the names of `JA`, and a reader of `he` does not get the names of `iw`.
+- A read of the API takes the tag of `Accept-Language` with the highest `q`, the first one on a tie, and skips `*`. It takes the tag as the header writes it, so `iw` stays `iw`. With no `Accept-Language`, it gives the primary names.
 - Other reads that name a unit, such as the path of a member or a list of role holders, give the name in the language of the request too.
-- A token gives the names in the language that the user picked, else in the default language of the realm. A realm with no languages turned on gives English.
+- A token gives the names in the language that the user picked, else in the default language of the realm. A realm with no languages turned on gives English. The tag of that language matches a key in the same way.
 - The Keycloak group of a unit has the primary name. So do the check of the names of siblings and the match of the attribute sync.
 - Lists sort siblings by the primary phonetic name and the primary name, whatever the language of the reader.
 - A search matches the name, the short name, or the phonetic name of any language.

@@ -1,8 +1,10 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
@@ -56,14 +58,55 @@ class RestoreValueFormsIT {
                         at("/refKinds/0", names("{\"ja\": {\"name\": \" 拠点\"}}")))));
     }
 
-    // A write gives a language tag in one form, such as ja for JA and en-US for en-us.
+    // primaryLanguage is the same text as a key, as in a write.
     @Test
-    void aLanguageTagInAnotherFormFailsTheRestoreAndNothingIsWritten() throws Exception {
+    void aPrimaryLanguageInAnotherCaseThanItsKeyFailsTheRestoreAndNothingIsWritten() throws Exception {
+        String primary = "invalid.primary_language";
         assertEachBreaks("restore-tags", List.of(
-                breaks("ref-kinds", "k-1", "primaryLanguage", null, at("/refKinds/0", "{\"primaryLanguage\": \"JA\"}")),
-                breaks("people", "p-1", "names.JA", null, at("/people/0", names("{\"JA\": {\"name\": \"山田\"}}"))),
-                breaks("org-unit-versions", "v-1", "names.en-us", null, at("/orgUnits/0/versions/0",
-                        names("{\"ja\": {\"name\": \"本社\"}, \"en-us\": {\"name\": \"Head office\"}}")))));
+                breaks("ref-kinds", "k-1", "primaryLanguage", primary,
+                        at("/refKinds/0", "{\"primaryLanguage\": \"JA\"}")),
+                breaks("people", "p-1", "primaryLanguage", primary,
+                        at("/people/0", names("{\"JA\": {\"name\": \"山田\"}}"))),
+                breaks("org-unit-versions", "v-1", "primaryLanguage", primary, at("/orgUnits/0/versions/0",
+                        "{\"primaryLanguage\": \"en-US\", \"names\": {\"en-us\": {\"name\": \"Head office\"}}}"))));
+    }
+
+    // Locale would give ja, en-US, and he.
+    @Test
+    void aLanguageTagComesBackAsTheDocumentHasIt() throws Exception {
+        TestRealm target = RestoreKeysIT.target("restore-tag-forms");
+        try {
+            ObjectNode document = RestoreKeysIT.document();
+            RestoreKeysIT.change(document, "/refKinds/0", "{\"primaryLanguage\": \"JA\", \"names\": "
+                    + "{\"JA\": {\"name\": \"拠点\"}}}");
+            RestoreKeysIT.change(document, "/people/0", "{\"primaryLanguage\": \"iw\", \"names\": "
+                    + "{\"iw\": {\"name\": \"ימאדה\"}, \"ja\": {\"name\": \"山田\"}}}");
+            RestoreKeysIT.change(document, "/orgUnits/0/versions/0",
+                    names("{\"ja\": {\"name\": \"本社\"}, \"en-us\": {\"name\": \"Head office\"}}"));
+            HttpResponse<String> restored = target.api.post("/restore", JSON.writeValueAsString(document));
+            assertEquals(200, restored.statusCode(), restored.body());
+
+            ObjectNode export = RealmExportIT.export(target.api);
+            assertEquals("JA", export.at("/refKinds/0/primaryLanguage").asText());
+            assertEquals("拠点", export.at("/refKinds/0/names/JA/name").asText());
+            assertEquals("iw", export.at("/people/0/primaryLanguage").asText());
+            assertEquals(List.of("iw", "ja"), keys(export.at("/people/0/names")));
+            JsonNode head = null;
+            for (JsonNode unit : export.get("orgUnits")) {
+                if (unit.get("id").asText().equals("u-1")) {
+                    head = unit;
+                }
+            }
+            assertEquals(List.of("en-us", "ja"), keys(head.at("/versions/0/names")));
+        } finally {
+            target.remove();
+        }
+    }
+
+    private static List<String> keys(JsonNode object) {
+        List<String> keys = new ArrayList<>();
+        object.fieldNames().forEachRemaining(keys::add);
+        return keys;
     }
 
     // An export gives a time in UTC with Z, and with 3 or 6 digits of a second when it has a fraction. Java reads

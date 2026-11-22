@@ -21,6 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -374,7 +375,6 @@ public class CsvImportService {
             byName.put(japanese, field);
         });
         Map<String, String> columns = new LinkedHashMap<>();
-        Set<String> normalizedColumns = new HashSet<>();
         for (String name : header) {
             if (name.strip().length() != name.length()) {
                 throw FuhitoException.invalid("csv.bad_column", Map.of("column", name));
@@ -400,25 +400,9 @@ public class CsvImportService {
                     || columns.containsKey(column)) {
                 throw FuhitoException.invalid("csv.bad_column", Map.of("column", name));
             }
-            if (localized) {
-                String language = language(name.substring(colon + 1));
-                if (!normalizedColumns.add(field + ":" + language)) {
-                    throw FuhitoException.invalid("invalid.duplicate_language",
-                            Map.of("field", name, "value", language));
-                }
-            }
             columns.put(column, name);
         }
         return columns;
-    }
-
-    // A bad tag fails in each row that fills its column.
-    private static String language(String tag) {
-        try {
-            return Checks.languageTag(tag, tag);
-        } catch (FuhitoException e) {
-            return tag;
-        }
     }
 
     // The stored thing that a row names, as the import finds it. The import reports a row that names nothing. A key
@@ -780,12 +764,16 @@ public class CsvImportService {
 
         // The columns with no language set the primary names. A column like "name:en" sets the names of one
         // language, and "name:en" with #CLEAR removes them, so the other names of that language stay blank. The
-        // import keeps the other names that are stored.
+        // import keeps the other names that are stored. The cells of a row give each language in one text.
         <T> Map<String, T> names(String primaryLanguage, List<String> fields, NameSetter<T> set) {
             List<String> given = fields.stream().filter(field -> !blank(field)).toList();
             Map<String, T> result = new LinkedHashMap<>();
             Set<String> removed = new HashSet<>();
             Map<String, String> others = new LinkedHashMap<>();
+            Map<String, String> texts = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+            if (!given.isEmpty() && primaryLanguage != null) {
+                texts.put(primaryLanguage, primaryLanguage);
+            }
             values.forEach((column, value) -> {
                 int colon = column.indexOf(':');
                 if (colon < 0 || value.isEmpty() || column.startsWith(ATTRIBUTE_COLUMN)) {
@@ -793,7 +781,8 @@ public class CsvImportService {
                 }
                 String field = column.substring(0, colon);
                 String language = Checks.languageTag(column, column.substring(colon + 1));
-                if (language.equals(primaryLanguage) && given.contains(field)) {
+                if (!texts.computeIfAbsent(language, text -> language).equals(language)
+                        || (language.equals(primaryLanguage) && given.contains(field))) {
                     throw FuhitoException.invalid("invalid.duplicate_language",
                             Map.of("field", headers.get(column), "value", language));
                 }

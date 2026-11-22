@@ -1,6 +1,5 @@
 package net.exoego.keycloak.fuhito.rest;
 
-import java.util.Locale;
 import java.util.Objects;
 
 import net.exoego.keycloak.fuhito.service.UnitRoleService;
@@ -43,7 +42,7 @@ public record RoleHolderRepresentation(
         @Schema(description = "The first date after the role. It is missing for no end.", format = "date")
         String validTo) {
 
-    static RoleHolderRepresentation of(UnitRoleService.Holder holder, Locale language) {
+    static RoleHolderRepresentation of(UnitRoleService.Holder holder, String language) {
         var role = holder.view().role();
         String orgUnitName = holder.orgUnitNames() == null ? null : holder.orgUnitNames().in(language).name();
         String roleName = holder.roleNames() == null ? null : holder.roleNames().in(language).name();

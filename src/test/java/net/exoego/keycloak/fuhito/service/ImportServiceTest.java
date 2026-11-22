@@ -254,9 +254,34 @@ class ImportServiceTest {
 
         assertEquals(List.of("refKinds[0] invalid.duplicate_language", "refKinds[1] invalid.duplicate_language"),
                 errors(report));
-        assertEquals(Map.of("field", "names.JA", "value", "ja"), report.errors().getFirst().error().params());
+        assertEquals(Map.of("field", "names.JA", "value", "JA"), report.errors().getFirst().error().params());
         assertEquals(stored, kinds.get("site").names());
         assertEquals(Optional.empty(), kinds.find("room"));
+    }
+
+    @Test
+    void aRowReplacesAStoredTagInAnotherCaseWithItsOwnTag() {
+        Localized<RefKindName> stored = new Localized<>("ja", Map.of("ja", new RefKindName("拠点"),
+                "en", new RefKindName("Site")));
+        service.apply(kinds(List.of(new RefKindRow(null, null, "SITE", "site", "ja", stored.byLanguage()))));
+
+        // The stored primary language is ja, and the row leaves no key ja.
+        ImportReport kept = service.apply(kinds(List.of(new RefKindRow(null, null, "SITE", null, null,
+                Map.of("JA", new RefKindName("勤務地"))))));
+        assertEquals(List.of("refKinds[0] invalid.primary_language"), errors(kept));
+        assertEquals(stored, kinds.get("site").names());
+
+        ImportReport changed = service.apply(kinds(List.of(new RefKindRow(null, null, "SITE", null, "JA",
+                Map.of("JA", new RefKindName("勤務地"))))));
+        assertEquals(List.of(), errors(changed));
+        assertEquals(new Localized<>("JA", Map.of("JA", new RefKindName("勤務地"), "en", new RefKindName("Site"))),
+                kinds.get("site").names());
+
+        Map<String, RefKindName> removing = new LinkedHashMap<>();
+        removing.put("EN", null);
+        assertEquals(List.of(), errors(service.apply(kinds(List.of(new RefKindRow(null, null, "SITE", null, null,
+                removing))))));
+        assertEquals(Localized.of("JA", new RefKindName("勤務地")), kinds.get("site").names());
     }
 
     @Test
@@ -622,7 +647,7 @@ class ImportServiceTest {
     @Test
     void theSameDocumentTwiceChangesNothing() {
         OrgUnitRow[] rows = {
-            new OrgUnitRow("hr", "H", "hq", "EN", Map.of("en", new OrgUnitName("Hospital", "H", null),
+            new OrgUnitRow("hr", "H", "hq", "EN", Map.of("EN", new OrgUnitName("Hospital", "H", null),
                     "JA", new OrgUnitName("病院", "病", "びょういん")), null, null, null, 2, Map.of("beds", 100), null,
                     null, null),
             new OrgUnitRow("hr", "N", null, "ja", ja("Nursing"), null, "H", null, null, null, null, null, null)};

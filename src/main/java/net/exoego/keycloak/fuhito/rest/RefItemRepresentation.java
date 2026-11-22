@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -35,20 +34,22 @@ public record RefItemRepresentation(
                 pattern = "^[A-Za-z0-9][A-Za-z0-9_.-]*$")
         String code,
         @Schema(
-                description = "The name of the date in the language of the request. It is the one of the first "
-                        + "language of `Accept-Language`, else the one of that language with no region, such as `en` "
-                        + "for `en-US`, else the primary one. A request with no `Accept-Language` reads the primary "
+                description = "The name of the date in the language of the request. It is the one whose key is "
+                        + "the first tag of `Accept-Language` by `q`, with case ignored. Else it is the one of the "
+                        + "language alone, such as `en` for `en-GB`, else the primary one. A tag goes through no "
+                        + "mapping, so `iw` does not find `he`. A request with no `Accept-Language` reads the primary "
                         + "one. A write of a stored item fails with 400 and `invalid.value_fixed` when this "
                         + "is not the name of the names that it changes.",
                 readOnly = true)
         String name,
-        @Schema(description = "The language tag of the primary name, such as `ja`. It matches a key of `names` in "
-                + "standard form.", maxLength = 64)
+        @Schema(description = "The language tag of the primary name, such as `ja`. It is the same text as a key of "
+                + "`names`.", maxLength = 64)
         String primaryLanguage,
         @Schema(
                 description = "The names by language tag, such as `ja`, `en`, or `zh-Hant`. A read gives the names "
-                        + "of its date, with the tags in their standard form, such as `en-US` for `en-us`. Two keys "
-                        + "of one tag in standard form, such as `ja` and `JA`, fail with `invalid.duplicate_language`.")
+                        + "of its date. A write stores each tag as sent, such as `en-us`, and a read gives it so. Two "
+                        + "keys that differ only in case, such as `ja` and `JA`, fail with "
+                        + "`invalid.duplicate_language`.")
         Map<String, RefItemName> names,
         @Schema(description = "The position in lists, lowest first.", defaultValue = "0")
         Integer displayOrder,
@@ -120,7 +121,7 @@ public record RefItemRepresentation(
         return new RefItemService.Marks(legalEntity, actingHead, lateral, rollup);
     }
 
-    static RefItemRepresentation of(RefItem item, ExternalIdLists ids, Locale language) {
+    static RefItemRepresentation of(RefItem item, ExternalIdLists ids, String language) {
         return new RefItemRepresentation(item.id(), item.version(), item.kind(), item.code(),
                 item.names().in(language).name(), item.names().primaryLanguage(), item.names().byLanguage(),
                 item.displayOrder(), item.attributes(), item.active(),

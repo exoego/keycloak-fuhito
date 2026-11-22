@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
-import java.util.Locale;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -124,7 +123,7 @@ public class AssignmentsResource {
             Cursor.requireAlone(after, first);
             MembershipService.Search search = new MembershipService.Search(orgUnitId, jobTitle, occupation, kind,
                     asOf);
-            Locale language = context.nameLanguage();
+            String language = context.nameLanguage();
             return Pages.of(context, MemberRepresentation.of(members.search(search, Page.of(first, max), after),
                             language, members),
                     Page.of(first, max).max(),

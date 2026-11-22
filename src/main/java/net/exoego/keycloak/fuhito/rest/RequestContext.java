@@ -103,11 +103,13 @@ public interface RequestContext {
     Locale locale();
 
     /**
-     * Returns the language that the caller reads names in. It is the first language of {@code Accept-Language}.
+     * Returns the language that the caller reads names in. It is the tag of {@code Accept-Language} with the highest
+     * {@code q}, as the header writes it.
      *
-     * @return the locale, or null when the request names no language. The caller then reads the primary names.
+     * @return the language tag, or null when the request names no language. The caller then reads the primary
+     *         names.
      */
-    Locale nameLanguage();
+    String nameLanguage();
 
     /**
      * Returns the parts of the path of the request after {@code fuhito}, decoded. The first part names a kind of

@@ -19,7 +19,7 @@ class PersonNameTest {
     @Test
     void checksTheNamesOfARequest() {
         assertEquals(new Localized<>("ja", Map.of("ja", new PersonName("山田 太郎", "やまだ たろう"),
-                "en-US", new PersonName("Taro Yamada", null))), PersonName.check("ja", Map.of(
+                "en-us", new PersonName("Taro Yamada", null))), PersonName.check("ja", Map.of(
                 "ja", new PersonName("山田 太郎", "やまだ たろう"), "en-us", new PersonName("Taro Yamada", null))));
     }
 

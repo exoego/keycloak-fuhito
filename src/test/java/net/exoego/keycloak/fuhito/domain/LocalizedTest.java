@@ -2,7 +2,6 @@ package net.exoego.keycloak.fuhito.domain;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -17,14 +16,32 @@ class LocalizedTest {
 
     @Test
     void aReaderGetsTheTagThenTheLanguageThenThePrimaryValue() {
-        assertEquals("Sales (UK)", NAMES.in(Locale.forLanguageTag("en-GB")));
-        assertEquals("Sales", NAMES.in(Locale.forLanguageTag("en-US")));
-        assertEquals("Sales", NAMES.in(Locale.ENGLISH));
-        assertEquals("營業部", NAMES.in(Locale.forLanguageTag("zh-Hant")));
-        assertEquals("営業部", NAMES.in(Locale.forLanguageTag("zh-Hans")));
-        assertEquals("営業部", NAMES.in(Locale.FRENCH));
+        assertEquals("Sales (UK)", NAMES.in("en-GB"));
+        assertEquals("Sales", NAMES.in("en-US"));
+        assertEquals("Sales", NAMES.in("en"));
+        assertEquals("營業部", NAMES.in("zh-Hant"));
+        assertEquals("営業部", NAMES.in("zh-Hans"));
+        assertEquals("営業部", NAMES.in("fr"));
         assertEquals("営業部", NAMES.in(null));
         assertEquals("営業部", NAMES.primary());
+    }
+
+    @Test
+    void aReaderMatchesATagWithCaseIgnored() {
+        Localized<String> names = new Localized<>("JA", Map.of("JA", "営業部", "en-us", "Sales (US)", "EN", "Sales"));
+        assertEquals("営業部", names.in("ja"));
+        assertEquals("Sales (US)", names.in("EN-US"));
+        assertEquals("Sales", names.in("en-GB"));
+        assertEquals("Sales", names.in("en"));
+    }
+
+    @Test
+    void aReaderMatchesNoOtherFormOfATag() {
+        Localized<String> names = new Localized<>("ja", Map.of("ja", "営業部", "iw", "מחלקת מכירות"));
+        assertEquals("מחלקת מכירות", names.in("iw"));
+        assertEquals("מחלקת מכירות", names.in("IW-IL"));
+        assertEquals("営業部", names.in("he"));
+        assertEquals("営業部", names.in("he-IL"));
     }
 
     @Test
@@ -39,15 +56,17 @@ class LocalizedTest {
     }
 
     @Test
-    void checksTheNamesOfARequest() {
+    void keepsTheTagsOfARequestAsSent() {
         Map<String, OrgUnitName> names = new LinkedHashMap<>();
         names.put("JA", new OrgUnitName("営業部", "営業", "えいぎょうぶ"));
         names.put("en-us", new OrgUnitName("Sales", null, null));
+        names.put("iw", new OrgUnitName("מכירות", null, null));
 
-        Localized<OrgUnitName> checked = Localized.check("ja", names, (field, name) -> name.checked(field));
+        Localized<OrgUnitName> checked = Localized.check("JA", names, (field, name) -> name.checked(field));
 
-        assertEquals(new Localized<>("ja", Map.of("ja", new OrgUnitName("営業部", "営業", "えいぎょうぶ"),
-                "en-US", new OrgUnitName("Sales", null, null))), checked);
+        assertEquals(new Localized<>("JA", Map.of("JA", new OrgUnitName("営業部", "営業", "えいぎょうぶ"),
+                "en-us", new OrgUnitName("Sales", null, null), "iw", new OrgUnitName("מכירות", null, null))),
+                checked);
     }
 
     @Test
@@ -59,23 +78,25 @@ class LocalizedTest {
         assertEquals(Map.of("field", "names", "value", "??"), invalid("ja", Map.of("??", "x"), "invalid.language_tag"));
         Map<String, OrgUnitName> missing = new LinkedHashMap<>();
         missing.put("en-us", null);
-        assertEquals(Map.of("field", "names.en-US"), invalid("en", missing, "invalid.required"));
-        assertEquals(Map.of("value", "fr"), invalid("FR", Map.of("ja", new OrgUnitName("x", null, null)),
+        assertEquals(Map.of("field", "names.en-us"), invalid("en", missing, "invalid.required"));
+        assertEquals(Map.of("value", "FR"), invalid("FR", Map.of("ja", new OrgUnitName("x", null, null)),
                 "invalid.primary_language"));
     }
 
     @Test
-    void thePrimaryLanguageMatchesAKeyInNormalizedForm() {
-        assertEquals(Localized.of("en-US", new OrgUnitName("Sales", null, null)), Localized.check("EN-us",
-                Map.of("en-us", new OrgUnitName("Sales", null, null)), (field, name) -> name.checked(field)));
+    void thePrimaryLanguageIsTheSameTextAsAKey() {
+        assertEquals(Map.of("value", "ja"), invalid("ja", Map.of("JA", new OrgUnitName("営業部", null, null)),
+                "invalid.primary_language"));
+        assertEquals(Map.of("value", "EN-us"), invalid("EN-us", Map.of("en-us", new OrgUnitName("Sales", null,
+                null)), "invalid.primary_language"));
     }
 
     @Test
-    void rejectsTwoTagsOfOneLanguage() {
+    void rejectsTwoTagsThatDifferOnlyInCase() {
         Map<String, OrgUnitName> names = new LinkedHashMap<>();
         names.put("ja", new OrgUnitName("営業部", null, null));
         names.put("JA", new OrgUnitName("販売部", null, null));
-        assertEquals(Map.of("field", "names.JA", "value", "ja"), invalid("ja", names, "invalid.duplicate_language"));
+        assertEquals(Map.of("field", "names.JA", "value", "JA"), invalid("ja", names, "invalid.duplicate_language"));
 
         Map<String, OrgUnitName> regions = new LinkedHashMap<>();
         regions.put("en-us", new OrgUnitName("Sales", null, null));
@@ -85,16 +106,28 @@ class LocalizedTest {
     }
 
     @Test
-    void normalizesTheTagsOfAMergeAndRejectsTwoTagsOfOneLanguage() {
+    void takesTwoTagsThatNameOneLanguageInTwoWays() {
+        Map<String, OrgUnitName> names = new LinkedHashMap<>();
+        names.put("iw", new OrgUnitName("מכירות", null, null));
+        names.put("he", new OrgUnitName("מכירות", null, null));
+        assertEquals(List.of("he", "iw"), List.copyOf(Localized.check("iw", names,
+                (field, name) -> name.checked(field)).byLanguage().keySet()));
+    }
+
+    @Test
+    void checksTheTagsOfAMerge() {
         Map<String, OrgUnitName> removing = new LinkedHashMap<>();
         removing.put("JA", new OrgUnitName("営業部", null, null));
         removing.put("en-us", null);
-        assertEquals(Map.of("JA", "ja", "en-us", "en-US"), Localized.languages(removing));
+        Localized.checkLanguages(removing);
 
         removing.put("ja", null);
-        FuhitoException e = assertThrows(FuhitoException.class, () -> Localized.languages(removing));
+        FuhitoException e = assertThrows(FuhitoException.class, () -> Localized.checkLanguages(removing));
         assertEquals("invalid.duplicate_language", e.code());
         assertEquals(Map.of("field", "names.ja", "value", "ja"), e.params());
+
+        e = assertThrows(FuhitoException.class, () -> Localized.checkLanguages(Map.of("en_US", "x")));
+        assertEquals("invalid.language_tag", e.code());
     }
 
     @Test

@@ -292,8 +292,9 @@ class OrgUnitsIT {
                 sales.get("shortName").asText(), sales.get("phoneticName").asText()));
         assertEquals("ja", sales.get("primaryLanguage").asText());
         assertEquals(3, sales.get("names").size());
-        assertEquals("Sales Department", sales.get("names").get("en-GB").get("name").asText());
-        // The first language of Accept-Language gives the names of that tag, else of that language with no region.
+        assertEquals("Sales Department", sales.get("names").get("EN-gb").get("name").asText());
+        // The first language of Accept-Language gives the names of that tag in any case, else of that language with
+        // no region.
         Api en = ja.withAcceptLanguage("en-US, ja;q=0.5");
         JsonNode english = Api.json(en.get("/org-units/" + id + on));
         assertEquals("Sales Division", english.get("name").asText());

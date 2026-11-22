@@ -88,9 +88,8 @@ final class RestoreCheck {
      * empty text, a text of only spaces, an empty list, or a text that cannot be stored, as in a row of an import. A
      * text must fit its column, and a value that a write checks by a rule of its own, such as a code, a date, or a
      * name with no spaces around it, must pass the rule. A choice, such as the status of terms, and the names of a row
-     * must be ones that a write takes. A value that a write would store in another form, such as the language tag
-     * {@code JA} for {@code ja}, fails too. So does a time in another form than an export gives, such as a time with
-     * an offset. A version must be from 1 to {@link RealmExport#LARGEST_VERSION}, so that a write can count it up.
+     * must be ones that a write takes. A time in another form than an export gives, such as a time with an offset,
+     * fails too. A version must be from 1 to {@link RealmExport#LARGEST_VERSION}, so that a write can count it up.
      * The {@code validTo} of a row must be after its {@code validFrom}, as in a write. A row inside a row,
      * such as a version of an org unit, is named by the list and the ID that {@code restore.id_taken} gives it.
      *
@@ -135,23 +134,23 @@ final class RestoreCheck {
     }
 
     private static void requireNames(RealmExport document) {
-        all(document.refKinds()).forEach(k -> names("ref-kinds", k.id(), k.primaryLanguage(), k.names(),
+        all(document.refKinds()).forEach(k -> names("ref-kinds", k.id(), k.names(),
                 () -> RefKindName.check(k.primaryLanguage(), k.names())));
         for (RealmExport.Item item : all(document.refItems())) {
-            all(item.versions()).forEach(n -> names("ref-item-names", n.id(), n.primaryLanguage(), n.names(),
+            all(item.versions()).forEach(n -> names("ref-item-names", n.id(), n.names(),
                     () -> RefItemName.check(n.primaryLanguage(), n.names())));
         }
         for (RealmExport.Unit unit : all(document.orgUnits())) {
-            all(unit.versions()).forEach(v -> names("org-unit-versions", v.id(), v.primaryLanguage(), v.names(),
+            all(unit.versions()).forEach(v -> names("org-unit-versions", v.id(), v.names(),
                     () -> Localized.check(v.primaryLanguage(), v.names(), (field, name) -> name.checked(field))));
         }
-        all(document.people()).forEach(p -> names("people", p.id(), p.primaryLanguage(), p.names(),
+        all(document.people()).forEach(p -> names("people", p.id(), p.names(),
                 () -> PersonName.check(p.primaryLanguage(), p.names())));
     }
 
     // Only invalid.primary_language names no field, and it is about primaryLanguage. A write stores the names that
     // the check gives back. A person may have none.
-    private static <T extends Record> void names(String list, String id, String primaryLanguage, Map<String, T> names,
+    private static <T extends Record> void names(String list, String id, Map<String, T> names,
             Supplier<Localized<T>> check) {
         Localized<T> stored;
         try {
@@ -163,14 +162,8 @@ final class RestoreCheck {
         if (stored == null) {
             return;
         }
-        if (!stored.primaryLanguage().equals(primaryLanguage)) {
-            throw RestoreRules.broken(list, id, "primaryLanguage", null);
-        }
         names.forEach((tag, name) -> {
             T same = stored.byLanguage().get(tag);
-            if (same == null) {
-                throw RestoreRules.broken(list, id, "names." + tag, null);
-            }
             for (RecordComponent component : name.getClass().getRecordComponents()) {
                 if (!Objects.equals(EmptyValues.valueOf(component, name), EmptyValues.valueOf(component, same))) {
                     throw RestoreRules.broken(list, id, "names." + tag + "." + component.getName(), null);

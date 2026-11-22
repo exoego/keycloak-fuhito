@@ -11,7 +11,7 @@ class RefKindNameTest {
 
     @Test
     void checksTheNamesOfARequest() {
-        assertEquals(new Localized<>("ja", Map.of("ja", new RefKindName("勤務地"), "en-US",
+        assertEquals(new Localized<>("ja", Map.of("ja", new RefKindName("勤務地"), "en-us",
                         new RefKindName("Work location"))),
                 RefKindName.check("ja", Map.of("ja", new RefKindName("勤務地"), "en-us",
                         new RefKindName("Work location"))));

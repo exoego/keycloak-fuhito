@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
@@ -55,10 +54,10 @@ class RefItemServiceTest {
         RefItem item = service.create(RefKind.UNIT_TYPE, "ward", "ja",
                 Map.of("ja", new RefItemName("病棟"), "en-us", new RefItemName("Ward")), 3, Map.of("beds", true));
 
-        assertEquals(new Localized<>("ja", Map.of("ja", new RefItemName("病棟"), "en-US", new RefItemName("Ward"))),
+        assertEquals(new Localized<>("ja", Map.of("ja", new RefItemName("病棟"), "en-us", new RefItemName("Ward"))),
                 item.names());
-        assertEquals("Ward", item.names().in(Locale.US).name());
-        assertEquals("病棟", item.names().in(Locale.FRENCH).name());
+        assertEquals("Ward", item.names().in("en-US").name());
+        assertEquals("病棟", item.names().in("fr").name());
         assertEquals(3, item.displayOrder());
         assertEquals(Map.of("beds", true), item.attributes());
     }
@@ -317,7 +316,7 @@ class RefItemServiceTest {
         assertEquals("Senior Chief", name(renamed));
         assertEquals(LocalDate.of(2027, 4, 1), renamed.validFrom());
         assertEquals("Chief", name(dated.get(item.id(), "2027-03-31")));
-        assertEquals("主任", dated.get(item.id(), "2027-03-31").names().in(Locale.JAPANESE).name());
+        assertEquals("主任", dated.get(item.id(), "2027-03-31").names().in("ja").name());
         assertEquals("Senior Chief", name(dated.get(item.id(), "2027-04-01")));
         assertEquals(ItemNames.of("Senior Chief"), dated.get(item.id(), "2027-04-01").names());
         assertEquals("Chief", name(dated.get(item.id())));

@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -154,7 +153,7 @@ final class Writes {
                     .distinct()
                     .toList()));
         }
-        Locale language = context.nameLanguage();
+        String language = context.nameLanguage();
         return writes.stream().map(write -> change(ids::get, write, language)).toList();
     }
 
@@ -181,7 +180,7 @@ final class Writes {
     }
 
     private static ChangeRecord change(Function<ExternalId.Kind, ExternalIdLists> ids, Write write,
-            Locale language) {
+            String language) {
         Object representation = switch (write) {
             case Write.OfRefItem item -> RefItemRepresentation.of(item.state(), ids.apply(ExternalId.Kind.REF_ITEM),
                     language);

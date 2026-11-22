@@ -58,13 +58,14 @@ class PeopleIT {
         assertEquals("やまだ たろう", person.get("phoneticName").asText());
         assertEquals("RECORD", person.get("nameSource").asText());
         assertEquals("ja", person.get("primaryLanguage").asText());
-        assertEquals("Taro Yamada", person.get("names").get("en-US").get("name").asText());
+        assertEquals("Taro Yamada", person.get("names").get("EN-us").get("name").asText());
         assertEquals("A社", person.get("attributes").get("派遣元").asText());
         assertEquals(List.of("hr=P-1"), Api.externalIds(person));
         assertFalse(person.has("externalId"));
         assertEquals("hr", person.get("source").asText());
         assertEquals(person, ok(api.get("/people/" + id)));
-        // The first language of Accept-Language gives the names of that tag, else of that language with no region.
+        // The first language of Accept-Language gives the names of that tag in any case, else of that language with
+        // no region.
         Api english = api.withAcceptLanguage("en-US, ja;q=0.5");
         JsonNode inEnglish = ok(english.get("/people/" + id));
         assertEquals("Taro Yamada", inEnglish.get("name").asText());

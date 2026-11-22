@@ -118,13 +118,14 @@ public class AssignmentsProtocolMapper extends AbstractOIDCProtocolMapper
         MembershipService membership = new MembershipService(new JpaAssignmentStore(em, realmId),
                 new JpaEmploymentStore(em, realmId), orgUnits, new JpaRefItemStore(em, realmId), userId -> true,
                 new UnitDays(orgUnits, RealmTime.ruleOrUtc(userSession.getRealm()), Clock.systemUTC()));
-        Locale language = session.getContext().resolveLocale(userSession.getUser());
+        Locale locale = session.getContext().resolveLocale(userSession.getUser());
+        String language = locale == null ? null : locale.toLanguageTag();
         return membership.assignmentsOf(userSession.getUser().getId(), null, true).stream()
                 .map(member -> entry(member, language, staffNumber, status))
                 .toList();
     }
 
-    private static Map<String, Object> entry(Member member, Locale language, boolean staffNumber,
+    private static Map<String, Object> entry(Member member, String language, boolean staffNumber,
             boolean status) {
         Map<String, Object> entry = new LinkedHashMap<>();
         var row = member.assignment();

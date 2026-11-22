@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.rest;
 
 import java.util.List;
-import java.util.Locale;
 
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -239,7 +238,7 @@ public class PeopleResource {
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("includePath") boolean includePath) {
         context.requireRead();
-        Locale language = context.nameLanguage();
+        String language = context.nameLanguage();
         return Calls.run(context, () -> MemberRepresentation.of(reads.membership()
                 .assignmentsOfPerson(service.get(id).person().id(), asOf, includePath), language, reads.membership()));
     }
@@ -483,7 +482,7 @@ public class PeopleResource {
     private List<PersonRepresentation> represent(List<PersonView> views) {
         ExternalIdLists ids = reads.externalIds().lists(ExternalId.Kind.PERSON,
                 views.stream().map(view -> view.person().id()).toList());
-        Locale language = context.nameLanguage();
+        String language = context.nameLanguage();
         return views.stream().map(view -> PersonRepresentation.of(view, ids, language)).toList();
     }
 

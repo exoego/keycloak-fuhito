@@ -1,6 +1,5 @@
 package net.exoego.keycloak.fuhito.service;
 
-import java.util.Locale;
 
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
@@ -29,7 +28,7 @@ public record PersonView(Person person, String keycloakName) {
      * @param language the language of the reader, or null for the primary names
      * @return the names of the record, else the name of the Keycloak user, or null when neither has one
      */
-    public PersonName names(Locale language) {
+    public PersonName names(String language) {
         if (person.names() != null) {
             return person.names().in(language);
         }
