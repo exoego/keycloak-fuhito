@@ -15,10 +15,13 @@ class MemoryChangeLogStore implements ChangeLogStore {
     private long expiredSequence;
 
     @Override
-    public void appendAll(List<ChangeLogEntry> added) {
-        added.forEach(entry -> entries.add(new ChangeLogEntry(entry.id(), ++lastSequence, entry.recordedAt(),
-                entry.kind(), entry.actorUserId(), entry.resourceType(), entry.resourceId(), entry.operation(),
-                entry.resourcePath(), entry.changeOrderId(), entry.cause(), entry.causeSequence())));
+    public List<ChangeLogEntry> appendAll(List<ChangeLogEntry> added) {
+        List<ChangeLogEntry> stored = added.stream().map(entry -> new ChangeLogEntry(entry.id(), ++lastSequence,
+                entry.recordedAt(), entry.kind(), entry.actorUserId(), entry.resourceType(), entry.resourceId(),
+                entry.operation(), entry.resourcePath(), entry.changeOrderId(), entry.cause(), entry.causeSequence()))
+                .toList();
+        entries.addAll(stored);
+        return stored;
     }
 
     @Override

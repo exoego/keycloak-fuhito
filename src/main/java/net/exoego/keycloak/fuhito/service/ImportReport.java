@@ -10,6 +10,7 @@ import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.ChangeOrder;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Hierarchy;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.ResourceType;
@@ -96,6 +97,15 @@ public final class ImportReport {
          * @return the path below the realm
          */
         String path();
+
+        /**
+         * Returns the other resources whose read the write changed. Their versions are counted up already.
+         *
+         * @return the resources, or none
+         */
+        default List<PropagatedChange> propagated() {
+            return List.of();
+        }
 
         /**
          * A write of a reference item.
@@ -236,8 +246,9 @@ public final class ImportReport {
          *
          * @param created true for a new person, false for a change
          * @param state the person after the write
+         * @param propagated the records of the person whose read the write changed
          */
-        record OfPerson(boolean created, PersonView state) implements Write {
+        record OfPerson(boolean created, PersonView state, List<PropagatedChange> propagated) implements Write {
 
             /**
              * Makes the write of a person that was created for a Keycloak user that a row named.
@@ -245,7 +256,7 @@ public final class ImportReport {
              * @param state the new person
              */
             public OfPerson(PersonView state) {
-                this(true, state);
+                this(true, state, List.of());
             }
 
             @Override

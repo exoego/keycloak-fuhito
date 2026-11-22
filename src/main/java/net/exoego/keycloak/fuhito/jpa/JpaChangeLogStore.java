@@ -51,8 +51,9 @@ public class JpaChangeLogStore implements ChangeLogStore {
     }
 
     @Override
-    public void appendAll(List<ChangeLogEntry> entries) {
+    public List<ChangeLogEntry> appendAll(List<ChangeLogEntry> entries) {
         long sequence = lastSequence(entries.size()) - entries.size();
+        List<ChangeLogEntry> stored = new ArrayList<>();
         for (ChangeLogEntry entry : entries) {
             ChangeLogEntity entity = new ChangeLogEntity();
             entity.id = entry.id();
@@ -69,7 +70,9 @@ public class JpaChangeLogStore implements ChangeLogStore {
             entity.cause = entry.cause() == null ? null : entry.cause().name();
             entity.causeSequence = entry.causeSequence();
             em.persist(entity);
+            stored.add(toDomain(entity));
         }
+        return stored;
     }
 
     // The update locks the counter of the realm until the transaction ends. So the entries of a realm become
