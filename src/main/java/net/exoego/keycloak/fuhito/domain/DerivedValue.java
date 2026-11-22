@@ -31,7 +31,13 @@ public enum DerivedValue {
 
     /** The Keycloak user of the manager of a reporting line. */
     REPORTING_LINE_MANAGER_USER_ID(ResourceType.FUHITO_REPORTING_LINE, "reporting-lines", "managerUserId",
-            "The user that the manager is linked to", "A link or an unlink of the user of the manager");
+            "The user that the manager is linked to", "A link or an unlink of the user of the manager"),
+
+    /** The name of a person with no names in the record, which is the name of the linked Keycloak user. */
+    PERSON_NAME(ResourceType.FUHITO_PERSON, "people", "name",
+            "The first name and the last name of the linked Keycloak user",
+            "A change of the name of the user in Keycloak, when Keycloak sends an event of it, and the removal of "
+                    + "the user");
 
     private final ResourceType resourceType;
     private final String collection;

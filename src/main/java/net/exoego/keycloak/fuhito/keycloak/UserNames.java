@@ -3,6 +3,9 @@ package net.exoego.keycloak.fuhito.keycloak;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserModel;
+
 /**
  * Builds one name from the first name and the last name that Keycloak keeps for a user.
  */
@@ -25,5 +28,9 @@ final class UserNames {
         return parts.filter(part -> part != null && !part.isBlank())
                 .map(String::strip)
                 .collect(Collectors.joining(" "));
+    }
+
+    static String of(RealmModel realm, UserModel user) {
+        return user == null ? "" : of(user.getFirstName(), user.getLastName(), realm.getAttribute(ORDER_ATTRIBUTE));
     }
 }

@@ -45,7 +45,7 @@ class ChangeLogEntryTest {
     @Test
     void eachDerivedValueSaysWhatItIsReadFromAndWhichWritesChangeIt() {
         assertEquals(List.of("KEYCLOAK_ORGANIZATION_ID", "EMPLOYMENT_USER_ID", "ASSIGNMENT_USER_ID",
-                "QUALIFICATION_USER_ID", "UNIT_ROLE_USER_ID", "REPORTING_LINE_MANAGER_USER_ID"),
+                "QUALIFICATION_USER_ID", "UNIT_ROLE_USER_ID", "REPORTING_LINE_MANAGER_USER_ID", "PERSON_NAME"),
                 Arrays.stream(DerivedValue.values()).map(Enum::name).toList());
         for (DerivedValue value : DerivedValue.values()) {
             assertFalse(value.field().isBlank(), value.name());
@@ -58,5 +58,8 @@ class ChangeLogEntryTest {
         DerivedValue manager = DerivedValue.REPORTING_LINE_MANAGER_USER_ID;
         assertEquals(List.of("FUHITO_REPORTING_LINE", "fuhito/reporting-lines/l1", "managerUserId"),
                 List.of(manager.resourceType().name(), manager.path("l1"), manager.field()));
+        DerivedValue name = DerivedValue.PERSON_NAME;
+        assertEquals(List.of("FUHITO_PERSON", "fuhito/people/p1", "name"),
+                List.of(name.resourceType().name(), name.path("p1"), name.field()));
     }
 }

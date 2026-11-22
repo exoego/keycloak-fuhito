@@ -21,8 +21,9 @@ public record PersonRepresentation(
                 readOnly = true)
         String id,
         @Schema(description = "The version of the person. A new person has 1. Each write counts it up by one, also a "
-                + "mask or a change of an ID of another system. A write of a stored person sends the version that "
-                + "the caller read. A create needs none.")
+                + "mask or a change of an ID of another system. A change of the name of the linked user in Keycloak, "
+                + "or its removal, counts it up too, when the record has no names. A write of a stored person sends "
+                + "the version that the caller read. A create needs none.")
         Long version,
         @Schema(description = "The ID of the linked Keycloak user. One user is linked to at most one person.")
         String userId,
