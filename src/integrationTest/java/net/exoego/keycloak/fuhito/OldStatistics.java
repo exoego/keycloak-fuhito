@@ -1,6 +1,9 @@
 package net.exoego.keycloak.fuhito;
 
+import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.List;
 import java.util.stream.Stream;
@@ -15,6 +18,53 @@ final class OldStatistics {
             fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment""";
 
     private OldStatistics() {
+    }
+
+    @FunctionalInterface
+    interface Check {
+        void run(Statement statement) throws Exception;
+    }
+
+    // The checks of a class share their setup in one transaction, because the setup takes most of their time.
+    // Each check rolls back to the end of the setup.
+    static final class Shared implements AutoCloseable {
+
+        private final Connection connection;
+        private final Statement statement;
+        private final Check setup;
+
+        Shared(Check setup) throws Exception {
+            this.setup = setup;
+            connection = KeycloakEnvironment.connection();
+            connection.setAutoCommit(false);
+            statement = connection.createStatement();
+            setup.run(statement);
+        }
+
+        void check(Check check) throws Exception {
+            Savepoint end = connection.setSavepoint();
+            try {
+                check.run(statement);
+            } finally {
+                connection.rollback(end);
+            }
+        }
+
+        // ANALYZE writes the number of rows of a table into pg_class in place, so a rollback to a savepoint keeps it.
+        void checkWithFreshStatistics(Check check) throws Exception {
+            try {
+                check(check);
+            } finally {
+                connection.rollback();
+                setup.run(statement);
+            }
+        }
+
+        @Override
+        public void close() throws SQLException {
+            connection.rollback();
+            connection.close();
+        }
     }
 
     // An import into a new realm writes its rows in one transaction, so the statistics still say that the realm has

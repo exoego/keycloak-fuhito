@@ -1,7 +1,5 @@
 package net.exoego.keycloak.fuhito;
 
-import java.sql.Connection;
-import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -43,27 +41,16 @@ class ReadsByIdPlansIT {
             fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id, fuhito_change_order,
             fuhito_change_log""";
 
-    // The setup takes most of the time of a check, so the checks share it in one transaction.
-    private static Connection connection;
-    private static Statement statement;
-
-    @FunctionalInterface
-    private interface Check {
-        void run(Statement statement) throws Exception;
-    }
+    private static OldStatistics.Shared shared;
 
     @BeforeAll
     static void setUp() throws Exception {
-        connection = KeycloakEnvironment.connection();
-        connection.setAutoCommit(false);
-        statement = connection.createStatement();
-        oldStatistics(statement);
+        shared = new OldStatistics.Shared(ReadsByIdPlansIT::oldStatistics);
     }
 
     @AfterAll
     static void rollBack() throws Exception {
-        connection.rollback();
-        connection.close();
+        shared.close();
     }
 
     @Test
@@ -241,7 +228,7 @@ class ReadsByIdPlansIT {
     // the names and the Keycloak users as it does with no user, so the check leaves out their tables.
     @Test
     void thePeopleOfAUserAreFoundByTheUserWithOldAndWithFreshStatistics() throws Exception {
-        withStatisticsMadeFresh(statement -> {
+        shared.checkWithFreshStatistics(statement -> {
             String byUser = "from fuhito_person p where p.realm_id = " + REALM + " and p.user_id = 'ex-new-user-7'";
             String like = " like '%sato%' escape '!'";
             String text = " and (exists (select 1 from fuhito_person_name n where n.person_id = p.id"
@@ -380,23 +367,8 @@ class ReadsByIdPlansIT {
         });
     }
 
-    private static void withOldStatistics(Check check) throws Exception {
-        Savepoint setup = connection.setSavepoint();
-        try {
-            check.run(statement);
-        } finally {
-            connection.rollback(setup);
-        }
-    }
-
-    // ANALYZE writes the number of rows of a table into pg_class in place, so a rollback to a savepoint keeps it.
-    private static void withStatisticsMadeFresh(Check check) throws Exception {
-        try {
-            withOldStatistics(check);
-        } finally {
-            connection.rollback();
-            oldStatistics(statement);
-        }
+    private static void withOldStatistics(OldStatistics.Check check) throws Exception {
+        shared.check(check);
     }
 
     // The rows of OldStatistics, and a qualification for each person, a reporting line and an ID of another system
