@@ -87,13 +87,22 @@ final class ExternalIdWrites {
     }
 
     /**
+     * A row that a write stored.
+     *
+     * @param row the stored row
+     * @param created true when the resource had no ID of the system before
+     */
+    record Stored(ExternalId row, boolean created) {
+    }
+
+    /**
      * Stores a checked ID for a resource, in place of the one that it has of the same system.
      *
      * @param resourceId the ID of the resource
      * @param pair the checked ID, or null for none
      * @return the stored row, or null when there is none to store
      */
-    ExternalId store(String resourceId, ExternalId.Pair pair) {
+    Stored store(String resourceId, ExternalId.Pair pair) {
         if (pair == null) {
             return null;
         }
@@ -104,13 +113,15 @@ final class ExternalIdWrites {
                 kind, resourceId, pair.source(), pair.externalId(), current.map(ExternalId::version).orElse(1L));
         if (current.isEmpty()) {
             store.insert(row);
-        } else if (!current.get().equals(row)) {
+            return new Stored(row, true);
+        }
+        if (!current.get().equals(row)) {
             store.update(row);
-            return store.ofResource(kind, resourceId).stream()
+            return new Stored(store.ofResource(kind, resourceId).stream()
                     .filter(stored -> stored.id().equals(row.id()))
                     .findFirst()
-                    .orElseThrow();
+                    .orElseThrow(), false);
         }
-        return row;
+        return new Stored(row, false);
     }
 }

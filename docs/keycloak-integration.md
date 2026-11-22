@@ -799,12 +799,12 @@ The realm stores the events when admin events are turned on in its settings.
 | `FUHITO_HIERARCHY` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/hierarchies/{id}` |
 | `FUHITO_ATTRIBUTE_DEFINITION` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/attribute-definitions/{id}` |
 | `FUHITO_REF_KIND` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-kinds/{code}` |
-| `FUHITO_EXTERNAL_ID` | `CREATE` for a new ID in an import, `UPDATE`, `DELETE` | `fuhito/external-ids/{id}`, with the ID of the stored row |
+| `FUHITO_EXTERNAL_ID` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/external-ids/{id}`, with the ID of the stored row |
 | `FUHITO_RESTORE` | `CREATE` into an empty realm, `UPDATE` for a replace | `fuhito/restore`, with the ID of the realm |
 
 An import, a reorganization, a transfer, a promotion, and the other writes of several records record an event of each record. Each event has the path that the same write has in its own endpoint.
 No endpoint writes the path `fuhito/org-units/{id}/succession`. An end that names the units that follow the unit records it, in the step `succeed` of a reorganization and in an import.
-`PUT /external-ids` records `UPDATE`, also for a new ID.
+`PUT /external-ids` and an import record `CREATE` when the resource had no ID of the system, and `UPDATE` when they replace its ID.
 A restore records one event for the whole realm, with the number of rows of each list.
 Checked by `AdminEventTableTest`, which compares this table with the writes in the source.
 

@@ -1433,8 +1433,10 @@ class ImportServiceTest {
 
         assertEquals(Map.of("externalIds", new Counts(1, 0, 0)), first.counts());
         assertEquals("fuhito/external-ids/" + first.writes().getFirst().resourceId(), first.writes().getFirst().path());
+        assertTrue(first.writes().getFirst().created());
         assertEquals(Map.of("externalIds", new Counts(0, 0, 1)), again.counts());
         assertEquals(Map.of("externalIds", new Counts(0, 1, 0)), changed.counts());
+        assertFalse(changed.writes().getFirst().created());
         assertEquals(Map.of("externalIds", new Counts(0, 1, 1)), removed.counts());
         assertTrue(removed.writes().getFirst().deleted());
         assertEquals(List.of("H"), externalIdStore.rows.stream().map(ExternalId::externalId).toList());

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.representations.idm.AdminEventRepresentation;
@@ -66,5 +67,34 @@ class AdminEventsIT {
                 .orElseThrow();
         assertTrue(rename.getRepresentation().contains("財務部"), rename.getRepresentation());
         assertTrue(events.stream().allMatch(e -> e.getAuthDetails().getUserId() != null));
+    }
+
+    @Test
+    void aPutOfAnIdOfAnotherSystemRecordsCreateForANewIdAndUpdateWhenItReplacesOne() throws Exception {
+        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+        TestRealm realm = TestRealm.create("events-external-id");
+        var events = new RealmRepresentation();
+        events.setAdminEventsEnabled(true);
+        admin.realm(realm.name).update(events);
+        Api api = realm.api;
+        String ward = Api.json(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                + "\"1病棟\"}}, \"validFrom\": \"2020-04-01\", \"externalId\": \"W-1\", \"source\": \"hr\"}"))
+                .get("id").asText();
+        String put = "{\"resourceType\": \"ORG_UNIT\", \"resourceId\": \"" + ward
+                + "\", \"source\": \"payroll\", \"externalId\": \"%s\"}";
+
+        assertEquals(200, api.putWithVersion("/external-ids", put.formatted("P-9")).statusCode());
+        assertEquals(200, api.putWithVersion("/external-ids", put.formatted("P-10")).statusCode());
+
+        JsonNode log = Api.json(api.get("/change-log?resourceType=FUHITO_EXTERNAL_ID"));
+        String path = "fuhito/external-ids/" + log.get(0).get("resourceId").asText();
+        assertEquals(List.of("CREATE " + path, "UPDATE " + path), log.valueStream()
+                .map(entry -> entry.get("operation").asText() + " " + entry.get("resourcePath").asText())
+                .toList());
+        assertEquals(List.of("CREATE " + path, "UPDATE " + path), admin.realm(realm.name).getAdminEvents().stream()
+                .filter(e -> e.getResourceType().equals("FUHITO_EXTERNAL_ID"))
+                .map(e -> e.getOperationType() + " " + e.getResourcePath())
+                .sorted()
+                .toList());
     }
 }
