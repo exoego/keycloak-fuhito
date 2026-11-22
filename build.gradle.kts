@@ -116,8 +116,9 @@ fun Test.runsTheProviderJar() {
     systemProperty("keycloak.version", testKeycloakVersion.get())
     systemProperty("provider.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
     systemProperty("schema.diagram", schemaDiagram.absolutePath)
-    // A hung container call must fail the build, not block it.
-    timeout.set(Duration.ofMinutes(15))
+    // A hung container call must fail the build, not block it. The limit is about twice a slow run on CI.
+    // The CI jobs that run the tests have a longer limit, so this one fails first and the report shows why.
+    timeout.set(Duration.ofMinutes(30))
 }
 
 testing {

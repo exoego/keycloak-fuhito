@@ -13,7 +13,8 @@ concurrency:
 
 jobs:
   publish:
-    timeout-minutes: 30
+    # Longer than the timeout of the integration tests in build.gradle.kts, so that one fails first.
+    timeout-minutes: 40
     runs-on: ubuntu-latest
     # The secrets live in this environment, which only v* tags can use.
     environment: release
