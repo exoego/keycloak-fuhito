@@ -45,7 +45,8 @@ class PlaceChangesTest {
         ValidPeriod untilOctober = new ValidPeriod(APRIL, OCTOBER);
         List<PlaceSpan> before = List.of(span("top", from(APRIL), "tokyo", "cc"),
                 span("ward", from(APRIL), "tokyo", "cc"), span("clinic", from(APRIL), "osaka", "cc"));
-        List<PlaceSpan> after = List.of(span("top", untilOctober, "tokyo", "cc"), span("top", from(OCTOBER), "kyoto", "cc"),
+        List<PlaceSpan> after = List.of(span("top", untilOctober, "tokyo", "cc"),
+                span("top", from(OCTOBER), "kyoto", "cc"),
                 span("ward", untilOctober, "tokyo", "cc"), span("ward", from(OCTOBER), "kyoto", "cc"),
                 span("clinic", untilOctober, "osaka", "cc"), span("clinic", from(OCTOBER), "osaka", "cc"));
         UnitDefaults tokyo = new UnitDefaults("tokyo", "cc");
