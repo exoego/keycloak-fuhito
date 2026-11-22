@@ -1,9 +1,12 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
@@ -116,6 +119,67 @@ final class Versions {
             versions.put(id, version);
         });
         return versions;
+    }
+
+    /**
+     * Counts up the versions of org units with one statement, for a write that changed their reads without writing
+     * them. A unit that a write of this transaction counted up already keeps its version. The IDs come from rows of
+     * the realm, so the statement finds the units by their IDs alone, for the reason in {@link Rows#inRealm}.
+     *
+     * @param em the entity manager of the transaction
+     * @param ids the IDs of the units
+     */
+    static void orgUnitsOfReads(EntityManager em, Collection<String> ids) {
+        Set<String> wanted = new HashSet<>(ids);
+        Set<String> counted = JpaLongWrite.release(em, OrgUnitEntity.class, row -> row.id, wanted);
+        List<String> next = wanted.stream()
+                .filter(id -> !counted.contains(id) && !JpaLongWrite.counted(OrgUnitEntity.class, id))
+                .sorted()
+                .toList();
+        if (next.isEmpty()) {
+            return;
+        }
+        em.createQuery("update OrgUnitEntity u set u.version = u.version + 1 where %s"
+                        .formatted(ManyIds.has("u.id", "ids")))
+                .setParameter("ids", ManyIds.of(next))
+                .executeUpdate();
+        JpaLongWrite.markCounted(OrgUnitEntity.class, next);
+    }
+
+    /**
+     * Counts up the versions of assignments with one statement, as {@link #orgUnitsOfReads} does for org units. A
+     * long write marks each row, so that a later write of the transaction does not count it up again.
+     *
+     * @param em the entity manager of the transaction
+     * @param assignmentIds the IDs of the assignments
+     */
+    static void assignmentsOfReads(EntityManager em, Collection<String> assignmentIds) {
+        Set<String> wanted = new HashSet<>(assignmentIds);
+        Set<String> counted = JpaLongWrite.release(em, AssignmentEntity.class, row -> row.assignmentId, wanted);
+        Map<String, List<String>> rows = new HashMap<>();
+        if (JpaLongWrite.marking() && !wanted.isEmpty()) {
+            em.createQuery("select a.id, a.assignmentId from AssignmentEntity a where %s"
+                            .formatted(ManyIds.has("a.assignmentId", "ids")), Object[].class)
+                    .setParameter("ids", ManyIds.of(wanted))
+                    .getResultStream()
+                    .forEach(row -> rows.computeIfAbsent((String) row[1], id -> new ArrayList<>())
+                            .add((String) row[0]));
+            rows.forEach((id, rowIds) -> {
+                if (rowIds.stream().anyMatch(rowId -> JpaLongWrite.counted(AssignmentEntity.class, rowId))) {
+                    counted.add(id);
+                }
+            });
+        }
+        List<String> next = wanted.stream().filter(id -> !counted.contains(id)).sorted().toList();
+        if (next.isEmpty()) {
+            return;
+        }
+        em.createQuery("update AssignmentEntity a set a.version = a.version + 1 where %s"
+                        .formatted(ManyIds.has("a.assignmentId", "ids")))
+                .setParameter("ids", ManyIds.of(next))
+                .executeUpdate();
+        JpaLongWrite.markCounted(AssignmentEntity.class,
+                next.stream().flatMap(id -> rows.getOrDefault(id, List.of()).stream()).toList());
     }
 
     // The IDs that systems have for a resource are part of it. The rows of many assignments are read together.

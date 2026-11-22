@@ -311,15 +311,15 @@ final class OrgUnitImport {
             boolean moves = !Objects.equals(parent, before.parentId());
             // A unit that becomes a rollup unit leaves its parent first. A rollup unit has no parent.
             if (moves && parent == null) {
-                written("/parent", id, () -> orgUnitService.move(id, null, effectiveDate));
+                changed("/parent", id, () -> orgUnitService.move(id, null, effectiveDate));
             }
             OrgUnitChange details = details(row, before);
             if (!sameDetails(details, before)) {
-                written("", id, () -> orgUnitService.changeDetails(id, details));
+                changed("", id, () -> orgUnitService.changeDetails(id, details));
                 changed = true;
             }
             if (moves && parent != null) {
-                written("/parent", id, () -> orgUnitService.move(id, parent, effectiveDate));
+                changed("/parent", id, () -> orgUnitService.move(id, parent, effectiveDate));
             }
             changed |= moves;
         }
@@ -444,5 +444,10 @@ final class OrgUnitImport {
     private void written(String suffix, String id, Supplier<OrgUnitState> write) {
         OrgUnitState after = units.write(id, write);
         writes.add(() -> new Write.OfOrgUnit(false, suffix, after));
+    }
+
+    private void changed(String suffix, String id, Supplier<OrgUnitService.Written> write) {
+        OrgUnitService.Written after = units.write(id, write);
+        writes.add(() -> new Write.OfOrgUnit(suffix, after));
     }
 }

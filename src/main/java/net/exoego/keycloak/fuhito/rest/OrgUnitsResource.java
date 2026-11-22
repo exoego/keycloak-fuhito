@@ -128,7 +128,10 @@ public class OrgUnitsResource {
                     + "`invalid.value_fixed`. The `parentId` is the one in the `hierarchy` of the body. So a read in "
                     + "any hierarchy is a valid body. With `source` and `externalId`, the unit gets that "
                     + "ID of that system. Another `source` with no `externalId` fails with 400 and "
-                    + "`invalid.value_fixed`. No other org unit may have the same code on a date of the change.")
+                    + "`invalid.value_fixed`. No other org unit may have the same code on a date of the change. "
+                    + "Another work location or cost center changes the read of each unit below and each assignment "
+                    + "that takes it on a date. Each of them gets a new version and a propagated change in the change "
+                    + "log. Such a write holds the lock of the realm alone.")
     @Parameter(ref = "changeOrder")
     @APIResponse(
             responseCode = "200",
@@ -142,7 +145,8 @@ public class OrgUnitsResource {
             @RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON,
                     schema = @Schema(allOf = {OrgUnitRepresentation.class, VersionCheckRepresentation.class})))
             OrgUnitRepresentation body) {
-        context.requireWrite();
+        context.requireWrite(() -> body != null
+                && service.changesPlaces(id, body.validFrom(), body.workLocation(), body.costCenter()));
         return Calls.guarded(context, body, () -> version(id), () -> {
             Writes.requireSource(service.source(id), body.source(), body.externalId());
             Writes.requireRead(body, () -> represent(service.get(id,
@@ -160,7 +164,10 @@ public class OrgUnitsResource {
             operationId = "moveOrgUnit",
             summary = "Gives an org unit a new parent in a hierarchy from a date.",
             description = "The response has the parent in that hierarchy, and the code of that hierarchy in "
-                    + "`hierarchy`.")
+                    + "`hierarchy`. A move in the default hierarchy changes the work location and the cost center "
+                    + "that apply to the unit, to the units below, and to their assignments. Each unit and assignment "
+                    + "whose read changes gets a new version and a propagated change in the change log. Such a move "
+                    + "holds the lock of the realm alone.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The unit as it is on that date.")
     @BadRequest
@@ -172,7 +179,7 @@ public class OrgUnitsResource {
             @Parameter(description = "The code of the hierarchy. The default is the hierarchy `default`.")
             @QueryParam("hierarchy") String hierarchy,
             ParentChangeRepresentation body) {
-        context.requireWrite();
+        context.requireWrite(() -> OrgUnitService.movesPlaces(hierarchy));
         return Calls.guarded(context, body, () -> version(id),
                 () -> updated(path(id) + "/parent", service.move(id, body.parentId(), body.validFrom(), hierarchy)));
     }
@@ -866,6 +873,12 @@ public class OrgUnitsResource {
         Checks.fixedAmong("parentId", replaced.parentIds(), body.parentId());
         Checks.fixedAmong("effectiveWorkLocation", replaced.workLocations(), body.effectiveWorkLocation());
         Checks.fixedAmong("effectiveCostCenter", replaced.costCenters(), body.effectiveCostCenter());
+    }
+
+    private OrgUnitRepresentation updated(String path, OrgUnitService.Written written) {
+        var unit = represent(written.state());
+        context.recordChange(Change.UPDATE, RESOURCE_TYPE, unit.id(), path, unit, written.propagated());
+        return unit;
     }
 
     private OrgUnitRepresentation updated(String path, OrgUnitState state) {

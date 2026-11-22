@@ -82,8 +82,7 @@ final class ParentImport {
         if (Objects.equals(before.parentId(), parentId)) {
             return Outcome.UNCHANGED;
         }
-        report.write(new Write.OfOrgUnit(false, "/parent",
-                orgUnitService.move(unitId, parentId, effectiveDate, hierarchy)));
+        report.write(new Write.OfOrgUnit("/parent", orgUnitService.move(unitId, parentId, effectiveDate, hierarchy)));
         return Outcome.CHANGED;
     }
 

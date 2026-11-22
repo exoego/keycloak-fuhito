@@ -16,6 +16,9 @@ BATCH="${BATCH:-0}"
 # FILL=0 leaves out the writes of definitions that fill and clear an attribute in every row. They come after the
 # reads, so the reads do not see the values.
 FILL="${FILL:-1}"
+# PLACES=0 leaves out the changes of the work location of org units, which change the reads of the units below and
+# of their members. They come after the reads too.
+PLACES="${PLACES:-1}"
 # ORDER=0 leaves out the changes of the realm attribute fuhito.nameOrder. They come last, because they take the
 # names out of the person records.
 ORDER="${ORDER:-1}"
@@ -141,6 +144,45 @@ if [ "${BATCH}" = 1 ]; then
     once 'Sync from user attributes, first run' '/attribute-sync/run'
     once 'Sync from user attributes, nothing changed' '/attribute-sync/run'
   fi
+fi
+
+if [ "${PLACES}" = 1 ]; then
+  TODAY="$(date -u +%F)"
+  propagated() {
+    curl -s -H "Authorization: Bearer $(token)" "${API}/change-log/count?kind=PROPAGATED" | jq -r .count
+  }
+  # Gives a unit another work location from a date. The body is the read of the unit on that date.
+  place() {
+    local unit="$1" date="$2" site="$3" body
+    body="$(curl -s -H "Authorization: Bearer $(token)" "${API}/org-units/${unit}?asOf=${date}" \
+      | jq -c --arg d "${date}" --arg s "${site}" '.validFrom = $d | .workLocation = $s')"
+    curl -s -o /tmp/fuhito-bench-body -w '%{time_total} %{http_code}' --max-time 3600 -X PUT \
+      -H "Authorization: Bearer $(token)" -H 'Content-Type: application/json' -d "${body}" \
+      "${API}/org-units/${unit}"
+  }
+  # Prints the time of the change, and the time that a new org unit sent 200 ms after it waited for the realm.
+  measurePlace() {
+    local name="$1" unit="$2" date="$3" site="$4" before line other
+    before="$(propagated)"
+    place "${unit}" "${date}" "${site}" > /tmp/fuhito-bench-place &
+    sleep 0.2
+    other="$(curl -s -o /dev/null -w '%{time_total} %{http_code}' -X POST -H "Authorization: Bearer $(token)" \
+      -H 'Content-Type: application/json' \
+      -d '{"primaryLanguage": "en", "names": {"en": {"name": "Waiting"}}, "validFrom": "2026-01-01"}' \
+      "${API}/org-units")"
+    wait
+    line="$(cat /tmp/fuhito-bench-place)"
+    printf '| %s | `PUT /org-units/%s` from %s | %s | %s | %s | %s |\n' "${name}" "${unit}" "${date}" \
+      "$(awk '{printf "%d", $1 * 1000}' <<<"${line}")" "$(awk '{print $2}' <<<"${line}")" \
+      "$(( $(propagated) - before ))" "$(awk '{printf "%d", $1 * 1000}' <<<"${other}")"
+  }
+  echo
+  echo '| Change of the work location | Write | ms | Status | Propagated changes | ms of a write sent 200 ms later |'
+  echo '|---|---|---|---|---|---|'
+  measurePlace 'A team' u-4321 "${TODAY}" site-2
+  # From the first date, the change covers every period of every assignment that takes it.
+  measurePlace 'The company' u-0 2020-04-01 site-2
+  measurePlace 'The company' u-0 "${TODAY}" site-1
 fi
 
 if [ "${FILL}" = 1 ]; then

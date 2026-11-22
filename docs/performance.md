@@ -5,7 +5,7 @@ The numbers show which reads grow with the size of a realm. They are not a promi
 
 ## How to measure
 
-`scripts/bench/run.sh` starts PostgreSQL and Keycloak with the extension in Docker, fills one realm, and measures the reads. Then it measures the fill and the clear of an attribute, and the change of the order of names, as the sections below say.
+`scripts/bench/run.sh` starts PostgreSQL and Keycloak with the extension in Docker, fills one realm, and measures the reads. Then it measures three new work locations of org units, the fill and the clear of an attribute, and the change of the order of names, as the sections below say.
 It needs Docker, curl, and jq. Run it from the root of the project. It is not a check of CI.
 
 `scripts/bench/seed.sql` fills the realm with SQL, because the API would take too long for this many rows.
@@ -350,6 +350,28 @@ What the runs showed.
 - The query takes the last row of an assignment as the one with the latest start, which the unique key gives in one step. With `not exists` on a later row, PostgreSQL took the GiST index of the periods of the rows, and the query of 1,000 assignments took 14 ms.
 - `IDX_FUHITO_ASSIGNMENT_EMPLOYMENT` got `VALID_TO` after the employment. In this realm an employment has 1.3 rows of assignments, so the plan reads all rows of the employment and checks the end after. With the statistics of 13 rows for each employment, the plan puts the end into the condition of the index.
 
+## A new work location of an org unit
+
+After the reads, `scripts/bench/run.sh` gives three org units another work location, with a body made from the read of the unit on the date of the change. `PLACES=0` leaves it out.
+Each write counts up the version of each unit below and each assignment whose read changes, and records a propagated change of each. Such a write holds the realm alone. See "Propagated changes" in [keycloak-integration.md](keycloak-integration.md).
+200 ms after each write starts, the script sends `POST /org-units` for a new unit. That write shares the realm, so it waits for a write that holds the realm alone.
+
+`main` at commit `036b1ff2` and the change at commit `2237705a` ran one after the other, each with its own fill of the realm, on the same laptop as above. One request each, in ms.
+
+| Write | Propagated changes | Before | After | New unit, before | New unit, after |
+|---|---|---|---|---|---|
+| A team with 10 members, from today | 9 | 58 | 99 | 14 | 53 |
+| The company, from its first date | 47,373 | 38 | 6,478 | 10 | 6,280 |
+| The company, from today | 36,439 | 35 | 4,235 | 10 | 4,052 |
+
+What the runs showed.
+
+- The realm is held alone for the whole write. So the other writes of the realm wait up to about 6.5 seconds for a new work location of the whole company, and about 0.1 seconds for one of a team. The team was done before the new unit came. An earlier run of the change gave 87, 5,459, and 3,620 ms.
+- The change from the first date covers every period of every assignment with no work location of its own, also the periods that ended in 2024. The change from today covers the periods of today.
+- The update of the versions of the assignments took 5.2 of the 6.5 seconds, and 3.4 of the 4.2 seconds. The version is on every row of an assignment, so each row gets a new row version. PostgreSQL then checks the two exclusion constraints of the assignments for each one. In a transaction that dropped the two constraints, the same update of 45,000 assignments took 0.5 seconds instead of 3.5. See #792.
+- The walk down from the company over every date took about 8 ms for 5,001 units. The read of the 76,543 rows of assignments that take a value took about 7 ms, and the count up of 7,287 org units about 12 ms. Most of the rest is the 47,373 entries of the change log.
+- A fillfactor of 80 on the table of assignments did not help. Most rows of a page get a new version at once, so few of them fit on the same page.
+
 ## A change of the order of the names
 
 At the end, `scripts/bench/run.sh` gives each of the 50,000 people a Keycloak user with a first name and a last name, and takes the names out of the person records. So the read of each person gives the name of its user. `scripts/bench/seed-names.sql` does that with SQL. `ORDER=0` leaves it out.
@@ -384,5 +406,6 @@ What the runs showed.
 ## Not measured
 
 - The token mapper.
-- Writes other than the fill and the clear of an attribute, and the change of the order of names.
+- Writes other than the fill and the clear of an attribute, the change of the order of names, and the new work locations above.
+- An import that changes the work location of many stored units. Each such row reads what applies below its unit before and after the write.
 - More than one request at the same time.

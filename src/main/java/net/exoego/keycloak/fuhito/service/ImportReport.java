@@ -281,8 +281,31 @@ public final class ImportReport {
          * @param created true for a new unit, false for a change
          * @param suffix the end of the path after the ID, for example {@code /parent}, or an empty text
          * @param state the unit after the write
+         * @param propagated the units below and the assignments whose read the write changed
          */
-        record OfOrgUnit(boolean created, String suffix, OrgUnitState state) implements Write {
+        record OfOrgUnit(boolean created, String suffix, OrgUnitState state, List<PropagatedChange> propagated)
+                implements Write {
+
+            /**
+             * Makes the write of an org unit that changed no read of another resource.
+             *
+             * @param created true for a new unit, false for a change
+             * @param suffix the end of the path after the ID, for example {@code /parent}, or an empty text
+             * @param state the unit after the write
+             */
+            public OfOrgUnit(boolean created, String suffix, OrgUnitState state) {
+                this(created, suffix, state, List.of());
+            }
+
+            /**
+             * Makes the write of a change of the details or of the parent of a stored unit.
+             *
+             * @param suffix the end of the path after the ID, for example {@code /parent}, or an empty text
+             * @param written the unit after the write, and the reads that the write changed
+             */
+            public OfOrgUnit(String suffix, OrgUnitService.Written written) {
+                this(false, suffix, written.state(), written.propagated());
+            }
 
             @Override
             public ResourceType resourceType() {

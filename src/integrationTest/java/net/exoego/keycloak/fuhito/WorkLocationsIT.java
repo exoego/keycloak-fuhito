@@ -225,12 +225,12 @@ class WorkLocationsIT {
         HttpResponse<String> read = api.get("/assignments/" + second);
         assertEquals(List.of("null null osaka cc-sales"), each(Api.json(read).get("periods")));
 
-        // A correction of the unit changes what applies to the assignment, but not its version.
+        // A correction of the unit changes what applies to the assignment, and counts up its version.
         ok(api.putWithVersion("/org-units/" + company, "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"本社\"}}, \"workLocation\": \"nagoya\", "
                 + "\"costCenter\": \"cc-hq\", \"validFrom\": \"2021-04-01\"}"));
         HttpResponse<String> again = api.get("/assignments/" + second);
         assertEquals(List.of("null null nagoya cc-sales"), each(Api.json(again).get("periods")));
-        assertEquals(Api.json(read).get("version"), Api.json(again).get("version"));
+        assertEquals(Api.json(read).get("version").asLong() + 1, Api.json(again).get("version").asLong());
 
         // A move does not keep the values of the old assignment, and can give new ones.
         JsonNode move = ok(api.postWithVersion("/assignments/" + second + "/move", "{\"orgUnitId\": \"" + elsewhere
