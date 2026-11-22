@@ -60,8 +60,9 @@ class UserRemovalIT {
         // The other user is untouched.
         assertFalse(Api.json(api.get("/employments/" + keptIds.get(1))).has("validTo"));
 
-        // The change log keeps every entry, and has one more for the end of the open employment. No user did it.
-        assertEquals(logBefore + 1, Integer.parseInt(KeycloakEnvironment.sql(logRows)));
+        // The change log keeps every entry. It has one more for the end of the open employment, and one for each of
+        // its two assignments that the end ended. No user did it.
+        assertEquals(logBefore + 3, Integer.parseInt(KeycloakEnvironment.sql(logRows)));
         JsonNode log = Api.json(api.get("/change-log?resourceType=FUHITO_EMPLOYMENT&resourceId=" + removedIds.get(1)));
         assertEquals(List.of("CREATE", "UPDATE"), log.findValuesAsText("operation"));
         assertFalse(log.get(1).has("actorUserId"));

@@ -208,7 +208,11 @@ final class EmploymentImport {
             written("/end", id, () -> service.removeEnd(id));
             changed = true;
         } else if (validTo != null && (!validTo.equals(storedEnd) || !Objects.equals(endReason, before.endReason()))) {
-            written("/end", id, () -> service.end(id, validTo, endReason, false));
+            started.insert();
+            EmploymentService.Ended ended = service.end(id, validTo, endReason, false);
+            stored.remove(id);
+            writes.add(() -> new Write.OfEmployment(false, "/end", ended.view()));
+            ended.cut().writes(document.people.assignmentService()).forEach(write -> writes.add(() -> write));
             ends.put(id, index);
             changed = true;
         }

@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -121,25 +120,4 @@ public interface ReportingLineStore {
      * @return the number of entries
      */
     long countReportsOn(String hierarchyId, String managerPersonId, LocalDate date);
-
-    /**
-     * Ends the reporting lines of assignments that hold on or after a date.
-     * A line that would start on or after the date is removed.
-     *
-     * @param assignmentIds the IDs of the assignments
-     * @param to the first date on which no line of the assignments holds
-     */
-    default void truncate(Collection<String> assignmentIds, LocalDate to) {
-        List<String> removed = new ArrayList<>();
-        List<ReportingLine> ended = new ArrayList<>();
-        for (ReportingLine line : findByAssignments(assignmentIds)) {
-            if (!line.period().from().isBefore(to)) {
-                removed.add(line.id());
-            } else if (line.period().endsAfter(to)) {
-                ended.add(line.withPeriod(line.period().endingAt(to)));
-            }
-        }
-        deleteAll(removed);
-        updateAll(ended);
-    }
 }

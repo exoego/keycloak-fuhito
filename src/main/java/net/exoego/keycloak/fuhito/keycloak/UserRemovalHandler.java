@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -18,9 +19,12 @@ import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.jpa.JpaWriteScopes;
 import net.exoego.keycloak.fuhito.jpa.RowLocks;
+import net.exoego.keycloak.fuhito.service.AssignmentService;
+import net.exoego.keycloak.fuhito.service.AttributeRules;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.LegalEntityEmployers;
+import net.exoego.keycloak.fuhito.service.Today;
 import net.exoego.keycloak.fuhito.service.UserRetirement;
 import org.keycloak.models.RealmModel;
 
@@ -47,11 +51,15 @@ final class UserRemovalHandler {
                 new JpaRefItemStore(em, realmId), new JpaPersonStore(em, realmId), lines,
                 new JpaUnitRoleStore(em, realmId),
                 new LegalEntityEmployers(new JpaOrgUnitStore(em, realmId), new JpaRefItemStore(em, realmId)));
+        Clock clock = RealmTime.clockOrUtc(realm);
+        var assignmentService = new AssignmentService(assignments, externalIds, employments,
+                new JpaOrgUnitStore(em, realmId), new JpaRefItemStore(em, realmId), lines, Today.of(clock),
+                AttributeRules.NONE);
         new JpaProjectedMemberStore(em, realmId).forgetUser(userId);
         var changeLog = new JpaChangeLogStore(em, realmId);
-        for (Write write : new UserRetirement(employments, employmentService, assignments, lines,
-                new JpaPersonStore(em, realmId), new JpaUnitRoleStore(em, realmId), externalIds,
-                RealmTime.clockOrUtc(realm)).retire(userId)) {
+        for (Write write : new UserRetirement(employments, employmentService, assignments, assignmentService, lines,
+                new JpaPersonStore(em, realmId), new JpaUnitRoleStore(em, realmId), externalIds, clock)
+                .retire(userId)) {
             // No administrator did this write. The removal of the user did.
             changeLog.append(ChangeLogEntry.write(UUID.randomUUID().toString(),
                     Instant.now().truncatedTo(ChronoUnit.MILLIS), null, write.resourceType(), write.resourceId(),

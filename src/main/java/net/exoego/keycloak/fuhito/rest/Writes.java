@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.lang.reflect.RecordComponent;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
@@ -124,11 +125,26 @@ final class Writes {
         recordAll(context, externalIds, List.of(write));
     }
 
-    // The IDs of the records of all writes are read with one query for each kind of record, and the change log
-    // counts up its sequence once for all of them.
+    // The change log counts up its sequence once for all of them.
     static void recordAll(RequestContext context, ExternalIdService externalIds, List<Write> writes) {
         if (writes.isEmpty()) {
             return;
+        }
+        context.recordChanges(changes(context, externalIds, writes));
+    }
+
+    // A write of a resource comes first, and the writes of the other records that it changed come after it.
+    static void recordAll(RequestContext context, ExternalIdService externalIds, List<ChangeRecord> changes,
+            List<Write> others) {
+        List<ChangeRecord> all = new ArrayList<>(changes);
+        all.addAll(changes(context, externalIds, others));
+        context.recordChanges(all);
+    }
+
+    // The IDs of the records of all writes are read with one query for each kind of record.
+    static List<ChangeRecord> changes(RequestContext context, ExternalIdService externalIds, List<Write> writes) {
+        if (writes.isEmpty()) {
+            return List.of();
         }
         Map<ExternalId.Kind, ExternalIdLists> ids = new EnumMap<>(ExternalId.Kind.class);
         for (ExternalId.Kind kind : ExternalId.Kind.values()) {
@@ -139,7 +155,7 @@ final class Writes {
                     .toList()));
         }
         Locale language = context.nameLanguage();
-        context.recordChanges(writes.stream().map(write -> change(ids::get, write, language)).toList());
+        return writes.stream().map(write -> change(ids::get, write, language)).toList();
     }
 
     private static String recordOf(Write write, ExternalId.Kind kind) {

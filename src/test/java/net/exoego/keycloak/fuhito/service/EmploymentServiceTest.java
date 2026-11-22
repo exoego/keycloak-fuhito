@@ -225,7 +225,7 @@ class EmploymentServiceTest {
         assertEquals(Employer.legalEntity("company-a"), atA.employment().employer());
         assertEquals(Employer.legalEntity(AnyEmployer.DEFAULT), unnamed.employment().employer());
         assertEquals(Employer.legalEntity("company-a"),
-                service.end(atA.employment().id(), "2030-04-01", null).employment().employer());
+                service.end(atA.employment().id(), "2030-04-01", null).view().employment().employer());
 
         // Another company may give the same number to another person. The same company may not.
         EmploymentView atB = service.start(new NewEmployment("bob", "2020-04-01", null, "1001", null, null, null, null,
@@ -325,7 +325,7 @@ class EmploymentServiceTest {
         assertNull(assignments.rows("ward").getFirst().period().to());
 
         // The agency has no end, so the employment can end on any date.
-        assertEquals(LocalDate.of(2027, 4, 1), service.end(id, "2027-04-01", null).employment().period().to());
+        assertEquals(LocalDate.of(2027, 4, 1), service.end(id, "2027-04-01", null).view().employment().period().to());
         EmploymentView direct = service.start(new NewEmployment("alice", "2027-04-01", null, "S-1", null, null, null,
                 null, null, null, null, null, "company-x"));
         assertEquals(Employer.legalEntity("company-x"), direct.employment().employer());
@@ -757,6 +757,48 @@ class EmploymentServiceTest {
                 externalIds.find(ExternalId.Kind.REPORTING_LINE, "hr", "L-2").orElseThrow());
         assertEquals(new ExternalId("x-starts", ExternalId.Kind.UNIT_ROLE, roleCopies.get(1), "hr", "R-2", 2),
                 externalIds.find(ExternalId.Kind.UNIT_ROLE, "hr", "R-2").orElseThrow());
+        // Each old record that the end changed gets a write of its own.
+        assertEquals(List.of("ward"), transfer.cut().assignmentIds());
+        assertEquals(List.of("DELETE fuhito/unit-roles/starts", "UPDATE fuhito/unit-roles/holds/end",
+                "DELETE fuhito/reporting-lines/planned", "UPDATE fuhito/reporting-lines/held/end"),
+                writes(transfer.cut()));
+    }
+
+    // A write of a record that an end changed, by its operation and its path.
+    private static List<String> writes(CutRecords cut) {
+        return cut.others().stream().map(write -> (write.deleted() ? "DELETE " : "UPDATE ") + write.path()).toList();
+    }
+
+    @Test
+    void anEndGivesTheRecordsOfTheEmploymentThatItEndsOrRemoves() {
+        String id = service.start(minimal("alice", "2026-04-01")).employment().id();
+        assignment("open-row", "open", id, "2026-04-01", null);
+        assignment("later-row", "later", id, "2028-04-01", null);
+        assignment("ended-row", "ended", id, "2026-04-01", "2026-10-01");
+        lines.insert(new ReportingLine("held", "open", "bob", "bob", ReportingLine.Kind.SOLID,
+                ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), 1));
+        lines.insert(new ReportingLine("planned", "open", "bob", "bob", ReportingLine.Kind.DOTTED,
+                ValidPeriod.startingAt(LocalDate.of(2027, 4, 1)), 1));
+        lines.insert(new ReportingLine("of-later", "later", "bob", "bob", ReportingLine.Kind.SOLID,
+                ValidPeriod.startingAt(LocalDate.of(2028, 4, 1)), 1));
+        lines.insert(new ReportingLine("past", "ended", "bob", "bob", ReportingLine.Kind.SOLID,
+                new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 10, 1)), 1));
+        roles.insert(new UnitRole("holds", id, "alice", "alice", "unit", "approver", false,
+                ValidPeriod.startingAt(LocalDate.of(2026, 4, 1)), 1));
+        roles.insert(new UnitRole("starts", id, "alice", "alice", "unit", "approver", false,
+                ValidPeriod.startingAt(LocalDate.of(2027, 4, 1)), 1));
+        roles.insert(new UnitRole("held", id, "alice", "alice", "unit", "approver", false,
+                new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 10, 1)), 1));
+
+        CutRecords cut = service.end(id, "2027-04-01", null).cut();
+
+        // What ended before the date stays as it is, and gets no write.
+        assertEquals(List.of("open"), cut.assignmentIds());
+        assertEquals(List.of("DELETE fuhito/unit-roles/starts", "UPDATE fuhito/unit-roles/holds/end",
+                "DELETE fuhito/reporting-lines/planned", "UPDATE fuhito/reporting-lines/held/end",
+                "DELETE fuhito/reporting-lines/of-later", "DELETE fuhito/assignments/later"), writes(cut));
+        // A later end changes no record.
+        assertEquals(CutRecords.NONE, service.end(id, "2029-04-01", null).cut());
     }
 
     private Assignment assignment(String rowId, String assignmentId, String employmentId, String from, String to) {
@@ -789,7 +831,7 @@ class EmploymentServiceTest {
         String other = service.start(minimal("bob", "2026-04-01")).employment().id();
         assignment("other", "a6", other, "2026-04-01", null);
 
-        EmploymentView view = service.end(id, "2027-04-01", "resignation");
+        EmploymentView view = service.end(id, "2027-04-01", "resignation").view();
 
         assertEquals(new ValidPeriod(LocalDate.of(2026, 4, 1), LocalDate.of(2027, 4, 1)), view.employment().period());
         assertEquals(resignation.id(), view.employment().endReasonId());
@@ -810,7 +852,7 @@ class EmploymentServiceTest {
         service.changeTerms(id, status("2026-10-01", "ON_LEAVE"));
         assignment("bound", "a1", id, "2026-04-01", "2027-04-01");
 
-        EmploymentView view = service.end(id, "2028-04-01", null);
+        EmploymentView view = service.end(id, "2028-04-01", null).view();
 
         assertEquals(LocalDate.of(2028, 4, 1), view.employment().period().to());
         assertNull(view.endReason());
@@ -853,10 +895,10 @@ class EmploymentServiceTest {
         assertEquals(LocalDate.of(2027, 4, 1), service.get(old).employment().period().to());
 
         // An end before the start of the next one leaves a gap, which is fine. So is an end on that start.
-        assertEquals(LocalDate.of(2027, 3, 1), service.end(old, "2027-03-01", null).employment().period().to());
-        assertEquals(LocalDate.of(2027, 4, 1), service.end(old, "2027-04-01", null).employment().period().to());
+        assertEquals(LocalDate.of(2027, 3, 1), service.end(old, "2027-03-01", null).view().employment().period().to());
+        assertEquals(LocalDate.of(2027, 4, 1), service.end(old, "2027-04-01", null).view().employment().period().to());
         // The next one is continued by none.
-        assertEquals(LocalDate.of(2030, 4, 1), service.end(next, "2030-04-01", null).employment().period().to());
+        assertEquals(LocalDate.of(2030, 4, 1), service.end(next, "2030-04-01", null).view().employment().period().to());
         assertNull(service.removeEnd(next).employment().period().to());
     }
 
@@ -868,8 +910,8 @@ class EmploymentServiceTest {
         refItems.update(new RefItem(reason.id(), RefKind.END_REASON, "old-reason", ItemNames.of("old"), 0, Map.of(),
                 false));
 
-        assertEquals("old-reason", service.end(id, "2027-03-01", "old-reason").endReason());
-        assertNull(service.end(id, "2027-02-01", null).endReason());
+        assertEquals("old-reason", service.end(id, "2027-03-01", "old-reason").view().endReason());
+        assertNull(service.end(id, "2027-02-01", null).view().endReason());
     }
 
     @Test

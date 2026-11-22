@@ -101,7 +101,7 @@ class MembershipServiceTest {
     private String assign(String employmentId, String orgUnitId, String validFrom, String occupation, String jobTitle,
             boolean primary, Integer displayOrder) {
         return assignments.add(new AssignmentValues(employmentId, orgUnitId, validFrom, null, jobTitle, occupation,
-                "regular", jobTitle != null, primary, null, null, displayOrder, null, null, null)).assignmentId();
+                "regular", jobTitle != null, primary, null, null, displayOrder, null, null, null)).view().assignmentId();
     }
 
     @Test
@@ -563,7 +563,7 @@ class MembershipServiceTest {
             boolean primary, int displayOrder) {
         return assignments.add(new AssignmentValues(employmentId, orgUnitId, "2026-04-01", null, null, null,
                 "regular", workLocation, costCenter, false, primary, null, null, displayOrder, null, null, null))
-                .assignmentId();
+                .view().assignmentId();
     }
 
     private static MemberQuery places(String asOf, boolean includeDescendants, String workLocation, String costCenter,

@@ -216,12 +216,12 @@ A write of the realm that comes during the removal waits for it. It then fails w
 When a user is removed from Keycloak, the extension keeps the history of that person.
 In the same transaction it ends only what would still hold.
 
-- An employment that is open on that day ends on that day, with its terms, its assignments, and their reporting lines.
+- An employment that is open on that day ends on that day, with its terms, its assignments, its roles over org units, and the reporting lines of its assignments. Those that would start on that day or later are removed.
 - An employment that would start on that day or later is removed, because it never held.
 - A reporting line where the user is the manager ends on that day.
 - Qualifications stay as they are.
 - The records of the organizations that the projection added the user to are removed.
-- The change log keeps every entry. It gets one more for each employment that ended. That entry has no acting user.
+- The change log keeps every entry. Each record that the removal ended gets one more entry `UPDATE`, and each record that it removed gets one more entry `DELETE`. These entries have no acting user.
 
 So the person no longer shows up as a current member, in tokens, or in the projection.
 Every read about the user still works with the user ID, for example `GET /users/{userId}/history`.
@@ -752,6 +752,20 @@ An entry has its sequence number in the realm, the time, the kind, the user who 
 It has no state of the resource. A reader that needs the state reads the resource again.
 Entries are only added. No endpoint changes or removes one.
 Another system can follow the log from a sequence number. See [history.md](history.md).
+
+### Other records that a write changes
+
+A write can change the stored rows of other records too. Each of those records then gets a new version and an entry of its own, of the kind `WRITE`, with the user and the change order of the write. A request to the API records an admin event of each as well.
+
+| Write | Other records | Entry of each |
+|---|---|---|
+| An earlier end of an employment, also in an import, a transfer, a merger, and the removal of a user | Each assignment, role over an org unit, and reporting line of the employment that held on the date | `UPDATE` with the path of its end, such as `fuhito/assignments/{id}/end` |
+| The same | Each one that would start on the date or later, which the end removes | `DELETE` with the path of the record |
+| An earlier end of an assignment, also in an import, a move, and the sync from user attributes | Each reporting line of the assignment that held on the date | `UPDATE` with the path `fuhito/reporting-lines/{id}/end` |
+| The same | Each line that would start on the date or later | `DELETE` with the path `fuhito/reporting-lines/{id}` |
+| A write of an assignment with `switchPrimary` | Each other assignment of the employment that gives up the primary flag | `UPDATE` with the path `fuhito/assignments/{id}/details` |
+
+These entries come after the entry of the write itself. A removed record comes before the records that it refers to.
 
 ### Propagated changes
 

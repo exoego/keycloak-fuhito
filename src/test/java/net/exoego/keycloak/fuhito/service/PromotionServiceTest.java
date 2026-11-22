@@ -65,9 +65,9 @@ class PromotionServiceTest {
                 .employment().id();
         this.ward = assignments.add(new AssignmentValues(employment, ward, "2026-04-01", null, "staff", "nurse",
                 "regular", "home", "cc-1", false, true, null, new BigDecimal("80"), 3, Map.of("desk", "A"), null,
-                null)).assignmentId();
+                null)).view().assignmentId();
         this.committee = assignments.add(new AssignmentValues(employment, committee, "2026-04-01", null, null, null,
-                null, false, false, null, null, null, null, null, null)).assignmentId();
+                null, false, false, null, null, null, null, null, null)).view().assignmentId();
     }
 
     private static PromotionRequest request(String validFrom, String grade, String jobTitle, String assignmentId,
@@ -135,7 +135,7 @@ class PromotionServiceTest {
                 null, null, null, null, null)).employment().id();
         String ofOther = assignments.add(new AssignmentValues(otherEmployment,
                 assignments.get(ward).rows().getFirst().row().orgUnitId(), "2026-04-01", null, null, null, null, null,
-                false, null, null, null, null, null, null)).assignmentId();
+                false, null, null, null, null, null, null)).view().assignmentId();
 
         for (String assignmentId : List.of(ward, committee, ofOther, "nope")) {
             for (String grade : new String[] {"g2", null}) {
