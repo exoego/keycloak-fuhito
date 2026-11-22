@@ -1,6 +1,5 @@
 package net.exoego.keycloak.fuhito;
 
-import java.sql.Connection;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -11,6 +10,8 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
@@ -40,9 +41,16 @@ class ReadsByIdPlansIT {
             fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id, fuhito_change_order,
             fuhito_change_log""";
 
-    @FunctionalInterface
-    private interface Check {
-        void run(Statement statement) throws Exception;
+    private static OldStatistics.Shared shared;
+
+    @BeforeAll
+    static void setUp() throws Exception {
+        shared = new OldStatistics.Shared(ReadsByIdPlansIT::oldStatistics);
+    }
+
+    @AfterAll
+    static void rollBack() throws Exception {
+        shared.close();
     }
 
     @Test
@@ -220,7 +228,7 @@ class ReadsByIdPlansIT {
     // the names and the Keycloak users as it does with no user, so the check leaves out their tables.
     @Test
     void thePeopleOfAUserAreFoundByTheUserWithOldAndWithFreshStatistics() throws Exception {
-        withOldStatistics(statement -> {
+        shared.checkWithFreshStatistics(statement -> {
             String byUser = "from fuhito_person p where p.realm_id = " + REALM + " and p.user_id = 'ex-new-user-7'";
             String like = " like '%sato%' escape '!'";
             String text = " and (exists (select 1 from fuhito_person_name n where n.person_id = p.id"
@@ -359,14 +367,8 @@ class ReadsByIdPlansIT {
         });
     }
 
-    private static void withOldStatistics(Check check) throws Exception {
-        try (Connection connection = KeycloakEnvironment.connection();
-                Statement statement = connection.createStatement()) {
-            connection.setAutoCommit(false);
-            oldStatistics(statement);
-            check.run(statement);
-            connection.rollback();
-        }
+    private static void withOldStatistics(OldStatistics.Check check) throws Exception {
+        shared.check(check);
     }
 
     // The rows of OldStatistics, and a qualification for each person, a reporting line and an ID of another system

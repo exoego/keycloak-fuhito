@@ -27,14 +27,23 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
     static final String PROJECTION_TIMER_OPTION = "projection-timer-enabled";
 
     /**
+     * The option with the number of seconds between two checks of the timer of the projection.
+     */
+    static final String PROJECTION_INTERVAL_OPTION = "projection-timer-interval";
+
+    /**
      * The option with the number of seconds between two runs of the cleanup of the change log.
      */
     static final String CLEANUP_INTERVAL_OPTION = "change-log-cleanup-interval";
+
+    private static final int DEFAULT_PROJECTION_SECONDS = 60;
 
     // The same as the scheduled tasks of Keycloak itself.
     private static final int DEFAULT_CLEANUP_SECONDS = 900;
 
     private boolean projectionTimer = true;
+
+    private int projectionSeconds = DEFAULT_PROJECTION_SECONDS;
 
     private int cleanupSeconds = DEFAULT_CLEANUP_SECONDS;
 
@@ -52,11 +61,17 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
     @Override
     public void init(Config.Scope config) {
         projectionTimer = config.getBoolean(PROJECTION_TIMER_OPTION, true);
-        cleanupSeconds = config.getInt(CLEANUP_INTERVAL_OPTION, DEFAULT_CLEANUP_SECONDS);
-        if (cleanupSeconds < 1) {
-            throw new IllegalArgumentException("The option " + CLEANUP_INTERVAL_OPTION
-                    + " must be a number of seconds of 1 or more, not " + cleanupSeconds + ".");
+        projectionSeconds = seconds(config, PROJECTION_INTERVAL_OPTION, DEFAULT_PROJECTION_SECONDS);
+        cleanupSeconds = seconds(config, CLEANUP_INTERVAL_OPTION, DEFAULT_CLEANUP_SECONDS);
+    }
+
+    private static int seconds(Config.Scope config, String option, int defaultSeconds) {
+        int seconds = config.getInt(option, defaultSeconds);
+        if (seconds < 1) {
+            throw new IllegalArgumentException("The option " + option
+                    + " must be a number of seconds of 1 or more, not " + seconds + ".");
         }
+        return seconds;
     }
 
     @Override
@@ -66,7 +81,7 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
             if (event instanceof PostMigrationEvent) {
                 ChangeLogSchedule.start(factory, cleanupSeconds * 1000L);
                 if (projectionTimer) {
-                    ProjectionSchedule.start(factory);
+                    ProjectionSchedule.start(factory, projectionSeconds * 1000L);
                 }
             }
         });
@@ -81,6 +96,13 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
                 .helpText("Whether a timer rebuilds the projection once a day, after the day start of each realm"
                         + " that turned the projection on. false turns the timer off.")
                 .defaultValue(true)
+                .add()
+                .property()
+                .name(PROJECTION_INTERVAL_OPTION)
+                .type(ProviderConfigProperty.INTEGER_TYPE)
+                .helpText("The number of seconds between two checks of the timer of the projection for the realms"
+                        + " that are due.")
+                .defaultValue(DEFAULT_PROJECTION_SECONDS)
                 .add()
                 .property()
                 .name(CLEANUP_INTERVAL_OPTION)

@@ -216,6 +216,10 @@ class PropagatedChangesIT {
             waitFor("removed the propagated change of the healthy realm",
                     () -> healthy.api().count("/change-log/count?kind=PROPAGATED") == 0);
             waitFor("ran twice", () -> count(KEYCLOAK.getLogs(), failed) >= 2);
+            // The next run after the trigger is gone removes the change of the failing realm.
+            for (Hospital hospital : List.of(bad, failing)) {
+                assertEquals(1, hospital.api().count("/change-log/count?kind=PROPAGATED"), hospital.realm());
+            }
         } finally {
             KeycloakEnvironment.sql("drop trigger fuhito_test_failure on fuhito_change_log");
             KeycloakEnvironment.sql("drop function fuhito_test_failure()");
@@ -224,8 +228,5 @@ class PropagatedChangesIT {
         assertEquals(1, count(KEYCLOAK.getLogs(), "The cleanup of the change log skips realm " + bad.realm()
                 + ". The realm attribute \"fuhito.changeLog.keepPropagatedDays\" must be a number of days of 0 or "
                 + "more, not \"ninety\"."));
-        for (Hospital hospital : List.of(bad, failing)) {
-            assertEquals(1, hospital.api().count("/change-log/count?kind=PROPAGATED"), hospital.realm());
-        }
     }
 }

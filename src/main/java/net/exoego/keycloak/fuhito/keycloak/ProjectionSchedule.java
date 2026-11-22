@@ -36,15 +36,13 @@ final class ProjectionSchedule {
 
     static final String TASK = "fuhito-projection";
 
-    private static final long CHECK_MILLIS = 60_000;
-
     // The runner of Keycloak holds the lock of the cluster while the check runs, but no longer than this.
     // A rebuild that takes longer still holds the lock of its realm, so no other node runs that realm meanwhile.
     private static final long LOCK_MILLIS = 15 * 60_000;
 
     private static final Logger LOG = Logger.getLogger(ProjectionSchedule.class);
 
-    // The timer checks every minute. A realm with a bad setting is logged once on each node, not every minute.
+    // A realm with a bad setting is logged once on each node, not at every check.
     private static final Map<String, String> SKIPPED = new ConcurrentHashMap<>();
 
     // The cluster runner of Keycloak uses the simple name of this class as the name of the lock.
@@ -70,11 +68,11 @@ final class ProjectionSchedule {
 
     // The timer of every node of a cluster fires and hands the check to a thread of its own.
     // There the runner of Keycloak lets one node in at a time, as it does for the scheduled tasks of Keycloak.
-    static void start(KeycloakSessionFactory factory) {
+    static void start(KeycloakSessionFactory factory, long checkMillis) {
         KeycloakModelUtils.runJobInTransaction(factory, session -> {
             var check = new ClusterAwareScheduledTaskRunner(factory, new FuhitoProjectionTask(), LOCK_MILLIS);
             Executor executor = session.getProvider(ExecutorsProvider.class).getExecutor(TASK);
-            session.getProvider(TimerProvider.class).schedule(new InBackground(executor, check), CHECK_MILLIS, TASK);
+            session.getProvider(TimerProvider.class).schedule(new InBackground(executor, check), checkMillis, TASK);
         });
         LOG.info("The projection runs once a day for each realm that turned it on, after the day start.");
     }

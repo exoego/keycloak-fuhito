@@ -30,7 +30,8 @@ class ProviderFactoriesTest {
     void describesTheOptionsOfTheTimers() {
         List<ProviderConfigProperty> options = new FuhitoAdminRealmResourceProviderFactory().getConfigMetadata();
 
-        assertEquals(List.of("projection-timer-enabled boolean true", "change-log-cleanup-interval Integer 900"),
+        assertEquals(List.of("projection-timer-enabled boolean true", "projection-timer-interval Integer 60",
+                "change-log-cleanup-interval Integer 900"),
                 options.stream().map(option -> option.getName() + " " + option.getType() + " "
                         + option.getDefaultValue()).toList());
     }
@@ -53,14 +54,16 @@ class ProviderFactoriesTest {
     }
 
     @Test
-    void rejectsACleanupIntervalOfNoSecond() {
+    void rejectsAnIntervalOfNoSecond() {
         var factory = new FuhitoAdminRealmResourceProviderFactory();
 
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
-                () -> factory.init(options(Map.of("change-log-cleanup-interval", 0))));
-        assertEquals("The option change-log-cleanup-interval must be a number of seconds of 1 or more, not 0.",
-                e.getMessage());
-        assertDoesNotThrow(() -> factory.init(options(Map.of("change-log-cleanup-interval", 1))));
+        for (String option : List.of("projection-timer-interval", "change-log-cleanup-interval")) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> factory.init(options(Map.of(option, 0))));
+            assertEquals("The option " + option + " must be a number of seconds of 1 or more, not 0.",
+                    e.getMessage());
+            assertDoesNotThrow(() -> factory.init(options(Map.of(option, 1))));
+        }
     }
 
     @Test
