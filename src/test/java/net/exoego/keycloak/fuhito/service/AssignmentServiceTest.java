@@ -127,7 +127,7 @@ class AssignmentServiceTest {
         assertEquals(LocalDate.of(2027, 4, 1), move.ended().period().to());
         AssignmentView started = move.started();
         Assignment row = started.rows().getFirst().row();
-        assertEquals(old, started.continuesAssignmentId());
+        assertEquals(List.of(old), ended(started));
         assertEquals(employment, row.employmentId());
         assertEquals(yHospital, row.orgUnitId());
         // The new assignment lasts as long as the old one would have.
@@ -153,7 +153,7 @@ class AssignmentServiceTest {
         assertEquals("staff", back.started().rows().getFirst().jobTitle());
         assertTrue(again.head());
         assertEquals(7, again.displayOrder());
-        assertEquals(started.assignmentId(), back.started().continuesAssignmentId());
+        assertEquals(List.of(started.assignmentId()), ended(back.started()));
     }
 
     @Test
@@ -393,27 +393,48 @@ class AssignmentServiceTest {
                 assertThrows(FuhitoException.class, () -> service.removeEnd("nope")).code());
     }
 
+    private static List<String> ended(AssignmentView view) {
+        return view.endedOnStart().stream().map(Assignment::assignmentId).toList();
+    }
+
     @Test
-    void anEndDoesNotPassTheStartOfTheAssignmentThatContinuesIt() {
-        String old = service.add(to(ward, "2026-04-01")).assignmentId();
+    void aLaterEndOfAPrimaryAssignmentDoesNotPassTheStartOfTheNextPrimaryOne() {
+        String old = service.add(new AssignmentValues(employment, ward, "2026-04-01", null, null, null, null, null,
+                true, null, null, null, null, null, null)).assignmentId();
         String next = service.move(old, new MoveRequest(yHospital, "2027-04-01", null, null, null)).started()
                 .assignmentId();
 
         for (String date : List.of("2027-04-02", "2028-04-01")) {
             FuhitoException e = assertThrows(FuhitoException.class, () -> service.end(old, date));
             assertEquals(FuhitoException.Reason.CONFLICT, e.reason());
-            assertEquals("assignment.continues_holds", e.code());
-            assertEquals(Map.of("id", old, "date", "2027-04-01"), e.params());
+            assertEquals("assignment.primary_exists", e.code());
+            assertEquals(Map.of("employmentId", employment, "assignmentId", next, "validFrom", "2026-04-01"),
+                    e.params());
         }
-        assertEquals("assignment.continues_holds",
+        assertEquals("assignment.primary_exists",
                 assertThrows(FuhitoException.class, () -> service.removeEnd(old)).code());
         assertEquals(LocalDate.of(2027, 4, 1), store.rows(old).getLast().period().to());
+        assertEquals(List.of(old), ended(service.get(next)));
 
-        // An end before the start of the next one leaves a gap, which is fine. So is an end on that start.
+        // An end before the start of the next one leaves a gap, and the next one then lists none.
         assertEquals(LocalDate.of(2027, 3, 1), service.end(old, "2027-03-01").period().to());
+        assertEquals(List.of(), ended(service.get(next)));
         assertEquals(LocalDate.of(2027, 4, 1), service.end(old, "2027-04-01").period().to());
+        assertEquals(List.of(old), ended(service.get(next)));
         assertEquals(LocalDate.of(2030, 4, 1), service.end(next, "2030-04-01").period().to());
         assertNull(service.removeEnd(next).period().to());
+    }
+
+    @Test
+    void anAssignmentThatIsNotPrimaryMayGoOnAfterAMove() {
+        String old = service.add(to(ward, "2026-04-01")).assignmentId();
+        String next = service.move(old, new MoveRequest(yHospital, "2027-04-01", null, null, null)).started()
+                .assignmentId();
+        assertEquals(List.of(old), ended(service.get(next)));
+
+        // The person may hold two posts, so the old one then no longer ends on the start of the next one.
+        assertNull(service.removeEnd(old).period().to());
+        assertEquals(List.of(), ended(service.get(next)));
     }
 
     @Test

@@ -125,8 +125,8 @@ public class AssignmentsResource {
             MembershipService.Search search = new MembershipService.Search(orgUnitId, jobTitle, occupation, kind,
                     asOf);
             Locale language = context.nameLanguage();
-            return Pages.of(context, members.search(search, Page.of(first, max), after).stream()
-                            .map(member -> MemberRepresentation.of(member, language)).toList(),
+            return Pages.of(context, MemberRepresentation.of(members.search(search, Page.of(first, max), after),
+                            language, members),
                     Page.of(first, max).max(),
                     member -> Cursor.encode(Cursor.ASSIGNMENTS, member.assignmentId()));
         });
@@ -178,6 +178,8 @@ public class AssignmentsResource {
                 context.lock(scopes.assignmentsOfEmployment(body.employmentId()));
             }
             var assignment = represent(service.add(body.toValues()));
+            // The list is known only once the assignment is there. A failure rolls the write back.
+            Checks.fixed("endedOnStart", assignment.endedOnStart(), body.endedOnStart());
             context.recordChange(Change.CREATE, RESOURCE_TYPE, assignment.id(), path(assignment.id()), assignment);
             return Response.status(Response.Status.CREATED).entity(assignment).build();
         });
@@ -202,7 +204,7 @@ public class AssignmentsResource {
     @Operation(
             operationId = "deleteAssignment",
             summary = "Deletes an assignment that nothing refers to, with all its history.",
-            description = "It works only when the assignment has no reporting line and no assignment continues it. Every period of it goes. End an assignment that held for a while instead.")
+            description = "It works only when the assignment has no reporting line. Every period of it goes. End an assignment that held for a while instead.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "204", description = "The resource is gone.")
     @BadRequest
@@ -255,9 +257,9 @@ public class AssignmentsResource {
     @Operation(
             operationId = "endAssignment",
             summary = "Sets the end of an assignment.",
-            description = "Its history stays readable. The end can move earlier or later. A later end that comes "
-                    + "after the start of an assignment that continues this one fails with 409 and "
-                    + "`assignment.continues_holds`.")
+            description = "Its history stays readable. The end can move earlier or later. A later end of a "
+                    + "primary assignment that would then share a date with another primary assignment of the "
+                    + "employment fails with 409 and `assignment.primary_exists`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The assignment with the details of every period.")
     @BadRequest
@@ -281,7 +283,7 @@ public class AssignmentsResource {
             operationId = "moveAssignment",
             summary = "Moves a person to another org unit on a date, in one write.",
             description = "The assignment ends on the date. A new assignment of the same employment to the new "
-                    + "org unit starts on the same date, and names the old one in `continuesAssignmentId`. It "
+                    + "org unit starts on the same date, and its `endedOnStart` lists the old one. It "
                     + "keeps the occupation, the kind, the primary flag, the allocation, and the attributes. It "
                     + "keeps the job title unless the request gives one. The head flag, the display order, the "
                     + "work location, and the cost center belong to the old org unit and are not kept. The "
@@ -315,9 +317,9 @@ public class AssignmentsResource {
     @Operation(
             operationId = "removeAssignmentEnd",
             summary = "Removes the end of an assignment.",
-            description = "The assignment then lasts as long as its employment. When it would then hold on the "
-                    + "start of an assignment that continues it, as after a move, the request fails with 409 and "
-                    + "`assignment.continues_holds`.")
+            description = "The assignment then lasts as long as its employment. A primary assignment that would "
+                    + "then share a date with another primary assignment of the employment, as after a move, fails "
+                    + "with 409 and `assignment.primary_exists`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The assignment with the details of every period.")
     @BadRequest

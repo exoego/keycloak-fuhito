@@ -37,7 +37,7 @@ class RestoreKindsTest {
                 "EXTERNAL_EMPLOYER", "2020-04-01", null, null, null, null, null, List.of());
         RealmExport.AssignmentRows assignment = new RealmExport.AssignmentRows("a-1", 1L, List.of(
                 new RealmExport.Period("r-1", "e-1", "u-1", "2020-04-01", null, "JOB_TITLE", "OCCUPATION",
-                        "ASSIGNMENT_KIND", "WORK_LOCATION", "COST_CENTER", false, true, null, 0, Map.of(), null,
+                        "ASSIGNMENT_KIND", "WORK_LOCATION", "COST_CENTER", false, true, null, 0, Map.of(),
                         null)));
         return new RealmExport(RealmExport.FORMAT, List.of(new RealmExport.Kind("k-1", 1L, "site", "ja", Map.of())),
                 items, definitions, null, List.of(unit), null, List.of(inside, outside), List.of(assignment), null,

@@ -50,6 +50,17 @@ public interface AssignmentStore {
     }
 
     /**
+     * Finds the assignments that end on the start of each of some assignments. Such an assignment is of the same
+     * person, in any employment of the person. Its last row ends on the first date of the other assignment, and has
+     * the primary flag of the first row of the other one.
+     *
+     * @param assignmentIds the IDs of the assignments
+     * @return the last row of each assignment that ends on the start of one of them, by the ID of that one, in the
+     *         order of the IDs of the assignments that end. An assignment with none is left out.
+     */
+    Map<String, List<Assignment>> endedOnStart(Collection<String> assignmentIds);
+
+    /**
      * Counts the assignments to an org unit that hold on a date or after it.
      *
      * @param orgUnitId the ID of the org unit
@@ -125,7 +136,6 @@ public interface AssignmentStore {
 
     /**
      * Stores the new state of an existing row.
-     * The link to the assignment that it continues never changes, so only {@link #insert} writes it.
      *
      * @param row the row
      */

@@ -659,7 +659,7 @@ class EmploymentsIT {
 
     // The first assignment starts after the date, so that the end removes it, or holds on the date and stays.
     @Test
-    void aMergerOfTwoEmploymentsOfOnePersonKeepsTheLinkBetweenTheirAssignments() throws Exception {
+    void aMergerOfTwoEmploymentsOfOnePersonKeepsTheDatesBetweenTheirAssignments() throws Exception {
         for (String start : List.of("2027-06-01", "2027-01-01")) {
             TestRealm group = TestRealm.create("employments-merger-link");
             try {
@@ -674,13 +674,11 @@ class EmploymentsIT {
                     olds.add(created(groupApi.post("/employments", "{\"userId\": \"" + sato + "\", \"employerId\": \""
                             + corporation + "\", \"validFrom\": \"" + from + "\"}")).get("id").asText());
                 }
-                String first = created(groupApi.post("/assignments", "{\"employmentId\": \"" + olds.get(0)
-                        + "\", \"orgUnitId\": \"" + ward + "\", \"validFrom\": \"" + start
-                        + "\", \"validTo\": \"2027-09-01\"}")).get("id").asText();
+                created(groupApi.post("/assignments", "{\"employmentId\": \"" + olds.get(0) + "\", \"orgUnitId\": \""
+                        + ward + "\", \"validFrom\": \"" + start + "\", \"validTo\": \"2027-09-01\"}"));
                 HttpResponse<String> imported = groupApi.post("/imports", "{\"effectiveDate\": \"2027-09-01\", "
                         + "\"source\": \"sheet\", \"assignments\": [{\"externalId\": \"B\", \"employmentId\": \""
-                        + olds.get(1) + "\", \"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2027-09-01\", "
-                        + "\"continuesAssignmentId\": \"" + first + "\"}]}");
+                        + olds.get(1) + "\", \"orgUnitId\": \"" + ward + "\", \"validFrom\": \"2027-09-01\"}]}");
                 assertEquals(200, imported.statusCode(), imported.body());
 
                 JsonNode merger = created(groupApi.post("/employments/transfers", "{\"fromEmployerId\": \""
@@ -690,8 +688,8 @@ class EmploymentsIT {
                 List<String> news = merger.get("employments").findValuesAsText("startedEmploymentId");
                 JsonNode history = Api.json(groupApi.get("/users/" + sato + "/history"));
                 JsonNode copyOfSecond = onlyAssignmentOf(history, news.get(1));
-                assertEquals(onlyAssignmentOf(history, news.get(0)).get("id").asText(),
-                        copyOfSecond.get("continuesAssignmentId").asText(), start);
+                assertEquals(List.of(onlyAssignmentOf(history, news.get(0)).get("id").asText()),
+                        copyOfSecond.get("endedOnStart").findValuesAsText("assignmentId"), start);
                 ObjectNode export = RealmExportIT.export(groupApi);
                 HttpResponse<String> restored = groupApi.post("/restore?replace=true", export.toString());
                 assertEquals(200, restored.statusCode(), start + " " + restored.body());

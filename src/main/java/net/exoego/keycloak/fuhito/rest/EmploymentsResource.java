@@ -284,11 +284,9 @@ public class EmploymentsResource {
             operationId = "endEmployment",
             summary = "Sets the end of an employment.",
             description = "An earlier end is how a person leaves. It also ends the terms and the assignments on "
-                    + "that date, and removes the ones that would start later. An end that would remove an "
-                    + "assignment that another assignment continues fails with 409 and `assignment.in_use`, as the "
-                    + "delete of that assignment does. A later end extends a fixed-term employment. A later end that "
-                    + "comes after the start of an employment that continues this one fails with 409 and "
-                    + "`employment.continues_holds`.")
+                    + "that date, and removes the ones that would start later. A later end extends a fixed-term "
+                    + "employment. A later end that comes after the start of an employment that continues this one "
+                    + "fails with 409 and `employment.continues_holds`.")
     @Parameter(ref = "changeOrder")
     @APIResponse(responseCode = "200", description = "The employment with the terms of every period.")
     @BadRequest
@@ -406,8 +404,7 @@ public class EmploymentsResource {
                     + "before the date. An assignment, a line, or a role that "
                     + "starts on the date or later goes away from the old employment, and its copy takes its IDs "
                     + "of other systems. One that holds before the date only ends and keeps its IDs. Its copy "
-                    + "gets none. The transfer fails with 409 and `assignment.in_use` when such an assignment is "
-                    + "one that another assignment continues, as its delete does. A failure writes nothing. An "
+                    + "gets none, and the `endedOnStart` of the copy lists it. A failure writes nothing. An "
                     + "employment with an external employer cannot move. End it and start another employment.")
     @Parameter(ref = "changeOrder")
     @APIResponse(

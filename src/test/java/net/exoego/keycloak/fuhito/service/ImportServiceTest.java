@@ -1520,53 +1520,36 @@ class ImportServiceTest {
                 "2026-04-01", null, null, null, null, null, null, null, continuesExternalId, continuesId);
     }
 
-    private static AssignmentRow continuingAssignment(String externalId, String employment,
-            String continuesExternalId) {
-        return new AssignmentRow(null, externalId, employment, "W", null, null, null, null, true, null, null, null,
-                "2026-04-01", null, null, null, null, continuesExternalId, null, null, null);
-    }
-
     @Test
-    void linksANewEmploymentAndItsAssignmentToTheOnesTheyContinue() {
+    void linksANewEmploymentToTheOneItContinues() {
         importUnits("2020-04-01", unit("H", "Hospital", null), unit("W", "Ward", "H"));
         assertEquals(List.of(), errors(importPeople("2020-04-01",
                 List.of(employment("E1", "nurse", null, "2026-04-01", null)),
                 List.of(assignment("A1", "E1", "W", true, null)))));
 
         ImportReport first = importPeople("2026-04-01", List.of(continuing("E2", "E1", null)),
-                List.of(continuingAssignment("A2", "E2", "A1")));
+                List.of(assignment("A2", "E2", "W", true, null)));
         ImportReport again = importPeople("2026-04-01", List.of(continuing("E2", "E1", null)),
-                List.of(continuingAssignment("A2", "E2", "A1")));
+                List.of(assignment("A2", "E2", "W", true, null)));
 
         assertEquals(List.of(), errors(first));
         Employment e1 = employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")).orElseThrow();
         assertEquals(e1.id(), employmentStore.find(stored(ExternalId.Kind.EMPLOYMENT, "import", "E2")).orElseThrow()
                 .continuesEmploymentId());
-        String a1 = stored(ExternalId.Kind.ASSIGNMENT, "import", "A1");
-        String a2 = stored(ExternalId.Kind.ASSIGNMENT, "import", "A2");
-        assertEquals(a1, assignmentStore.rows(a2).getFirst().continuesAssignmentId());
         assertEquals(new Counts(0, 0, 1), again.counts().get("employments"));
         assertEquals(new Counts(0, 0, 1), again.counts().get("assignments"));
         assertEquals(List.of("employments[0] import.continues_twice", "employments[1] import.continues_mismatch",
-                "employments[2] import.employment_unknown", "employments[3] employment.continues_unknown",
-                "assignments[0] import.continues_mismatch", "assignments[1] import.assignment_unknown"),
+                "employments[2] import.employment_unknown", "employments[3] employment.continues_unknown"),
                 errors(importPeople("2026-04-01", List.of(continuing("E3", "E1", e1.id()),
                         continuing("E2", null, "other"), continuing("E4", "NOPE", null),
-                        continuing("E5", null, "nope")),
-                        List.of(continuingAssignment("A2", "E2", "A2"), continuingAssignment("A3", "E2", "NOPE")))));
+                        continuing("E5", null, "nope")), null)));
 
         // Another person cannot be continued.
         importPeople("2020-04-01", List.of(employment("D1", "doctor", null, null, null)),
                 List.of(assignment("DA", "D1", "W", true, null)));
         String doctor = stored(ExternalId.Kind.EMPLOYMENT, "import", "D1");
-        AssignmentRow unknown = new AssignmentRow(null, "A4", "E2", "W", null, null, null, null, false, null, null,
-                null, "2026-04-01", null, null, null, null, null, "nope", null, null);
-        AssignmentRow ofDoctor = new AssignmentRow(null, "A5", "E2", "W", null, null, null, null, false, null, null,
-                null, "2026-04-01", null, null, null, null, null, stored(ExternalId.Kind.ASSIGNMENT, "import", "DA"),
-                null, null);
-        assertEquals(List.of("employments[0] employment.continues_other", "assignments[0] assignment.continues_unknown",
-                "assignments[1] assignment.continues_other"), errors(importPeople("2026-04-01",
-                List.of(continuing("E6", null, doctor)), List.of(unknown, ofDoctor))));
+        assertEquals(List.of("employments[0] employment.continues_other"), errors(importPeople("2026-04-01",
+                List.of(continuing("E6", null, doctor)), null)));
     }
 
     private static EmploymentRow employmentAfter(String externalId, String username, String validFrom,
@@ -1576,9 +1559,9 @@ class ImportServiceTest {
     }
 
     private static AssignmentRow assignmentAfter(String externalId, String employment, String orgUnit,
-            String validFrom, String continuesExternalId) {
+            String validFrom) {
         return new AssignmentRow(null, externalId, employment, orgUnit, null, null, null, null, false, null, null,
-                null, validFrom, null, null, null, null, continuesExternalId, null, null, null);
+                null, validFrom, null);
     }
 
     // The nurse and the doctor work from 2020. The nurse has assignments to the ward and to the hospital.
@@ -1601,8 +1584,8 @@ class ImportServiceTest {
                         employmentAfter("E2", "nurse", "2026-04-01", "E1"),
                         employmentAfter("D2", "doctor", "2026-05-01", "D1"),
                         employment("D1", "doctor", null, "2026-04-01", null)),
-                List.of(assignmentAfter("A2", "E2", "W", "2026-04-01", "A1"),
-                        assignmentAfter("B2", "D2", "W", "2026-05-01", "B1")));
+                List.of(assignmentAfter("A2", "E2", "W", "2026-04-01"),
+                        assignmentAfter("B2", "D2", "W", "2026-05-01")));
 
         assertEquals(List.of(), errors(report));
         assertEquals(new Counts(2, 2, 0), report.counts().get("employments"));
@@ -1612,45 +1595,23 @@ class ImportServiceTest {
     }
 
     @Test
-    void aFileEndsTheAssignmentThatANewOneContinuesInAnyOrder() {
-        staffOf2020();
-
-        // The new assignment to the ward starts a month after the one to the hospital ends.
-        ImportReport report = importPeople("2026-04-01", null, List.of(
-                assignmentAfter("A2", "E1", "H", "2026-04-01", "A1"),
-                assignment("A1", "E1", "W", false, "2026-04-01"),
-                assignment("C1", "E1", "H", false, "2026-04-01"),
-                assignmentAfter("C2", "E1", "W", "2026-05-01", "C1")));
-
-        assertEquals(List.of(), errors(report));
-        assertEquals(new Counts(2, 2, 0), report.counts().get("assignments"));
-    }
-
-    @Test
     void aNewRowFailsWhileTheOneItContinuesHasNotEnded() {
         staffOf2020();
         String e1 = stored(ExternalId.Kind.EMPLOYMENT, "import", "E1");
         String d1 = stored(ExternalId.Kind.EMPLOYMENT, "import", "D1");
 
         // The file does not end the employment of the nurse, and ends the one of the doctor after the new one
-        // starts. The same for the two assignments of the nurse.
+        // starts.
         ImportReport report = importPeople("2026-04-01",
                 List.of(employmentAfter("E2", "nurse", "2026-04-01", "E1"),
                         employment("D1", "doctor", null, "2026-05-01", null),
-                        employmentAfter("D2", "doctor", "2026-04-01", "D1")),
-                List.of(assignmentAfter("A2", "E1", "H", "2026-04-01", "A1"),
-                        assignment("C1", "E1", "H", false, "2026-05-01"),
-                        assignmentAfter("C2", "E1", "W", "2026-04-01", "C1")));
+                        employmentAfter("D2", "doctor", "2026-04-01", "D1")), null);
 
-        assertEquals(List.of("employments[0] employment.continues_holds", "employments[2] employment.continues_holds",
-                "assignments[0] assignment.continues_holds", "assignments[2] assignment.continues_holds"),
+        assertEquals(List.of("employments[0] employment.continues_holds", "employments[2] employment.continues_holds"),
                 errors(report));
-        assertEquals(List.of(Map.of("id", e1, "date", "2026-04-01"), Map.of("id", d1, "date", "2026-04-01"),
-                Map.of("id", stored(ExternalId.Kind.ASSIGNMENT, "import", "A1"), "date", "2026-04-01"),
-                Map.of("id", stored(ExternalId.Kind.ASSIGNMENT, "import", "C1"), "date", "2026-04-01")),
+        assertEquals(List.of(Map.of("id", e1, "date", "2026-04-01"), Map.of("id", d1, "date", "2026-04-01")),
                 report.errors().stream().map(e -> e.error().params()).toList());
         assertEquals(new Counts(0, 1, 0), report.counts().get("employments"));
-        assertEquals(new Counts(0, 1, 0), report.counts().get("assignments"));
     }
 
     @Test
@@ -1658,22 +1619,16 @@ class ImportServiceTest {
         staffOf2020();
         assertEquals(List.of(), errors(importPeople("2026-04-01",
                 List.of(employment("E1", "nurse", null, "2026-04-01", null),
-                        employmentAfter("E2", "nurse", "2026-04-01", "E1")),
-                List.of(assignment("B1", "D1", "W", false, "2026-04-01"),
-                        assignmentAfter("B2", "D1", "H", "2026-04-01", "B1")))));
+                        employmentAfter("E2", "nurse", "2026-04-01", "E1")), null)));
 
         // An earlier end leaves a gap, which is fine.
         assertEquals(List.of(), errors(importPeople("2026-04-01",
-                List.of(employment("E1", "nurse", null, "2026-03-01", null)),
-                List.of(assignment("B1", "D1", "W", false, "2026-03-01")))));
+                List.of(employment("E1", "nurse", null, "2026-03-01", null)), null)));
         ImportReport reopened = importPeople("2026-04-01",
-                List.of(employment("E1", "nurse", null, "2026-10-01", null)),
-                List.of(assignment("B1", "D1", "W", false, "2026-10-01")));
+                List.of(employment("E1", "nurse", null, "2026-10-01", null)), null);
 
-        assertEquals(List.of("employments[0] employment.continues_holds", "assignments[0] assignment.continues_holds"),
-                errors(reopened));
-        assertEquals(List.of(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1"),
-                stored(ExternalId.Kind.ASSIGNMENT, "import", "B1")),
+        assertEquals(List.of("employments[0] employment.continues_holds"), errors(reopened));
+        assertEquals(List.of(stored(ExternalId.Kind.EMPLOYMENT, "import", "E1")),
                 reopened.errors().stream().map(e -> e.error().params().get("id")).toList());
     }
 
@@ -2041,9 +1996,9 @@ class ImportServiceTest {
                 new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, 4,
                         Map.of("room", "3"), null, null),
                 new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, 4,
-                        Map.of("room", "3"), null, null, null, null, null, null, null, "home", null),
+                        Map.of("room", "3"), null, null, null, null, null, "home", null),
                 new AssignmentRow(null, "A", "E", "W", "director", "nurse", "support", true, true, all, 4,
-                        Map.of("room", "3"), null, null, null, null, null, null, null, "home", "cc"));
+                        Map.of("room", "3"), null, null, null, null, null, "home", "cc"));
 
         assertEquals(new Counts(1, 0, 0),
                 changed(importPeople("2026-04-01", null, List.of(steps.getFirst())), "assignments"));

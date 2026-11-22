@@ -240,10 +240,8 @@ public class PeopleResource {
             @QueryParam("includePath") boolean includePath) {
         context.requireRead();
         Locale language = context.nameLanguage();
-        return Calls.run(context, () -> reads.membership()
-                .assignmentsOfPerson(service.get(id).person().id(), asOf, includePath).stream()
-                .map(member -> MemberRepresentation.of(member, language))
-                .toList());
+        return Calls.run(context, () -> MemberRepresentation.of(reads.membership()
+                .assignmentsOfPerson(service.get(id).person().id(), asOf, includePath), language, reads.membership()));
     }
 
     @GET

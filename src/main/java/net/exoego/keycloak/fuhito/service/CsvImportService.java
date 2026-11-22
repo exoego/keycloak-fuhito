@@ -122,8 +122,6 @@ public class CsvImportService {
             Map.entry("dayStart", "日の始まり"), Map.entry("primaryLanguage", "主言語"),
             Map.entry("continuesEmploymentExternalId", "引き継ぎ元の雇用の外部ID"),
             Map.entry("continuesEmploymentId", "引き継ぎ元の雇用のID"),
-            Map.entry("continuesAssignmentExternalId", "引き継ぎ元の所属の外部ID"),
-            Map.entry("continuesAssignmentId", "引き継ぎ元の所属のID"),
             Map.entry("externalEmployer", "外部の雇用主"));
 
     // The lists that a file can hold, each with the resource whose attributes it sets.
@@ -192,8 +190,7 @@ public class CsvImportService {
                     "name", "phoneticName")),
             Map.entry(Kind.ASSIGNMENTS, Set.of("id", "externalId", "source", "employmentExternalId", "employmentId",
                     "orgUnitExternalId", "orgUnitId", "jobTitle", "occupation", "assignmentKind", "workLocation",
-                    "costCenter", "head", "primary", "allocationPercent", "displayOrder", "validFrom", "validTo",
-                    "continuesAssignmentExternalId", "continuesAssignmentId")));
+                    "costCenter", "head", "primary", "allocationPercent", "displayOrder", "validFrom", "validTo")));
 
     private static final Set<String> LOCALIZED = Set.of("name");
     private static final List<String> UNIT_NAMES = List.of("name", "shortName", "phoneticName");
@@ -560,8 +557,7 @@ public class CsvImportService {
                 cells.text("assignmentKind"), cells.bool("head"), cells.bool("primary"),
                 cells.decimal("allocationPercent"), cells.integer("displayOrder"), cells.attributes(),
                 cells.text("validFrom"), cells.text("validTo"), cells.text("employmentId"), cells.text("orgUnitId"),
-                cells.text("id"), cells.text("continuesAssignmentExternalId"), cells.text("continuesAssignmentId"),
-                cells.text("workLocation"), cells.text("costCenter"), cells.nulls());
+                cells.text("id"), cells.text("workLocation"), cells.text("costCenter"), cells.nulls());
     }
 
     // A row matches a stored record by the ID of any system, so the row of a second system finds it too.

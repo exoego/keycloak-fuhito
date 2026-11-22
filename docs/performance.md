@@ -323,6 +323,33 @@ What the runs showed.
 - For org units, the update of the 6,001 versions took about 420 ms of the 0.6 seconds. The scan and the new JSON text took 11 ms of it. The database checks the exclusion constraint of the versions for each new row.
 - The other values of a row keep their text, as the update reads the text of each value with `json_each` and writes it back as it was.
 
+## The assignments that end on the start of another
+
+A read of an assignment lists in `endedOnStart` the assignments of the same person that end on its start with the same primary flag. A list reads them for all its entries with one query. In the realm of the first table, three people in ten moved in 2024, so the assignment of each of them from 2024 lists the one before it.
+
+`main` at commit `ebf98f1` and the change at commit `ad1f8b6` ran at the same time, each with its own Keycloak and PostgreSQL in Docker, filled by `scripts/bench/seed.sql`. Each request went to one and then to the other, so both saw the same load of the machine. Each number is the best of 30 requests, in ms.
+Run on 2026-11-22 on the same laptop. Other jobs used the machine during the run, so both columns are a little higher than the first table.
+
+| Read | Path | Before | After |
+|---|---|---|---|
+| One org unit | `/org-units/u-4321` | 3 | 4 |
+| People, first page | `/people?max=100` | 3 | 3 |
+| Assignments, first page | `/assignments?max=100` | 20 | 20 |
+| Assignments, page of 1,000 | `/assignments?max=1000` | 150 | 157 |
+| Members of a team | `/org-units/u-4321/members` | 4 | 5 |
+| Members below the company, first page | `/org-units/u-0/members?includeDescendants=true&max=100` | 82 | 86 |
+| Members below a division, 1,000 people | `/org-units/u-1/members?includeDescendants=true&max=1000` | 40 | 51 |
+| Assignments of a person | `/people/p-12345/assignments?includePath=true` | 5 | 5 |
+| History of a person | `/people/p-12345/history` | 4 | 5 |
+| One assignment after a move | `/assignments/a-12342` | 2 | 3 |
+| History of a person who moved | `/people/p-12342/history` | 5 | 5 |
+
+What the runs showed.
+
+- A list of 1,000 assignments costs 7 to 11 ms more. The query took about 10 ms of that in `EXPLAIN ANALYZE`. A page of 100 costs at most 4 ms more. A read of one assignment or of one person costs about 1 ms more.
+- The query takes the last row of an assignment as the one with the latest start, which the unique key gives in one step. With `not exists` on a later row, PostgreSQL took the GiST index of the periods of the rows, and the query of 1,000 assignments took 14 ms.
+- `IDX_FUHITO_ASSIGNMENT_EMPLOYMENT` got `VALID_TO` after the employment. In this realm an employment has 1.3 rows of assignments, so the plan reads all rows of the employment and checks the end after. With the statistics of 13 rows for each employment, the plan puts the end into the condition of the index.
+
 ## What the numbers say
 
 - A read about one org unit, one person, or one page of people does not grow with the realm.
