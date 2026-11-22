@@ -313,7 +313,7 @@ It does not keep the state of the resource. A reader that needs the state reads 
 A write with the query parameter `changeOrder` belongs to that change order.
 The change order has the approver and the effective date.
 
-A read can give a value that comes from another resource or from Keycloak, such as the link of an org unit to a Keycloak organization, the user of the person of an employment, or the name of a person from its Keycloak user.
+A read can give a value that comes from another resource or from Keycloak, such as the link of an org unit to a Keycloak organization, the user of the person of an employment, or the name of a person from its Keycloak user in the order of the realm.
 When such a value changes, the read of a resource changes although nobody wrote it.
 That resource gets a new version and an entry of the kind `PROPAGATED`, with no user and with the cause.
 The entry of the write stays as it is. See "Propagated changes" in [keycloak-integration.md](keycloak-integration.md).
@@ -369,7 +369,7 @@ The erase adds one entry of the type `FUHITO_PERSON_DATA` with the operation `DE
 It stands for every row that the erase removed, also the reporting lines where the person is the manager. A reader can use it to remove its own copy of those rows.
 A mask adds an entry of the same type with the operation `UPDATE`. A reader can use it to clear the personal data in its own copy.
 
-Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber`, `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`, `ChangeLogIT.anEntryHasNoStateOfTheResource`, `UserRemovalIT.aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn`, `PropagatedChangesIT`, `LinkedUserChangesIT`, `UserNameChangesIT`, `EndedRecordsIT`, and `ChangeLogServiceTest`.
+Checked by `ChangeLogIT.followsEveryWriteOfTheRealmAfterASequenceNumber`, `ChangeLogIT.eachRealmCountsItsOwnWritesFromOneWithoutGapsUnderParallelWrites`, `ChangeLogIT.anEntryHasNoStateOfTheResource`, `UserRemovalIT.aMaskAndAnEraseKeepTheEarlierEntriesAndAddTheirOwn`, `PropagatedChangesIT`, `LinkedUserChangesIT`, `UserNameChangesIT`, `NameOrderChangesIT`, `EndedRecordsIT`, and `ChangeLogServiceTest`.
 
 ### Learning when a dated change takes effect
 

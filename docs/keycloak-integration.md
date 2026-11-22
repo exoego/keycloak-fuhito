@@ -540,10 +540,10 @@ Every resource has `version`, in a read of it and in each entry of a list.
 A new resource has 1, and each write counts it up by one.
 A write of a part of a resource counts up the version of the whole resource.
 The parts are the periods and the parents of an org unit, the terms of an employment, the periods of an assignment, the names of a reference item, and the IDs that other systems have for a resource.
-A write by another endpoint or by Keycloak counts it up too, such as an import, the attribute sync, a mask, the removal of a user or of an organization in Keycloak, and a change of the name of a user in Keycloak.
+A write by another endpoint or by Keycloak counts it up too, such as an import, the attribute sync, a mask, the removal of a user or of an organization in Keycloak, a change of the name of a user in Keycloak, and a change of the realm attribute `fuhito.nameOrder`.
 A restore keeps the versions of the export. It takes a version from 1 to 9007199254740991, the largest whole number that a client in JavaScript reads exactly.
 A version never wraps around, because a version that wrapped would be one that a caller read long before.
-A write of a resource whose version is the largest `long` fails with 500 and writes nothing. The extension counts up with `Math.addExact`, and checks the version of an ID of another system before Hibernate counts it up. The removal of an organization in Keycloak counts up its org unit in the database, which fails such a count-up, as PostgreSQL does with `bigint out of range`.
+A write of a resource whose version is the largest `long` fails with 500 and writes nothing. The extension counts up with `Math.addExact`, and checks the version of an ID of another system before Hibernate counts it up. The removal of an organization in Keycloak and a change of the realm attribute `fuhito.nameOrder` count up in the database, which fails such a count-up, as PostgreSQL does with `bigint out of range`.
 No write gives such a version, since a restore gives at most 9007199254740991 and each write adds one.
 The work location and the cost center that apply come from other org units, so they are no part of an org unit or of an assignment. A change of a unit above does not count up the version of the units and the assignments below it.
 
@@ -565,7 +565,7 @@ So a product cannot overwrite a change that another product made after its read.
 - `POST /employments/transfers` locks every employment of the old employer, with what the end of each one changes. With `endEmployer`, it locks the old employer too. `POST /reorganizations` locks every stored unit of its steps at the start.
 - Every write takes its locks in one order of kinds, and in the order of the IDs within one kind. So two writes that change the same resources wait for each other in turn, and never each for the other.
 - A second write with the same version at the same moment waits, reads the new version, and fails with 409. A write that waits for the lock of another resource reads what the first write left.
-- Each realm has one lock for its writes. A bulk write takes it alone, at its start and before anything else. The bulk writes are `POST /imports`, also as a dry run, `POST /imports/csv/{list}`, and `POST /restore`. The attribute sync takes it alone for each piece of users.
+- Each realm has one lock for its writes. A bulk write takes it alone, at its start and before anything else. The bulk writes are `POST /imports`, also as a dry run, `POST /imports/csv/{list}`, and `POST /restore`. The attribute sync takes it alone for each piece of users. A change of the realm attribute `fuhito.nameOrder` that puts the other part first takes it alone in the transaction of the change.
 - Every other write of the realm shares this lock, before its other locks. These are the other writes of the API, the removal of a user or of an organization in Keycloak, a change of the name of a user in Keycloak, the rebuild of the projection, and the record of the last run of a job.
 - So the other writes of the realm wait while a bulk write runs, and a bulk write waits for the writes that run. Two bulk writes of one realm run one after the other. During the attribute sync, the other writes wait for one piece at a time. Writes that share the lock do not wait for each other on it, and the writes of other realms do not wait at all.
 - Reads take no lock and never wait.
@@ -721,6 +721,41 @@ These facts come from the source code of Keycloak 26.8.0 and 26.8.2.
 | A login through an identity provider with the sync mode `force`, or with a mapper that sets the name | Only the events of the login, which do not say that the name changed | No |
 | Another extension that sets the name | None, unless it sends one of the events above | No |
 
+### A change of the order of the names
+
+The realm attribute `fuhito.nameOrder` says which part comes first in the read of a person with no names in the record.
+When it changes, each such read whose name has two different parts changes.
+Each of these people then gets a new version, and the change log gets a propagated change of each with the cause `KEYCLOAK_REALM_NAME_ORDER_CHANGED`. The entries come in the order of the IDs of the people. See "Propagated changes" below.
+
+The order changes no other read.
+
+- A person with names in the record has one name in each language, and the order does not join it.
+- A user with only a first name or only a last name gives the same name in either order. So does a user with the same text in both, after the spaces around them go.
+- A person of a removed user has no name from Keycloak.
+- No other read has the name of a person. The records of a person give the ID of the person and of its user. The change log and the exports of the extension do not join the first name and the last name.
+
+Only `family-first` puts the last name first. Any other value, and no value, put the first name first.
+So a change from no value to `given-first` changes no read and gives no propagated change. Neither does an update of the realm that sends the same value again, nor a change of another attribute.
+
+The extension learns of the change from the event `RealmModel.RealmAttributeUpdateEvent` of Keycloak.
+Keycloak sends it in the transaction of the change, for each realm attribute whose value changes, with the name and the new value. It sends it for every write through the model of Keycloak, also for one that records no admin event.
+The admin event `UPDATE` of `REALM` would not do. It comes for every update of the realm, also one that changes nothing, and it has only the new representation.
+Neither event has the value from before the change. So the extension reads the realm in a transaction of its own, which still sees the old value, and compares the two orders.
+
+One change can give every person of the realm a new version. So it takes the lock of the realm alone, as a bulk write does, and reads the old value again after the lock. It finds the people in the database, and writes their versions and their entries with a few statements for the whole realm. With 50,000 such people the update of the realm takes about 1 to 1.4 seconds, and the other writes of the realm wait that long. See [performance.md](performance.md#a-change-of-the-order-of-the-names).
+
+The extension finds these people from the names in the tables of Keycloak. A user that only a user storage provider holds, such as one of LDAP with "Import Users" off, is not there. Its person gets no propagated change, and its read changes with no new version.
+
+These facts come from the source code of Keycloak 26.8.0 and 26.8.2.
+
+| Change of the realm attribute | Propagated change |
+|---|---|
+| `PUT /admin/realms/{realm}` with the attribute in `attributes`, also from `kcadm.sh` or the admin client | Yes |
+| The same request with `attributes` that leave the attribute out, which removes it | Yes |
+| Another extension that calls `setAttribute` or `removeAttribute` of `RealmModel` | Yes |
+| The creation of a realm with the attribute, by `POST /admin/realms` or by an import of a realm | None is needed, because a new realm has no people |
+| A write to the table `REALM_ATTRIBUTE` with SQL | No. Keycloak sends no event, and keeps the old value in its cache until the cache drops the realm |
+
 An employment and a qualification have `personId`. They also have `userId` when the person is linked to a user.
 A reporting line has `managerPersonId`, and `managerUserId` in the same way.
 A request to create one of them takes either ID. With the ID of a user, the person of the user is used, and created when the user has none.
@@ -808,7 +843,7 @@ A client that holds an old read gets 409, as for any other change.
 | `operation` | `CREATE`, `UPDATE`, or `DELETE` | `UPDATE` |
 | `resourcePath` | The path of the request | The path of the resource, such as `fuhito/org-units/{id}` |
 | `changeOrderId` | The change order of the request | The change order of the write that caused it |
-| `cause` | Absent | `WRITE` for a write to the API, or the change in Keycloak, such as `KEYCLOAK_ORGANIZATION_REMOVED` or `KEYCLOAK_USER_REMOVED` |
+| `cause` | Absent | `WRITE` for a write to the API, or the change in Keycloak, such as `KEYCLOAK_ORGANIZATION_REMOVED`, `KEYCLOAK_USER_REMOVED`, or `KEYCLOAK_REALM_NAME_ORDER_CHANGED` |
 | `causeSequence` | Absent | The sequence number of the entry of the write, for the cause `WRITE` |
 
 A write keeps its own entry, with its user and its change order. So the log still says who wrote what.
@@ -825,7 +860,7 @@ The enum `DerivedValue` lists every value that a read takes from elsewhere, what
 | `keycloakOrganizationId` | Org units | The removal of the organization in Keycloak |
 | `userId` | Employments, assignments, qualifications, and roles over org units | A link or an unlink of the user of the person |
 | `managerUserId` | Reporting lines | A link or an unlink of the user of the manager |
-| `name` and `nameSource` of a person with no names in the record | People | A change of the name of the linked user in Keycloak that sends an event, and the removal of the user. See "A change of the name in Keycloak" above |
+| `name` and `nameSource` of a person with no names in the record | People | A change of the name of the linked user in Keycloak that sends an event, the removal of the user, and a change of the realm attribute `fuhito.nameOrder`. See "A change of the name in Keycloak" and "A change of the order of the names" above |
 
 ### Keeping the log
 
