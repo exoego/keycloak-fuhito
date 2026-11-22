@@ -227,6 +227,7 @@ In the same transaction it ends only what would still hold.
 
 So the person no longer shows up as a current member, in tokens, or in the projection.
 Every read about the user still works with the user ID, for example `GET /users/{userId}/history`.
+The person stays linked to the removed user. So the records of the person keep `userId` in their reads, and get no propagated change for it.
 
 ### Masking the data of one user
 
@@ -724,6 +725,13 @@ An employment and a qualification have `personId`. They also have `userId` when 
 A reporting line has `managerPersonId`, and `managerUserId` in the same way.
 A request to create one of them takes either ID. With the ID of a user, the person of the user is used, and created when the user has none.
 A request can also give both IDs, as a read of a person with a user has them. So a request made from a read works as sent. The user must be the one of the person. Two IDs of two people, or a user with no person, fail with 400 and `invalid.mismatch`, which names both fields. The request writes nothing.
+
+These records read the user from the person. A write of the person that links a user, unlinks it, or links another one changes their reads.
+So each employment, assignment, qualification, and role over org units of the person gets a new version and a propagated change, and so does each reporting line where the person is the manager. See "Propagated changes" below.
+
+- `PUT /people/{id}` and a row of `people` in an import are the writes that change the user of a person.
+- A write that names a user with no person creates the person. The new person has no records yet, so nothing else changes. The sync from user attributes works this way.
+- A mask keeps the user. The removal of a user in Keycloak keeps it too. So neither changes these reads.
 The person of a qualification never changes. `PUT /qualifications/{id}` takes both IDs of its person, as a read has them, or leaves them out. A body with another person, or with a user that is not the user of the person, fails with 400 and `invalid.value_fixed`.
 A person with no linked user gets no token claim and no group in the projection.
 
@@ -791,6 +799,7 @@ A client that holds an old read gets 409, as for any other change.
 
 A write keeps its own entry, with its user and its change order. So the log still says who wrote what.
 A resource gets one propagated change for each write, also when several parts of the write change its read.
+The propagated changes of a request come after the entries of all its writes. Each has the time of the write that caused it.
 A propagated change records no admin event.
 `GET /change-log?kind=WRITE` and `GET /change-log/count?kind=WRITE` leave the propagated changes out. `kind=PROPAGATED` lists only them.
 
@@ -800,6 +809,8 @@ The enum `DerivedValue` lists every value that a read takes from elsewhere, what
 | Value | Read of | Changed by |
 |---|---|---|
 | `keycloakOrganizationId` | Org units | The removal of the organization in Keycloak |
+| `userId` | Employments, assignments, qualifications, and roles over org units | A link or an unlink of the user of the person |
+| `managerUserId` | Reporting lines | A link or an unlink of the user of the manager |
 | `name` and `nameSource` of a person with no names in the record | People | A change of the name of the linked user in Keycloak that sends an event, and the removal of the user. See "A change of the name in Keycloak" above |
 
 ### Keeping the log

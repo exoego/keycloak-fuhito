@@ -1,16 +1,23 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import net.exoego.keycloak.fuhito.domain.DerivedValue;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 
 /**
@@ -173,6 +180,60 @@ public class JpaPersonStore implements PersonStore {
             PersonNames.replace(em, realmId, id, null);
             em.remove(entity);
         });
+    }
+
+    // The rows of the person are found by IDs alone, for the reason in Rows.inRealm.
+    @Override
+    public List<PropagatedChange> countUpReadsOfUser(String personId) {
+        List<PropagatedChange> changed = new ArrayList<>();
+        List<String> employmentIds = new ArrayList<>();
+        for (EmploymentEntity employment : ofPerson("select e from EmploymentEntity e where e.personId = :personId",
+                EmploymentEntity.class, personId, e -> e.realmId)) {
+            employment.countUp();
+            employmentIds.add(employment.id);
+            changed.add(new PropagatedChange(DerivedValue.EMPLOYMENT_USER_ID, employment.id));
+        }
+        if (!employmentIds.isEmpty()) {
+            Set<String> assignmentIds = em.createQuery("""
+                            select a.realmId, a.assignmentId from AssignmentEntity a where %s"""
+                            .formatted(ManyIds.has("a.employmentId", "ids")), Object[].class)
+                    .setParameter("ids", ManyIds.of(employmentIds)).getResultStream()
+                    .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                    .map(row -> (String) row[1])
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            Versions.assignments(em, realmId, assignmentIds);
+            assignmentIds.forEach(id -> changed.add(new PropagatedChange(DerivedValue.ASSIGNMENT_USER_ID, id)));
+            em.createQuery("""
+                            select r from UnitRoleEntity r where r.realmId = :realmId and %s"""
+                            .formatted(ManyIds.has("r.employmentId", "ids")), UnitRoleEntity.class)
+                    .setParameter("realmId", realmId).setParameter("ids", ManyIds.of(employmentIds))
+                    .getResultList()
+                    .forEach(role -> {
+                        role.countUp();
+                        changed.add(new PropagatedChange(DerivedValue.UNIT_ROLE_USER_ID, role.id));
+                    });
+        }
+        for (QualificationEntity qualification : ofPerson(
+                "select q from QualificationEntity q where q.personId = :personId", QualificationEntity.class,
+                personId, q -> q.realmId)) {
+            qualification.countUp();
+            changed.add(new PropagatedChange(DerivedValue.QUALIFICATION_USER_ID, qualification.id));
+        }
+        for (ReportingLineEntity line : ofPerson(
+                "select l from ReportingLineEntity l where l.managerPersonId = :personId", ReportingLineEntity.class,
+                personId, l -> l.realmId)) {
+            line.countUp();
+            changed.add(new PropagatedChange(DerivedValue.REPORTING_LINE_MANAGER_USER_ID, line.id));
+        }
+        return changed;
+    }
+
+    private <T> List<T> ofPerson(String query, Class<T> type, String personId, Function<T, String> realmOf) {
+        return em.createQuery(query, type)
+                .setParameter("personId", personId)
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, realmOf))
+                .toList();
     }
 
     // The realm filter keeps one realm from reaching the rows of another by ID.

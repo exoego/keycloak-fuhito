@@ -13,6 +13,26 @@ public enum DerivedValue {
     KEYCLOAK_ORGANIZATION_ID(ResourceType.FUHITO_ORG_UNIT, "org-units", "keycloakOrganizationId",
             "The organizations of Keycloak", "The removal of the organization in Keycloak"),
 
+    /** The Keycloak user of the person of an employment. */
+    EMPLOYMENT_USER_ID(ResourceType.FUHITO_EMPLOYMENT, "employments", "userId",
+            "The user that the person is linked to", "A link or an unlink of the user of the person"),
+
+    /** The Keycloak user of the person of an assignment. */
+    ASSIGNMENT_USER_ID(ResourceType.FUHITO_ASSIGNMENT, "assignments", "userId",
+            "The user that the person is linked to", "A link or an unlink of the user of the person"),
+
+    /** The Keycloak user of the person of a qualification. */
+    QUALIFICATION_USER_ID(ResourceType.FUHITO_QUALIFICATION, "qualifications", "userId",
+            "The user that the person is linked to", "A link or an unlink of the user of the person"),
+
+    /** The Keycloak user of the person of a role over an org unit. */
+    UNIT_ROLE_USER_ID(ResourceType.FUHITO_UNIT_ROLE, "unit-roles", "userId",
+            "The user that the person is linked to", "A link or an unlink of the user of the person"),
+
+    /** The Keycloak user of the manager of a reporting line. */
+    REPORTING_LINE_MANAGER_USER_ID(ResourceType.FUHITO_REPORTING_LINE, "reporting-lines", "managerUserId",
+            "The user that the manager is linked to", "A link or an unlink of the user of the manager"),
+
     /** The name of a person with no names in the record, which is the name of the linked Keycloak user. */
     PERSON_NAME(ResourceType.FUHITO_PERSON, "people", "name",
             "The first name and the last name of the linked Keycloak user",

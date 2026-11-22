@@ -1,6 +1,8 @@
 package net.exoego.keycloak.fuhito.service;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -9,11 +11,18 @@ import java.util.TreeMap;
 import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 
 final class MemoryPersonStore implements PersonStore {
     private final Map<String, Person> people = new TreeMap<>();
     private boolean everyIdIsAPerson;
+
+    /** The records of each person whose read gives the user of the person. */
+    final Map<String, List<PropagatedChange>> readsOfUser = new HashMap<>();
+
+    /** The people whose records had their versions counted up, in order. */
+    final List<String> countedUp = new ArrayList<>();
 
     /** A store with one person for each user. The ID of the person is the ID of the user. */
     static MemoryPersonStore linked(Collection<String> userIds) {
@@ -86,5 +95,11 @@ final class MemoryPersonStore implements PersonStore {
     @Override
     public void delete(String id) {
         people.remove(id);
+    }
+
+    @Override
+    public List<PropagatedChange> countUpReadsOfUser(String personId) {
+        countedUp.add(personId);
+        return readsOfUser.getOrDefault(personId, List.of());
     }
 }

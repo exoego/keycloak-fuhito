@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Person;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 
 /**
  * Storage of the people of one realm.
@@ -102,4 +103,15 @@ public interface PersonStore {
      * @param id the ID
      */
     void delete(String id);
+
+    /**
+     * Counts up the version of each record whose read gives the Keycloak user of a person. These are the employments,
+     * the assignments, the qualifications, and the roles over org units of the person, and the reporting lines where
+     * the person is the manager. A write that changes the user of the person calls it, and records a propagated
+     * change of each.
+     *
+     * @param personId the ID of the person
+     * @return the records
+     */
+    List<PropagatedChange> countUpReadsOfUser(String personId);
 }

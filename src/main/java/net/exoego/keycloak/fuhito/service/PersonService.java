@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -17,6 +18,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Localized;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.PersonName;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.PersonStore;
 import net.exoego.keycloak.fuhito.store.UserDirectory;
@@ -34,6 +36,16 @@ public class PersonService {
      * @param created the new person, or null when the person was there already
      */
     public record Resolved(Person person, PersonView created) {
+    }
+
+    /**
+     * A person after a write, and the records whose read the write changed.
+     *
+     * @param view the person after the write
+     * @param propagated the records whose read gives the user of the person, when the write changed the user. Their
+     *         versions are counted up. None when the write kept the user.
+     */
+    public record Replaced(PersonView view, List<PropagatedChange> propagated) {
     }
 
     private final PersonStore store;
@@ -250,20 +262,24 @@ public class PersonService {
     /**
      * Replaces the names, the attributes, and the link to a Keycloak user. An external ID of the request is stored
      * as the ID that the system of its source has for the person. The person keeps the system that made it.
+     * A link, an unlink, or another user changes the read of each record of the person, so their versions count up.
      *
      * @param id the ID
      * @param request the new values
-     * @return the changed person
+     * @return the changed person, and the records whose read changed
      * @throws FuhitoException when the person does not exist, a value is bad, or the external ID belongs to another
      *         person
      */
-    public PersonView replace(String id, PersonValues request) {
+    public Replaced replace(String id, PersonValues request) {
         Checks.required("body", request);
         Person current = get(id).person();
         ExternalId.Pair externalId = externalIds.check(id, request.source(), request.externalId());
-        store.update(checked(id, request, current.source(), current.version(), store::findByUser));
+        Person replaced = checked(id, request, current.source(), current.version(), store::findByUser);
+        store.update(replaced);
         externalIds.store(id, externalId);
-        return get(id);
+        List<PropagatedChange> propagated = Objects.equals(current.userId(), replaced.userId()) ? List.of()
+                : store.countUpReadsOfUser(id);
+        return new Replaced(get(id), propagated);
     }
 
     /**

@@ -100,7 +100,7 @@ final class PersonImport {
                     Merged.attributes(row, row.attributes(), null, rules, Target.PERSON), row.externalId(), source);
             PersonView view = ids.create(ExternalId.Kind.PERSON, source, row.externalId(),
                     () -> created.create(values), made -> made.person().id());
-            document.report.write(new Write.OfPerson(true, view));
+            document.report.write(new Write.OfPerson(view));
             return Outcome.CREATED;
         }
         Person person = before.get();
@@ -120,10 +120,10 @@ final class PersonImport {
             return Outcome.UNCHANGED;
         }
         created.insert();
-        PersonView changed = service.replace(person.id(), wanted);
+        PersonService.Replaced changed = service.replace(person.id(), wanted);
         stored.remove(person.id());
-        created.forget(person.userId(), changed.person().userId());
-        document.report.write(new Write.OfPerson(false, changed));
+        created.forget(person.userId(), changed.view().person().userId());
+        document.report.write(new Write.OfPerson(false, changed.view(), changed.propagated()));
         return Outcome.CHANGED;
     }
 
