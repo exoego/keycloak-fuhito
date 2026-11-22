@@ -117,10 +117,13 @@ class EffectivePlacesIT {
     void aNewWorkLocationOfAUnitChangesTheUnitsBelowAndTheAssignmentsThatTakeIt() throws Exception {
         Hospital h = hospital("places-work-location");
         Api api = h.api();
+        String order = created(api.post("/change-orders", "{\"title\": \"京都移転\", "
+                + "\"effectiveDate\": \"2026-04-01\"}"));
         long last = lastSequence(api);
         DerivedReads reads = DerivedReads.before(api, DATES);
 
-        ok(api.putWithVersion("/org-units/" + h.hospital(), details("病院", "kyoto", "cc-hq", "2026-04-01")));
+        ok(api.putWithVersion("/org-units/" + h.hospital() + "?changeOrder=" + order,
+                details("病院", "kyoto", "cc-hq", "2026-04-01")));
 
         reads.assertEveryChangeIsLogged();
         // The clinic has its own work location, and so do the members of the clinic and the remote worker.
@@ -129,16 +132,18 @@ class EffectivePlacesIT {
         assertEquals(List.of("home"), workLocations(api, h.remote()));
         assertEquals("tokyo", ok(api.get("/org-units/" + h.team() + "?asOf=2026-03-31"))
                 .get("effectiveWorkLocation").asText());
-        // Each propagated change names the entry of the write, and has no user.
+        // Each propagated change names the entry of the write and its change order, and has no user.
         JsonNode log = ok(api.get("/change-log?after=" + last));
         JsonNode write = log.get(0);
-        assertEquals(List.of("WRITE", h.hospital()), List.of(write.get("kind").asText(),
-                write.get("resourceId").asText()));
+        assertEquals(List.of("WRITE", h.hospital(), order), List.of(write.get("kind").asText(),
+                write.get("resourceId").asText(), write.get("changeOrderId").asText()));
         for (JsonNode entry : log.valueStream().skip(1).toList()) {
-            assertEquals(List.of("PROPAGATED", write.get("sequence").asText()),
-                    List.of(entry.get("kind").asText(), entry.get("causeSequence").asText()));
+            assertEquals(List.of("PROPAGATED", write.get("sequence").asText(), order),
+                    List.of(entry.get("kind").asText(), entry.get("causeSequence").asText(),
+                            entry.get("changeOrderId").asText()));
             assertFalse(entry.has("actorUserId"), entry.toString());
         }
+        assertEquals(6, api.count("/change-orders/" + order + "/changes/count"));
     }
 
     @Test
