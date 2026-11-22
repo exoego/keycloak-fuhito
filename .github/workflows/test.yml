@@ -14,7 +14,8 @@ concurrency:
 jobs:
   test:
     name: Test (Java ${{ matrix.java }}${{ matrix.keycloak && format(', Keycloak {0}', matrix.keycloak) || '' }})
-    timeout-minutes: 30
+    # Longer than the timeout of the integration tests in build.gradle.kts, so that one fails first.
+    timeout-minutes: 40
     runs-on: ubuntu-latest
     permissions:
       contents: read
