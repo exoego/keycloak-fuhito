@@ -17,6 +17,7 @@ The extension uses these Keycloak APIs that Keycloak does not promise to keep st
 | `TimerProvider`, `ClusterAwareScheduledTaskRunner`, and `ExecutorsProvider` | The timer of the projection |
 | `ObjectMapperResolver` and a JAX-RS `MessageBodyReader` | The JSON bodies of the own endpoints, read with the settings of Keycloak |
 | A JAX-RS `ContainerRequestFilter` with `ResourceInfo` | The check of the query parameters of the own endpoints |
+| A global `EventListenerProvider` | The events of a change of a user, for the name of a person |
 
 All code that touches these APIs is in the package `net.exoego.keycloak.fuhito.keycloak`.
 When Keycloak changes one of them, only that package needs a change.
@@ -221,6 +222,7 @@ In the same transaction it ends only what would still hold.
 - A reporting line where the user is the manager ends on that day.
 - Qualifications stay as they are.
 - The records of the organizations that the projection added the user to are removed.
+- A person with no names in the record loses the name that its read took from the user. It gets a new version and a propagated change with the cause `KEYCLOAK_USER_REMOVED`. A user with no name changes no read, so its person gets none.
 - The change log keeps every entry. It gets one more for each employment that ended. That entry has no acting user.
 
 So the person no longer shows up as a current member, in tokens, or in the projection.
@@ -538,7 +540,7 @@ Every resource has `version`, in a read of it and in each entry of a list.
 A new resource has 1, and each write counts it up by one.
 A write of a part of a resource counts up the version of the whole resource.
 The parts are the periods and the parents of an org unit, the terms of an employment, the periods of an assignment, the names of a reference item, and the IDs that other systems have for a resource.
-A write by another endpoint or by Keycloak counts it up too, such as an import, the attribute sync, a mask, and the removal of a user or of an organization in Keycloak.
+A write by another endpoint or by Keycloak counts it up too, such as an import, the attribute sync, a mask, the removal of a user or of an organization in Keycloak, and a change of the name of a user in Keycloak.
 A restore keeps the versions of the export. It takes a version from 1 to 9007199254740991, the largest whole number that a client in JavaScript reads exactly.
 A version never wraps around, because a version that wrapped would be one that a caller read long before.
 A write of a resource whose version is the largest `long` fails with 500 and writes nothing. The extension counts up with `Math.addExact`, and checks the version of an ID of another system before Hibernate counts it up. The removal of an organization in Keycloak counts up its org unit in the database, which fails such a count-up, as PostgreSQL does with `bigint out of range`.
@@ -564,7 +566,7 @@ So a product cannot overwrite a change that another product made after its read.
 - Every write takes its locks in one order of kinds, and in the order of the IDs within one kind. So two writes that change the same resources wait for each other in turn, and never each for the other.
 - A second write with the same version at the same moment waits, reads the new version, and fails with 409. A write that waits for the lock of another resource reads what the first write left.
 - Each realm has one lock for its writes. A bulk write takes it alone, at its start and before anything else. The bulk writes are `POST /imports`, also as a dry run, `POST /imports/csv/{list}`, and `POST /restore`. The attribute sync takes it alone for each piece of users.
-- Every other write of the realm shares this lock, before its other locks. These are the other writes of the API, the removal of a user or of an organization in Keycloak, the rebuild of the projection, and the record of the last run of a job.
+- Every other write of the realm shares this lock, before its other locks. These are the other writes of the API, the removal of a user or of an organization in Keycloak, a change of the name of a user in Keycloak, the rebuild of the projection, and the record of the last run of a job.
 - So the other writes of the realm wait while a bulk write runs, and a bulk write waits for the writes that run. Two bulk writes of one realm run one after the other. During the attribute sync, the other writes wait for one piece at a time. Writes that share the lock do not wait for each other on it, and the writes of other realms do not wait at all.
 - Reads take no lock and never wait.
 - The lock is the row of the realm in `FUHITO_REALM_WRITE`. A realm gets it when it is created, and a realm from before the table gets it at its first write. The removal of the realm removes it, and a restore keeps it.
@@ -694,6 +696,31 @@ Keycloak keeps a first name and a last name. The extension joins them with a spa
 
 A person with no linked user must have names in the record.
 
+### A change of the name in Keycloak
+
+When Keycloak changes the first name or the last name of a user, the read of a person with no names in the record changes.
+The person then gets a new version, and the change log gets a propagated change of it with the cause `KEYCLOAK_USER_NAME_CHANGED`. See "Propagated changes" below.
+A person with names in the record gets none. Neither does a change that leaves the name of the read as it was, such as a change of the email or of the spaces around a name.
+The removal of the user takes the name away too. See "Removal of a realm or a user".
+
+The extension learns of a change from the events that Keycloak sends in the transaction of the change.
+Its event listener is global, so Keycloak calls it in every realm. A realm does not need to store events or to list the listener.
+No event has the name from before the change. So the extension reads the user in a transaction of its own, which still sees the name that Keycloak had before, and compares the two names.
+
+A change that sends no event gives no propagated change. The read of the person then changes with no new version.
+These facts come from the source code of Keycloak 26.8.0 and 26.8.2.
+
+| Change of the name | Event | Propagated change |
+|---|---|---|
+| The admin console, or `PUT /admin/realms/{realm}/users/{id}` | Admin event `UPDATE` of `USER` | Yes |
+| The SCIM server of Keycloak, with `PUT` or `PATCH` of a user | Admin event `UPDATE` of `USER` | Yes |
+| The account console | User event `UPDATE_PROFILE` | Yes |
+| The required action to update the profile, at a login | User event `UPDATE_PROFILE` | Yes |
+| A sync of an LDAP federation, by its schedule or from the admin console | None for each user. A sync from the admin console sends one admin event `ACTION` for the whole sync | No |
+| A change in LDAP for a federation with "Import Users" off | None. Keycloak reads the name from LDAP each time | No |
+| A login through an identity provider with the sync mode `force`, or with a mapper that sets the name | Only the events of the login, which do not say that the name changed | No |
+| Another extension that sets the name | None, unless it sends one of the events above | No |
+
 An employment and a qualification have `personId`. They also have `userId` when the person is linked to a user.
 A reporting line has `managerPersonId`, and `managerUserId` in the same way.
 A request to create one of them takes either ID. With the ID of a user, the person of the user is used, and created when the user has none.
@@ -767,7 +794,7 @@ A client that holds an old read gets 409, as for any other change.
 | `operation` | `CREATE`, `UPDATE`, or `DELETE` | `UPDATE` |
 | `resourcePath` | The path of the request | The path of the resource, such as `fuhito/org-units/{id}` |
 | `changeOrderId` | The change order of the request | The change order of the write that caused it |
-| `cause` | Absent | `WRITE` for a write to the API, or the change in Keycloak, such as `KEYCLOAK_ORGANIZATION_REMOVED` |
+| `cause` | Absent | `WRITE` for a write to the API, or the change in Keycloak, such as `KEYCLOAK_ORGANIZATION_REMOVED` or `KEYCLOAK_USER_REMOVED` |
 | `causeSequence` | Absent | The sequence number of the entry of the write, for the cause `WRITE` |
 
 A write keeps its own entry, with its user and its change order. So the log still says who wrote what.
@@ -784,6 +811,7 @@ The enum `DerivedValue` lists every value that a read takes from elsewhere, what
 | `keycloakOrganizationId` | Org units | The removal of the organization in Keycloak |
 | `userId` | Employments, assignments, qualifications, and roles over org units | A link or an unlink of the user of the person |
 | `managerUserId` | Reporting lines | A link or an unlink of the user of the manager |
+| `name` and `nameSource` of a person with no names in the record | People | A change of the name of the linked user in Keycloak that sends an event, and the removal of the user. See "A change of the name in Keycloak" above |
 
 ### Keeping the log
 

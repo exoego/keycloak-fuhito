@@ -67,6 +67,15 @@ class ProviderFactoriesTest {
     void closingHoldsNothingToRelease() {
         assertDoesNotThrow(() -> new FuhitoAdminRealmResourceProviderFactory().close());
         assertDoesNotThrow(() -> new FuhitoJpaEntityProviderFactory().close());
+        assertDoesNotThrow(() -> new FuhitoEventListenerProviderFactory().close());
+        assertDoesNotThrow(() -> new UserUpdateEvents((realmId, userId) -> { }).close());
+    }
+
+    // A realm lists the listeners that it calls. Keycloak calls a global one in every realm.
+    @Test
+    void theEventListenerHearsEveryRealm() {
+        assertEquals(List.of(true, "fuhito"), List.of(new FuhitoEventListenerProviderFactory().isGlobal(),
+                new FuhitoEventListenerProviderFactory().getId()));
     }
 
     @Test

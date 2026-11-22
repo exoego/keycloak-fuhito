@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.ChangeLogEntry;
+import net.exoego.keycloak.fuhito.domain.DerivedValue;
 import net.exoego.keycloak.fuhito.jpa.JpaAssignmentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
 import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
@@ -17,24 +18,28 @@ import net.exoego.keycloak.fuhito.jpa.JpaRefItemStore;
 import net.exoego.keycloak.fuhito.jpa.JpaUnitRoleStore;
 import net.exoego.keycloak.fuhito.jpa.JpaReportingLineStore;
 import net.exoego.keycloak.fuhito.jpa.JpaWriteScopes;
+import net.exoego.keycloak.fuhito.jpa.RealmData;
 import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import net.exoego.keycloak.fuhito.service.EmploymentService;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.service.LegalEntityEmployers;
 import net.exoego.keycloak.fuhito.service.UserRetirement;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserModel;
 
 /**
  * Keeps the history of a user who is removed from Keycloak, and ends what would still hold.
- * The records of the organizations that the projection added the user to go.
+ * The records of the organizations that the projection added the user to go. A person whose read gave the name of the
+ * user gets a new version and a propagated change.
  */
 final class UserRemovalHandler {
 
     private UserRemovalHandler() {
     }
 
-    static void retire(EntityManager em, RealmModel realm, String userId) {
+    static void retire(EntityManager em, RealmModel realm, UserModel user) {
         String realmId = realm.getId();
+        String userId = user.getId();
         // The removal ends the employments of the user with what belongs to them, as a write of the API does.
         // It finds them after a bulk write of the realm that runs.
         RowLocks.lockRealm(em, realmId, false);
@@ -57,5 +62,13 @@ final class UserRemovalHandler {
                     Instant.now().truncatedTo(ChronoUnit.MILLIS), null, write.resourceType(), write.resourceId(),
                     write.deleted() ? "DELETE" : "UPDATE", write.path(), null));
         }
+        // A person with no names reads the name of the user, which goes with the user.
+        RealmData.personNamedByUser(em, realmId, userId).filter(person -> !UserNames.of(realm, user).isEmpty())
+                .ifPresent(person -> {
+                    RealmData.countUpPerson(em, realmId, person);
+                    changeLog.append(ChangeLogEntry.propagated(UUID.randomUUID().toString(),
+                            Instant.now().truncatedTo(ChronoUnit.MILLIS), DerivedValue.PERSON_NAME, person,
+                            ChangeLogEntry.Cause.KEYCLOAK_USER_REMOVED, null, null));
+                });
     }
 }
