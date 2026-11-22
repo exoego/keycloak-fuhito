@@ -9,12 +9,14 @@ import java.util.Optional;
 import java.util.Set;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.DerivedValue;
 import net.exoego.keycloak.fuhito.domain.Employer;
 import net.exoego.keycloak.fuhito.domain.EmploymentStatus;
 import net.exoego.keycloak.fuhito.domain.EmploymentTerms;
 import net.exoego.keycloak.fuhito.domain.Employment;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
@@ -951,5 +953,46 @@ class EmploymentServiceTest {
         refItems.delete(type.id());
 
         assertNull(service.get(id).terms().getFirst().employmentType());
+    }
+
+    private static List<String> propagated(CutRecords cut) {
+        cut.propagated().forEach(change -> assertEquals(DerivedValue.ASSIGNMENT_ENDED_ON_START, change.value()));
+        return cut.propagated().stream().map(PropagatedChange::resourceId).toList();
+    }
+
+    // Alice has a second employment, and its assignments start on the old and on the new end of the first one.
+    @Test
+    void anEndChangesTheListsOfTheAssignmentsOfAnotherEmploymentOfThePerson() {
+        assignments.employments = store;
+        String first = service.start(minimal("alice", "2020-04-01")).employment().id();
+        String second = service.start(minimal("alice", "2020-04-01")).employment().id();
+        assignment("ward-row", "ward", first, "2020-04-01", "2028-04-01");
+        assignment("early-row", "early", second, "2027-04-01", null);
+        assignment("next-row", "next", second, "2028-04-01", null);
+        assignment("other-row", "other", service.start(minimal("bob", "2020-04-01")).employment().id(),
+                "2027-04-01", null);
+
+        assertEquals(List.of("early", "next"), propagated(service.end(first, "2027-04-01", null).cut()));
+        assertEquals(List.of(2L, 2L, 1L), List.of(assignments.rows("early").getFirst().version(),
+                assignments.rows("next").getFirst().version(), assignments.rows("other").getFirst().version()));
+    }
+
+    // The copy of the transfer ends on the start of the assignment of the later employment, as the old one did.
+    @Test
+    void aTransferGivesTheAssignmentThatStartsOnTheOldEndTheCopy() {
+        assignments.employments = store;
+        String old = service.start(new NewEmployment("alice", "2020-04-01", "2028-04-01", null, null, null, null, null,
+                null, null, null, null, null, "company-y")).employment().id();
+        String later = service.start(new NewEmployment("alice", "2028-04-01", null, null, null, null, null, null, null,
+                null, null, null, null, "company-y")).employment().id();
+        assignment("ward-row", "ward", old, "2020-04-01", "2028-04-01");
+        assignment("next-row", "next", later, "2028-04-01", null);
+
+        EmploymentService.Transfer transfer = service.transfer(old,
+                new TransferRequest("company-x", "2027-04-01", null, null));
+
+        assertEquals(List.of("next"), propagated(transfer.cut()));
+        assertEquals(transfer.assignmentIds(), assignments.endedOnStart(List.of("next")).get("next").stream()
+                .map(Assignment::assignmentId).toList());
     }
 }

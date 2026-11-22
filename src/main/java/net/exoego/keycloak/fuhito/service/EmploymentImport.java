@@ -211,7 +211,7 @@ final class EmploymentImport {
             started.insert();
             EmploymentService.Ended ended = service.end(id, validTo, endReason, false);
             stored.remove(id);
-            writes.add(() -> new Write.OfEmployment(false, "/end", ended.view()));
+            writes.add(() -> new Write.OfEmployment(false, "/end", ended.view(), ended.cut().propagated()));
             ended.cut().writes(document.people.assignmentService()).forEach(write -> writes.add(() -> write));
             ends.put(id, index);
             changed = true;

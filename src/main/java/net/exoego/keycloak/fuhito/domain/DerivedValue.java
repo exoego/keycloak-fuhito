@@ -21,6 +21,12 @@ public enum DerivedValue {
     ASSIGNMENT_USER_ID(ResourceType.FUHITO_ASSIGNMENT, "assignments", "userId",
             "The user that the person is linked to", "A link or an unlink of the user of the person"),
 
+    /** The other assignments of the person that end on the start of an assignment. */
+    ASSIGNMENT_ENDED_ON_START(ResourceType.FUHITO_ASSIGNMENT, "assignments", "endedOnStart",
+            "The end and the primary flag of the last period of the other assignments of the person",
+            "A change of the end or the primary flag of another assignment of the person, and its create and its "
+                    + "delete"),
+
     /** The Keycloak user of the person of a qualification. */
     QUALIFICATION_USER_ID(ResourceType.FUHITO_QUALIFICATION, "qualifications", "userId",
             "The user that the person is linked to", "A link or an unlink of the user of the person"),

@@ -255,9 +255,9 @@ Each entry has `assignmentId`, `orgUnitId`, and `primary`.
 - A read works it out from the other assignments each time, and nothing stores it. So no write can leave a list that names the wrong assignment. A move of an assignment that ends on the start of a later one gives the later one the new assignment.
 - The REST reads of assignments have it, also every list of them, such as `GET /assignments`, the members of an org unit, and the history of a person. A list reads it for all its entries with one query. The CSV export and the realm export do not have it.
 - A create takes a read as its body, and may leave the list out. A list that differs from the one that the new assignment gets fails with 400 and `invalid.value_fixed`, and writes nothing.
-- A change of the dates or of the primary flag of one assignment can change the list of another. That does not count up the version of the other one, and the change log gets no entry for it.
+- A change of the dates or of the primary flag of one assignment can change the list of another. Its create and its delete can too. The other one then gets a new version and a propagated change, so a client that holds an old read of it gets 409. See "The assignments whose `endedOnStart` a write changes" in [keycloak-integration.md](keycloak-integration.md).
 
-Checked by `EndedOnStartIT`.
+Checked by `EndedOnStartIT` and `EndedOnStartChangesIT`.
 
 ## A promotion
 

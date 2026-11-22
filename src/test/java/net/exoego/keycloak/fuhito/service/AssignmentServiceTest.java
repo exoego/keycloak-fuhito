@@ -10,8 +10,10 @@ import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
+import net.exoego.keycloak.fuhito.domain.DerivedValue;
 import net.exoego.keycloak.fuhito.domain.ExternalId;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.RefItem;
 import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
@@ -390,7 +392,7 @@ class AssignmentServiceTest {
         assertEquals(LocalDate.of(2027, 4, 1), service.end(id, "2027-04-01").view().period().to());
         assertEquals(LocalDate.of(2026, 10, 1), service.end(id, "2026-10-01").view().period().to());
         assertEquals(LocalDate.of(2028, 4, 1), service.end(id, "2028-04-01").view().period().to());
-        assertNull(service.removeEnd(id).period().to());
+        assertNull(service.removeEnd(id).view().period().to());
         assertEquals("assignment.not_found",
                 assertThrows(FuhitoException.class, () -> service.removeEnd("nope")).code());
     }
@@ -449,7 +451,7 @@ class AssignmentServiceTest {
         assertEquals(LocalDate.of(2027, 4, 1), service.end(old, "2027-04-01").view().period().to());
         assertEquals(List.of(old), ended(service.get(next)));
         assertEquals(LocalDate.of(2030, 4, 1), service.end(next, "2030-04-01").view().period().to());
-        assertNull(service.removeEnd(next).period().to());
+        assertNull(service.removeEnd(next).view().period().to());
     }
 
     @Test
@@ -460,7 +462,7 @@ class AssignmentServiceTest {
         assertEquals(List.of(old), ended(service.get(next)));
 
         // The person may hold two posts, so the old one then no longer ends on the start of the next one.
-        assertNull(service.removeEnd(old).period().to());
+        assertNull(service.removeEnd(old).view().period().to());
         assertEquals(List.of(), ended(service.get(next)));
     }
 
@@ -469,7 +471,7 @@ class AssignmentServiceTest {
         String old = service.add(to(ward, "2026-04-01")).view().assignmentId();
         employmentService.transfer(employment, new TransferRequest("company-x", "2027-04-01", null, null));
 
-        assertEquals(LocalDate.of(2027, 4, 1), service.removeEnd(old).period().to());
+        assertEquals(LocalDate.of(2027, 4, 1), service.removeEnd(old).view().period().to());
     }
 
     @Test
@@ -486,7 +488,7 @@ class AssignmentServiceTest {
         assertEquals("assignment.outside_employment",
                 assertThrows(FuhitoException.class, () -> service.end(inFixed, "2027-04-02")).code());
         assertEquals(LocalDate.of(2027, 4, 1), service.end(inFixed, "2027-04-01").view().period().to());
-        assertEquals(LocalDate.of(2027, 4, 1), service.removeEnd(inFixed).period().to());
+        assertEquals(LocalDate.of(2027, 4, 1), service.removeEnd(inFixed).view().period().to());
 
         assertEquals("assignment.org_unit_not_valid",
                 assertThrows(FuhitoException.class, () -> service.end(inEnding, "2027-10-02")).code());
@@ -763,5 +765,108 @@ class AssignmentServiceTest {
         assertEquals(Map.of("kind", "WORK_LOCATION", "code", "cc-hq"), wrongKind.params());
         assertEquals(Map.of("kind", "COST_CENTER", "code", "closed"), addFailure(placedIn(ward, null, "closed"))
                 .params());
+    }
+
+    private AssignmentValues post(String orgUnitId, String validFrom, String validTo) {
+        return new AssignmentValues(employment, orgUnitId, validFrom, validTo, null, null, null, null, null, null,
+                null, null, null, null, null);
+    }
+
+    // The IDs of the assignments whose endedOnStart changed, in the order of the IDs.
+    private static List<String> propagated(List<PropagatedChange> changes) {
+        changes.forEach(change -> assertEquals(DerivedValue.ASSIGNMENT_ENDED_ON_START, change.value()));
+        return changes.stream().map(PropagatedChange::resourceId).sorted().toList();
+    }
+
+    private static List<String> sorted(String... ids) {
+        return List.of(ids).stream().sorted().toList();
+    }
+
+    // The case of #721. A holds until September and C starts then. A move of A in June gives C the new assignment.
+    @Test
+    void aMoveBeforeALaterAssignmentChangesTheListOfThatOneAndCountsUpItsVersion() {
+        String a = service.add(primary(ward, "2026-04-01", "2027-09-01", null)).view().assignmentId();
+        String c = service.add(primary(yHospital, "2027-09-01", null, null)).view().assignmentId();
+        long version = service.version(c);
+
+        AssignmentService.Move move = service.move(a, new MoveRequest(xHospital, "2027-06-01", null, null, null));
+
+        assertEquals(List.of(c), propagated(move.propagated()));
+        assertEquals(List.of(move.started().assignmentId()), ended(service.get(c)));
+        assertEquals(version + 1, service.version(c));
+    }
+
+    @Test
+    void anEndChangesTheListsOfTheAssignmentsThatStartOnTheOldAndOnTheNewEnd() {
+        String a = service.add(post(ward, "2026-04-01", "2027-10-01")).view().assignmentId();
+        String onOld = service.add(post(xHospital, "2027-10-01", null)).view().assignmentId();
+        String onNew = service.add(post(yHospital, "2027-07-01", null)).view().assignmentId();
+
+        assertEquals(sorted(onOld, onNew), propagated(service.end(a, "2027-07-01").propagated()));
+        assertEquals(List.of(a), ended(service.get(onNew)));
+        assertEquals(List.of(), ended(service.get(onOld)));
+
+        // Without an end, A lasts as long as the employment and ends on no start.
+        assertEquals(List.of(onNew), propagated(service.removeEnd(a).propagated()));
+        assertEquals(List.of(), ended(service.get(onNew)));
+    }
+
+    @Test
+    void aChangeOfDetailsChangesAnotherListOnlyThroughTheFlagOfTheLastPeriod() {
+        item(RefKind.JOB_TITLE, "staff", true);
+        String a = service.add(post(ward, "2026-04-01", "2027-04-01")).view().assignmentId();
+        String next = service.add(post(xHospital, "2027-04-01", null)).view().assignmentId();
+
+        assertEquals(List.of(), service.changeDetails(a, details("2026-10-01", "staff", null)).propagated());
+
+        AssignmentService.Written flagged = service.changeDetails(a, new AssignmentValues(null, null, "2026-10-01",
+                null, null, null, null, null, true, null, null, null, null, null, null));
+        assertEquals(List.of(next), propagated(flagged.propagated()));
+        assertEquals(List.of(), ended(service.get(next)));
+    }
+
+    @Test
+    void aSwitchOfThePrimaryFlagChangesTheListOfTheAssignmentThatStartsOnTheEndOfTheHolder() {
+        String holder = service.add(primary(ward, "2026-04-01", "2027-04-01", null)).view().assignmentId();
+        String next = service.add(primary(xHospital, "2027-04-01", null, null)).view().assignmentId();
+        assertEquals(List.of(holder), ended(service.get(next)));
+
+        AssignmentService.Written added = service.add(primary(yHospital, "2026-10-01", "2027-04-01", true));
+
+        // The holder is not primary on its last day any more, and the new assignment ends on the start of the next.
+        assertEquals(List.of(next), propagated(added.propagated()));
+        assertEquals(List.of(added.view().assignmentId()), ended(service.get(next)));
+    }
+
+    @Test
+    void aRemovalChangesTheListOfTheAssignmentThatStartsOnItsEnd() {
+        String a = service.add(post(ward, "2026-04-01", "2027-04-01")).view().assignmentId();
+        String next = service.add(post(xHospital, "2027-04-01", null)).view().assignmentId();
+        EndedOnStartChanges endings = service.watch(a);
+
+        store.deleteAll(store.rows(a).stream().map(Assignment::rowId).toList());
+
+        assertEquals(List.of(next), propagated(endings.changed()));
+    }
+
+    @Test
+    void aNewAssignmentChangesTheListOfAnotherEmploymentOfThePersonAndNotOfAnotherPerson() {
+        store.employments = employments;
+        String second = employmentService.start(new NewEmployment("alice", "2026-04-01", null, null, null, null, null,
+                null, null, null, null)).employment().id();
+        String ofBob = employmentService.start(new NewEmployment("bob", "2026-04-01", null, null, null, null, null,
+                null, null, null, null)).employment().id();
+        String next = service.add(new AssignmentValues(second, xHospital, "2027-04-01", null, null, null, null, null,
+                null, null, null, null, null, null, null)).view().assignmentId();
+        service.add(new AssignmentValues(ofBob, xHospital, "2027-04-01", null, null, null, null, null, null, null,
+                null, null, null, null, null));
+
+        AssignmentService.Written added = service.add(post(ward, "2026-04-01", "2027-04-01"));
+
+        assertEquals(List.of(next), propagated(added.propagated()));
+        // An assignment with no end ends on no start, so its create reads nothing more.
+        int countedUp = store.countedUp.size();
+        assertEquals(List.of(), service.add(post(yHospital, "2026-04-01", null)).propagated());
+        assertEquals(countedUp, store.countedUp.size());
     }
 }

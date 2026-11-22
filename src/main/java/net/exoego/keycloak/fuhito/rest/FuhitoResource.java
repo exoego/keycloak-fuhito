@@ -267,7 +267,7 @@ public class FuhitoResource {
     @Path("staff")
     public StaffResource staff() {
         return new StaffResource(context, employmentService(), assignmentService(), personService(),
-                externalIdService());
+                externalIdService(), writeScopes());
     }
 
     /**

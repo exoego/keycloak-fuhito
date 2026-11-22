@@ -218,6 +218,7 @@ public interface RequestContext {
      * event and an entry of the kind {@code WRITE}. The propagated changes come after all those entries, with no
      * admin event. Each has the time and the change order of the first change that caused it, and names its entry in
      * {@code causeSequence}. A resource gets one propagated change, also when several of the changes changed its read.
+     * A resource that one of the changes wrote gets none, because its entry of the write tells the change already.
      *
      * @param changes the changes
      */

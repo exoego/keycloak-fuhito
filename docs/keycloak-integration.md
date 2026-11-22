@@ -561,8 +561,8 @@ So a product cannot overwrite a change that another product made after its read.
 - A create needs no version. The import, the attribute sync, the restore, and the rebuild of the projection need none either, because they load data from the system of record or from Keycloak.
 - `POST /employments/transfers` and the writes of `/users/{userId}` need no version. Their path names no resource with a version.
 - A write locks every stored resource that it changes, before it changes any of them, until it ends. These are the resource of its path and the other resources that the write changes.
-- For example, `PUT /employments/{id}/end` also locks the assignments, the reporting lines, and the roles over org units of the employment. `POST /people/{id}/mask` also locks the employments, the assignments, and the qualifications of the person, and so does the removal of a user from Keycloak. `PUT /external-ids` locks the resource that has the ID.
-- `POST /employments/transfers` locks every employment of the old employer, with what the end of each one changes. With `endEmployer`, it locks the old employer too. `POST /reorganizations` locks every stored unit of its steps at the start.
+- For example, `PUT /employments/{id}/end` also locks the assignments, the reporting lines, and the roles over org units of the employment, and the assignments of the other employments of the person. A write of an assignment locks every assignment of the person, and so does `POST /staff`. Such a write can change `endedOnStart` of any of them. `POST /people/{id}/mask` also locks the employments, the assignments, and the qualifications of the person, and so does the removal of a user from Keycloak. `PUT /external-ids` locks the resource that has the ID.
+- `POST /employments/transfers` locks every employment of the old employer, with what the end of each one changes and every assignment of the people. With `endEmployer`, it locks the old employer too. `POST /reorganizations` locks every stored unit of its steps at the start.
 - Every write takes its locks in one order of kinds, and in the order of the IDs within one kind. So two writes that change the same resources wait for each other in turn, and never each for the other.
 - A second write with the same version at the same moment waits, reads the new version, and fails with 409. A write that waits for the lock of another resource reads what the first write left.
 - Each realm has one lock for its writes. A bulk write takes it alone, at its start and before anything else. The bulk writes are `POST /imports`, also as a dry run, `POST /imports/csv/{list}`, and `POST /restore`. The attribute sync takes it alone for each piece of users.
@@ -825,7 +825,32 @@ The enum `DerivedValue` lists every value that a read takes from elsewhere, what
 | `keycloakOrganizationId` | Org units | The removal of the organization in Keycloak |
 | `userId` | Employments, assignments, qualifications, and roles over org units | A link or an unlink of the user of the person |
 | `managerUserId` | Reporting lines | A link or an unlink of the user of the manager |
+| `endedOnStart` | Assignments | A change of the end or of the primary flag of the last period of another assignment of the person, and its create and its delete. See "The assignments whose `endedOnStart` a write changes" below |
 | `name` and `nameSource` of a person with no names in the record | People | A change of the name of the linked user in Keycloak that sends an event, and the removal of the user. See "A change of the name in Keycloak" above |
+
+### The assignments whose `endedOnStart` a write changes
+
+`endedOnStart` of an assignment lists the other assignments of the person whose last period ends on its start with the primary flag of its first period. So only the end and the primary flag of the last period of an assignment count for the lists of the others. A write notes them for each assignment that it changes, creates, or removes. After the write, it reads the first periods of the assignments of the same people from the database, in every employment. An assignment that starts on an old or a new end gets a new version and a propagated change when its list is not the same any more.
+
+| Write | Can change `endedOnStart` of another assignment |
+|---|---|
+| `POST /assignments`, also with `switchPrimary` | Yes. The new assignment ends on the start of another, and a holder of the primary flag can give it up on its last day |
+| `PUT /assignments/{id}/details`, also with `switchPrimary` | Yes, when the primary flag of the last period changes, of this assignment or of a holder |
+| `PUT /assignments/{id}/end` and `DELETE /assignments/{id}/end` | Yes |
+| `POST /assignments/{id}/move` | Yes. The old assignment ends on the date, and the new one ends where the old one did |
+| `DELETE /assignments/{id}` | Yes |
+| `PUT /employments/{id}/end` | Yes. The end ends or removes assignments, also of a person with other employments |
+| `DELETE /employments/{id}/end` | No. The assignments stay as they are |
+| `POST /employments/{id}/transfer` and `POST /employments/transfers` | Yes. The old assignment ends on the date, and its copy ends where the old one did |
+| `POST /staff` | Yes, for a person who comes back. The new assignment can end on the start of a later one |
+| `POST /employments/{id}/promotion` | No. It keeps the dates and the primary flag |
+| A row of `assignments` or of `employments` in `POST /imports` and in `POST /imports/csv/{list}` | Yes, as the same write of the API does |
+| The sync from user attributes | Yes, when it adds, ends, or removes its assignment |
+| The removal of a user in Keycloak | No. It removes every assignment of the person that starts today or later, so no list that stays changes |
+| `POST /reorganizations` and the other writes of org units | No. An org unit cannot end while an assignment holds there |
+
+An assignment that the write itself changes has the entry of that write, and gets no propagated change.
+The propagated change names the entry of the write that changed the other assignment. In an import, that is the row that did it.
 
 ### Keeping the log
 

@@ -56,7 +56,8 @@ public record AssignmentRepresentation(
                         + "and a merger of employers. Two posts can also end and start on one day with no tie "
                         + "between them, so this states only the dates. A gap gives none. It is missing when there "
                         + "is none. A read works it out from the other assignments, and a write never stores it. A "
-                        + "create may leave it out. A create that gives another list than the one that the new "
+                        + "write that changes the list of another assignment counts up the version of that one, and "
+                        + "the change log gets a propagated change of it. A create may leave it out. A create that gives another list than the one that the new "
                         + "assignment gets fails with 400 and `invalid.value_fixed`, and writes nothing.",
                 readOnly = true)
         List<EndedAssignmentRepresentation> endedOnStart,

@@ -7,7 +7,9 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
+import net.exoego.keycloak.fuhito.domain.PropagatedChange;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.service.ImportReport.Write;
 import net.exoego.keycloak.fuhito.store.ReportingLineStore;
@@ -19,11 +21,35 @@ import net.exoego.keycloak.fuhito.store.ReportingLineStore;
  * @param assignmentIds the IDs of the assignments that end on the date now
  * @param others the writes of the other records. These are the roles over org units and the reporting lines that end
  *        on the date now, and each removed record. A removed record comes before the records that it refers to.
+ * @param propagated the other assignments of the person whose {@code endedOnStart} the write changed. Their versions
+ *        are counted up already.
  */
-public record CutRecords(List<String> assignmentIds, List<Write> others) {
+public record CutRecords(List<String> assignmentIds, List<Write> others, List<PropagatedChange> propagated) {
 
     /** No record. */
-    static final CutRecords NONE = new CutRecords(List.of(), List.of());
+    static final CutRecords NONE = new CutRecords(List.of(), List.of(), List.of());
+
+    /**
+     * Gives the records of each end the propagated changes that the assignments of its employment caused.
+     *
+     * @param cuts the records of each end, by the ID of the employment
+     * @param changed the propagated changes by the ID of the assignment that caused them
+     * @param employmentOf gives the ID of the employment whose end a causing assignment belongs to
+     * @return the records of each end, by the ID of the employment
+     */
+    static Map<String, CutRecords> withPropagated(Map<String, CutRecords> cuts,
+            Map<String, List<PropagatedChange>> changed, Function<String, String> employmentOf) {
+        if (changed.isEmpty()) {
+            return cuts;
+        }
+        Map<String, List<PropagatedChange>> byEmployment = new LinkedHashMap<>();
+        changed.forEach((assignmentId, propagated) -> byEmployment.computeIfAbsent(employmentOf.apply(assignmentId),
+                any -> new ArrayList<>()).addAll(propagated));
+        Map<String, CutRecords> all = new LinkedHashMap<>();
+        cuts.forEach((id, cut) -> all.put(id, new CutRecords(cut.assignmentIds(), cut.others(),
+                List.copyOf(byEmployment.getOrDefault(id, List.of())))));
+        return all;
+    }
 
     /**
      * Returns the writes of the records, for the event log and the change log.

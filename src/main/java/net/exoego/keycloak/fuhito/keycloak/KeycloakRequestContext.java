@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.keycloak;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,6 +15,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.OptionalInt;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityManager;
 import jakarta.ws.rs.ForbiddenException;
@@ -262,11 +264,16 @@ final class KeycloakRequestContext implements RequestContext {
         List<ChangeLogEntry> writes = log.appendAll(entries);
         // The entries of the writes need their numbers first, so that each propagated change can name its cause.
         Map<List<Object>, ChangeLogEntry> propagated = new LinkedHashMap<>();
+        Set<List<Object>> written = changes.stream()
+                .map(change -> Arrays.<Object>asList(change.resourceType(), change.resourceId()))
+                .collect(Collectors.toSet());
         for (int i = 0; i < changes.size(); i++) {
             ChangeLogEntry write = writes.get(i);
             for (PropagatedChange read : changes.get(i).propagated()) {
-                propagated.computeIfAbsent(List.of(read.value().resourceType(), read.resourceId()),
-                        resource -> write.causing(UUID.randomUUID().toString(), read));
+                List<Object> resource = List.of(read.value().resourceType(), read.resourceId());
+                if (!written.contains(resource)) {
+                    propagated.computeIfAbsent(resource, any -> write.causing(UUID.randomUUID().toString(), read));
+                }
             }
         }
         if (!propagated.isEmpty()) {
