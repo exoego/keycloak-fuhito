@@ -136,6 +136,9 @@ testing {
                     doFirst {
                         systemProperty("openapi.document", openApi.get().absolutePath)
                     }
+                    // A test compares the table of admin events in this document with the writes in the source.
+                    inputs.file(layout.projectDirectory.file("docs/keycloak-integration.md"))
+                    inputs.dir(layout.projectDirectory.dir("src/main/java"))
                 }
             }
         }
