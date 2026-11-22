@@ -850,8 +850,9 @@ components:
           description: The values that the message refers to.
         message:
           type: string
-          description: The message for people. Its text can change. Its language follows
-            the `Accept-Language` header.
+          description: "The message for people. Its text can change. Its language\
+            \ is the one of the names, which the `Accept-Language` header gives, else\
+            \ English. The message of `invalid.header` is in English."
     ExportAssignment:
       type: object
       description: An assignment with the rows of every period.
@@ -4584,6 +4585,8 @@ components:
     BadRequest:
       description: |
         A value in the request is bad.
+        An `Accept-Language` header that is not in the form of RFC 9110 gets
+        `invalid.header`, with the message in English.
         A query parameter that the operation does not take gets
         `invalid.unknown_parameter`, and one given twice gets `invalid.parameter_twice`.
         A query parameter of the type `integer` that is no whole number in the form of
@@ -4746,6 +4749,18 @@ info:
     parameter that is left out has no value. These checks come after Keycloak checks the token,
     and before the roles of the extension. So a caller without the role gets 400 for such a
     query, and 403 for any other query.
+
+    Every request first checks its `Accept-Language` header by RFC 9110 and RFC 4647. Each
+    element of the list is a basic language range, such as `ja` or `en-US`, or `*`, with at most
+    a `q` from 0 to 1 that has at most three digits after the point. A header in another form
+    fails with 400 and `invalid.header`, which names `Accept-Language` in `field` and the bad
+    element in `value`. So `ja;q=2`, `ja;q=.5`, `ja;q=0.5555`, `en_US`, and `ja;level=1` fail.
+    `Q=0.5` is the same as `q=0.5`, and spaces can go around `;` and `,`. An empty element, as in
+    `ja, , en`, is ignored. The message of this error is in English. The tag with the highest `q`
+    above 0 other than `*`, the first one on a tie, gives the language of the names and of the
+    messages. Messages exist in English and Japanese, and any other language, or a request with
+    no such tag, gets English. The check comes after Keycloak checks the token, and before the
+    query and the roles of the extension.
 
     A write that names one thing in two ways, such as a unit of a reorganization step by `id` and
     by `unitRef`, fails with 400 and `invalid.twice`. The error names the two fields in `field`

@@ -11,10 +11,10 @@ import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import jakarta.persistence.EntityManager;
@@ -57,7 +57,13 @@ final class KeycloakRequestContext implements RequestContext {
      */
     static final String DAYS_AHEAD_ATTRIBUTE = "fuhito.structure.daysAhead";
 
-    private static final Pattern Q_VALUE = Pattern.compile("0(\\.[0-9]{0,3})?|1(\\.0{0,3})?");
+    private static final String LANGUAGE_ATTRIBUTE = "fuhito.language";
+
+    private static final Pattern OWS_AROUND = Pattern.compile("^[ \\t]+|[ \\t]+$");
+
+    // An element of Accept-Language by RFC 9110 sections 12.5.4 and 12.4.2, with a basic language range of RFC 4647.
+    private static final Pattern LANGUAGE_RANGE = Pattern.compile("([A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*|\\*)"
+            + "(?:[ \\t]*;[ \\t]*[Qq]=(0(?:\\.[0-9]{0,3})?|1(?:\\.0{0,3})?))?");
 
     private final KeycloakSession session;
     private final RealmModel realm;
@@ -231,54 +237,70 @@ final class KeycloakRequestContext implements RequestContext {
 
     @Override
     public String nameLanguage() {
-        return nameLanguage(session.getContext().getHttpRequest().getHttpHeaders()
-                .getHeaderString(HttpHeaders.ACCEPT_LANGUAGE));
+        return language(session).tag();
     }
 
     static Locale locale(KeycloakSession session) {
-        return session.getContext().getHttpRequest().getHttpHeaders().getAcceptableLanguages().stream()
-                .filter(locale -> !"*".equals(locale.getLanguage()))
-                .findFirst()
-                .orElse(Locale.ENGLISH);
+        String tag = language(session).tag();
+        return tag == null ? Locale.ENGLISH : Locale.forLanguageTag(tag);
     }
 
     /**
-     * Picks the language of names from {@code Accept-Language}. It is the first tag of the highest {@code q}, and
-     * never {@code *}. A tag with {@code q=0} is not acceptable, as RFC 9110 says, so it is never picked. The tag
-     * stays as the header writes it, because {@link Locale} would turn {@code iw} into {@code he}.
+     * Checks {@code Accept-Language} of a request of the API, and keeps the language that it gives for the rest of
+     * the request.
+     *
+     * @param session the session of the request
+     * @throws ErrorResponseException 400 with {@code invalid.header} and a message in English, when the header is not
+     *         in the form of RFC 9110
+     */
+    static void checkLanguage(KeycloakSession session) {
+        String header = session.getContext().getHttpRequest().getHttpHeaders()
+                .getHeaderString(HttpHeaders.ACCEPT_LANGUAGE);
+        try {
+            session.setAttribute(LANGUAGE_ATTRIBUTE, new Language(language(header)));
+        } catch (FuhitoException e) {
+            throw new ErrorResponseException(error(Response.Status.BAD_REQUEST, e.code(), e.params(), Locale.ENGLISH));
+        }
+    }
+
+    private static Language language(KeycloakSession session) {
+        return session.getAttribute(LANGUAGE_ATTRIBUTE, Language.class);
+    }
+
+    /**
+     * Reads {@code Accept-Language} by RFC 9110 and picks the language of the request. It is the first tag of the
+     * highest {@code q}, and never {@code *}. A tag with {@code q=0} is not acceptable, as RFC 9110 says, so it is
+     * never picked. The tag stays as the header writes it, because {@link Locale} would turn {@code iw} into
+     * {@code he}. An empty element of the list is ignored, as RFC 9110 asks.
      *
      * @param header the value of the header, or null
      * @return the tag, or null when the header names no language with a weight above 0
+     * @throws FuhitoException with {@code invalid.header} when an element is not a basic language range of RFC 4647
+     *         or {@code *}, with at most a {@code q} of RFC 9110
      */
-    static String nameLanguage(String header) {
+    static String language(String header) {
         if (header == null) {
             return null;
         }
         String language = null;
         double highest = 0;
-        for (String range : header.split(",", -1)) {
-            String[] parts = range.split(";", -1);
-            String tag = parts[0].strip();
-            OptionalDouble weight = weight(parts);
-            if (!tag.isEmpty() && !tag.equals("*") && weight.isPresent() && weight.getAsDouble() > highest) {
-                language = tag;
-                highest = weight.getAsDouble();
+        for (String element : header.split(",", -1)) {
+            String range = OWS_AROUND.matcher(element).replaceAll("");
+            if (range.isEmpty()) {
+                continue;
+            }
+            Matcher parts = LANGUAGE_RANGE.matcher(range);
+            if (!parts.matches()) {
+                throw FuhitoException.invalid("invalid.header",
+                        Map.of("field", HttpHeaders.ACCEPT_LANGUAGE, "value", range));
+            }
+            double weight = parts.group(2) == null ? 1 : Double.parseDouble(parts.group(2));
+            if (!parts.group(1).equals("*") && weight > highest) {
+                language = parts.group(1);
+                highest = weight;
             }
         }
         return language;
-    }
-
-    // A range with a q that is not a number from 0 to 1, as HTTP writes it, counts as no range.
-    private static OptionalDouble weight(String[] parts) {
-        for (int i = 1; i < parts.length; i++) {
-            String parameter = parts[i].strip();
-            if (parameter.regionMatches(true, 0, "q=", 0, 2)) {
-                String value = parameter.substring(2);
-                return Q_VALUE.matcher(value).matches() ? OptionalDouble.of(Double.parseDouble(value))
-                        : OptionalDouble.empty();
-            }
-        }
-        return OptionalDouble.of(1);
     }
 
     @Override
@@ -345,5 +367,13 @@ final class KeycloakRequestContext implements RequestContext {
 
     private String changeOrderId() {
         return session.getContext().getUri().getQueryParameters().getFirst(CHANGE_ORDER_PARAMETER);
+    }
+
+    /**
+     * The language that the checked {@code Accept-Language} of a request gives.
+     *
+     * @param tag the tag as the header writes it, or null for none
+     */
+    private record Language(String tag) {
     }
 }

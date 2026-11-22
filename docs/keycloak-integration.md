@@ -383,6 +383,20 @@ A read with no `asOf` reads today. For an org unit with its own time zone, that 
 A caller with `fuhito-view-people` has no limit.
 A value that is not such a number gets 409 with `structure.days_ahead_invalid` for the callers that it limits.
 
+### Accept-Language
+
+The extension checks the `Accept-Language` header of each request when Keycloak asks it for its root resource.
+Keycloak has checked the token and the realm of the caller then.
+So the check comes before the query, the body, the roles of the extension, and every read and write.
+
+- The header follows RFC 9110, sections 12.5.4 and 12.4.2. Each element of its list is a basic language range of RFC 4647, such as `ja` or `en-US`, or `*`. It can have one weight `q`, with a value such as `0`, `0.5`, `0.123`, `1`, or `1.000`.
+- A header in another form fails with 400 and `invalid.header`, which names `Accept-Language` in `field` and the first bad element in `value`. So `ja;q=2`, `ja;q=.5`, `ja;q=0.5555`, `en_US`, `ja;level=1`, and `ja;q=0.5;q=0.4` fail.
+- `q` can be in either case, and spaces and tabs can go around `;` and `,`. An empty element, as in `ja, , en`, is ignored, as RFC 9110 section 5.6.1 asks.
+- The message of this error is in English, because the header cannot give its language.
+- The check keeps the tag of the request in an attribute of the Keycloak session. It is the tag with the highest `q` above 0 other than `*`, the first one on a tie, as the header writes it. The names of a read and the messages of errors both come from it. Only the messages turn it into a `Locale`, which finds their bundle. No code of the extension reads the header with `getAcceptableLanguages()` of JAX-RS.
+
+A caller without the role gets 400 for such a header.
+
 ### Request bodies
 
 The extension reads the JSON body of its own endpoints with a JAX-RS `MessageBodyReader` in the provider jar.
@@ -471,6 +485,7 @@ Every list that has the header takes `after`, so the next page passes the check 
 A request with no token gets 401.
 A caller without the role or the permission gets 403.
 A query that the endpoint does not take gets 400, also for a caller without the role. See "Query parameters" above.
+So does a bad `Accept-Language`. See "Accept-Language" above.
 
 A response leaves out every field that has no value.
 For example, an org unit with no end date has no `validTo` field.
@@ -978,8 +993,9 @@ An error response has a stable code, the values that belong to it, and a message
 ```
 
 Clients should rely on `error` and `params`. The text of `message` can change.
-The language of `message` follows the `Accept-Language` header of the request.
-English and Japanese exist. Any other language gets English.
+The language of `message` is the tag of `Accept-Language` that gives the names, as [Accept-Language](#accept-language) says.
+English and Japanese exist. Any other language, and a request with no such tag, gets English.
+A header that is not in the form of RFC 9110 gets 400 and `invalid.header`, with the message in English.
 To add a language, add a `messages_xx.properties` file next to the others.
 A failed request writes nothing.
 

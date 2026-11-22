@@ -37,6 +37,7 @@ public class FuhitoAdminRealmResourceProvider implements AdminRealmResourceProvi
     @Override
     public Object getResource(KeycloakSession session, RealmModel realm, AdminPermissionEvaluator auth,
             AdminEventBuilder adminEvent) {
+        KeycloakRequestContext.checkLanguage(session);
         return resource(session, session, realm, auth, adminEvent);
     }
 
