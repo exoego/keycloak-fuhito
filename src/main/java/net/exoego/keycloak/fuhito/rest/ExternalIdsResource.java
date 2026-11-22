@@ -137,12 +137,14 @@ public class ExternalIdsResource {
             Calls.body(body);
             lockOwner(body.resourceType(), body.resourceId());
             requireVersion(body.resourceType(), body.resourceId(), body.source(), body.version());
-            ExternalIdService.View view = service.put(body.resourceType(), body.resourceId(), body.source(),
+            ExternalIdService.Put put = service.put(body.resourceType(), body.resourceId(), body.source(),
                     body.externalId());
+            ExternalIdService.View view = put.view();
             // Whether the system made the resource does not depend on the ID, so the response has the value of a read.
             Checks.fixed("own", view.own(), body.own());
             var stored = ExternalIdRepresentation.of(view);
-            context.recordChange(Change.UPDATE, RESOURCE_TYPE, view.rowId(), path(view.rowId()), stored);
+            context.recordChange(put.created() ? Change.CREATE : Change.UPDATE, RESOURCE_TYPE, view.rowId(),
+                    path(view.rowId()), stored);
             return stored;
         });
     }

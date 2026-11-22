@@ -39,19 +39,25 @@ class ExternalIdServiceTest {
 
     @Test
     void aResourceGetsTheIdsOfMoreSystemsAndIsFoundByEach() {
-        ExternalIdService.View payroll = service.put("ORG_UNIT", "ward", "payroll", "P-9");
+        ExternalIdService.Put payroll = service.put("ORG_UNIT", "ward", "payroll", "P-9");
         service.put("ORG_UNIT", "ward", "budget", "B-3");
 
-        assertFalse(payroll.own());
+        assertTrue(payroll.created());
+        assertFalse(payroll.view().own());
         assertEquals(List.of("hr=W-1 own", "budget=B-3", "payroll=P-9"), summary(service.list("ORG_UNIT", "ward")));
         assertEquals("ward", service.find("ORG_UNIT", "payroll", "P-9").resourceId());
         assertTrue(service.find("ORG_UNIT", "hr", "W-1").own());
         assertEquals(List.of(), summary(service.list("ORG_UNIT", "clinic")));
 
         // A second put for the same system replaces the ID, also the one of the system that made the resource.
-        assertEquals(payroll.rowId(), service.put("ORG_UNIT", "ward", "payroll", "P-10").rowId());
+        ExternalIdService.Put replaced = service.put("ORG_UNIT", "ward", "payroll", "P-10");
+        assertFalse(replaced.created());
+        assertEquals(payroll.view().rowId(), replaced.view().rowId());
         assertEquals("external_id.unknown", code(() -> service.find("ORG_UNIT", "payroll", "P-9")));
-        assertTrue(service.put("ORG_UNIT", "ward", "hr", "W-2").own());
+        ExternalIdService.Put own = service.put("ORG_UNIT", "ward", "hr", "W-2");
+        assertFalse(own.created());
+        assertTrue(own.view().own());
+        assertFalse(service.put("ORG_UNIT", "ward", "hr", "W-2").created());
         assertEquals("payroll", service.remove("ORG_UNIT", "ward", "payroll").source());
         assertEquals(List.of("hr=W-2 own", "budget=B-3"), summary(service.list("ORG_UNIT", "ward")));
     }
@@ -64,7 +70,9 @@ class ExternalIdServiceTest {
         assertEquals("external_id.unknown", code(() -> service.find("ORG_UNIT", "hr", "W-1")));
         assertEquals(Optional.of(new ExternalId.Origin("hr")), store.originOf(Kind.ORG_UNIT, "ward"));
         // Another resource may take the ID now.
-        assertEquals("clinic", service.put("ORG_UNIT", "clinic", "hr", "W-1").resourceId());
+        assertEquals("clinic", service.put("ORG_UNIT", "clinic", "hr", "W-1").view().resourceId());
+        // The ID of the system that made the resource is new again.
+        assertTrue(service.put("ORG_UNIT", "ward", "hr", "W-2").created());
     }
 
     @Test
@@ -83,13 +91,13 @@ class ExternalIdServiceTest {
         assertEquals("external_id.not_found", code(() -> service.remove("ORG_UNIT", "clinic", "payroll")));
         // The same ID in another kind of resource is another ID.
         store.resource(Kind.PERSON, "nurse", null);
-        assertEquals("nurse", service.put("PERSON", "nurse", "payroll", "P-9").resourceId());
+        assertEquals("nurse", service.put("PERSON", "nurse", "payroll", "P-9").view().resourceId());
     }
 
     @Test
     void anIdFitsItsColumnByCharacters() {
         String fits = "😀".repeat(255);
-        assertEquals(fits, service.put("ORG_UNIT", "ward", "payroll", fits).externalId());
+        assertEquals(fits, service.put("ORG_UNIT", "ward", "payroll", fits).view().externalId());
         assertEquals("external_id.bad_value", code(() -> service.put("ORG_UNIT", "ward", "payroll", "😀".repeat(256))));
     }
 

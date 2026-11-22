@@ -36,6 +36,15 @@ public class ExternalIdService {
             String rowId, long version) {
     }
 
+    /**
+     * An ID that a put stored.
+     *
+     * @param view the stored ID
+     * @param created true when the resource had no ID of the system before
+     */
+    public record Put(View view, boolean created) {
+    }
+
     private final ExternalIdStore store;
 
     /**
@@ -54,16 +63,17 @@ public class ExternalIdService {
      * @param resourceId the ID of the resource
      * @param source the name of the system
      * @param externalId the ID in that system
-     * @return the stored ID
+     * @return the stored ID, and whether it is new
      * @throws FuhitoException when a value is bad, the resource does not exist, or the ID names another resource
      */
-    public View put(String kind, String resourceId, String source, String externalId) {
+    public Put put(String kind, String resourceId, String source, String externalId) {
         ExternalId.Kind of = kind(kind);
         ExternalId.Origin origin = originOf(of, Checks.required("resourceId", resourceId));
         ExternalIdWrites writes = new ExternalIdWrites(store, of);
         ExternalId.Pair pair = writes.check(resourceId, Checks.code("source", source),
                 Checks.required("externalId", externalId));
-        return view(writes.store(resourceId, pair), origin);
+        ExternalIdWrites.Stored stored = writes.store(resourceId, pair);
+        return new Put(view(stored.row(), origin), stored.created());
     }
 
     /**

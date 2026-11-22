@@ -72,7 +72,8 @@ final class ExternalIdImport {
         if (stored.isPresent() && stored.get().externalId().equals(value)) {
             return Outcome.UNCHANGED;
         }
-        report.write(new Write.OfExternalId(stored.isEmpty(), externalIds.put(kind, resourceId, source, value)));
-        return stored.isEmpty() ? Outcome.CREATED : Outcome.CHANGED;
+        ExternalIdService.Put put = externalIds.put(kind, resourceId, source, value);
+        report.write(new Write.OfExternalId(put.created(), put.view()));
+        return put.created() ? Outcome.CREATED : Outcome.CHANGED;
     }
 }
