@@ -787,18 +787,26 @@ The realm stores the events when admin events are turned on in its settings.
 | Resource type | Operations | Resource path |
 |---|---|---|
 | `FUHITO_REF_ITEM` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-items/{id}` |
-| `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE` | `fuhito/org-units/{id}`, and the same with `/parent`, `/end`, `/organization`, or `/time-settings` |
+| `FUHITO_ORG_UNIT` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/org-units/{id}`, and the same with `/parent`, `/end`, `/succession`, `/organization`, or `/time-settings` |
 | `FUHITO_PERSON` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/people/{id}` |
 | `FUHITO_PERSON_DATA` | `UPDATE` for a mask, `DELETE` for an erase | `fuhito/people/{id}/mask`, `fuhito/people/{id}/data` |
-| `FUHITO_EMPLOYMENT` | `CREATE`, `UPDATE` | `fuhito/employments/{id}`, and the same with `/terms` or `/end` |
-| `FUHITO_ASSIGNMENT` | `CREATE`, `UPDATE` | `fuhito/assignments/{id}`, and the same with `/details` or `/end` |
-| `FUHITO_CHANGE_ORDER` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/change-orders/{id}` |
+| `FUHITO_EMPLOYMENT` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/employments/{id}`, and the same with `/terms`, `/end`, `/promotion`, `/leave`, `/return`, or `/transfer` |
+| `FUHITO_ASSIGNMENT` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/assignments/{id}`, and the same with `/details`, `/end`, or `/move` |
+| `FUHITO_CHANGE_ORDER` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/change-orders/{id}`, and the same with `/announce` |
 | `FUHITO_QUALIFICATION` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/qualifications/{id}` |
 | `FUHITO_REPORTING_LINE` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/reporting-lines/{id}`, and the same with `/end` |
 | `FUHITO_UNIT_ROLE` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/unit-roles/{id}`, and the same with `/end` |
+| `FUHITO_HIERARCHY` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/hierarchies/{id}` |
 | `FUHITO_ATTRIBUTE_DEFINITION` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/attribute-definitions/{id}` |
 | `FUHITO_REF_KIND` | `CREATE`, `UPDATE`, `DELETE` | `fuhito/ref-kinds/{code}` |
-| `FUHITO_EXTERNAL_ID` | `UPDATE`, `DELETE` | `fuhito/external-ids/{id}`, with the ID of the stored row |
+| `FUHITO_EXTERNAL_ID` | `CREATE` for a new ID in an import, `UPDATE`, `DELETE` | `fuhito/external-ids/{id}`, with the ID of the stored row |
+| `FUHITO_RESTORE` | `CREATE` into an empty realm, `UPDATE` for a replace | `fuhito/restore`, with the ID of the realm |
+
+An import, a reorganization, a transfer, a promotion, and the other writes of several records record an event of each record. Each event has the path that the same write has in its own endpoint.
+No endpoint writes the path `fuhito/org-units/{id}/succession`. An end that names the units that follow the unit records it, in the step `succeed` of a reorganization and in an import.
+`PUT /external-ids` records `UPDATE`, also for a new ID.
+A restore records one event for the whole realm, with the number of rows of each list.
+Checked by `AdminEventTableTest`, which compares this table with the writes in the source.
 
 The event has the new state as its representation when the realm keeps representations.
 A write of an attribute definition that fills or clears a value records an `UPDATE` of each resource whose rows it changed. Such an event has no representation, so that the write reads none of the rows back.
