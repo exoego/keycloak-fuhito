@@ -193,10 +193,14 @@ public class JpaChangeLogStore implements ChangeLogStore {
                 .orElse(new Bounds(0, 0));
     }
 
-    // The entries go first, so that the counter stays locked only for a short time. Each write of the realm waits
-    // for it.
+    // The row of the realm goes first, as in the removal of the realm. Otherwise the two can meet the entries in
+    // opposite orders and deadlock. The entries go next, so that the counter stays locked only for a short time.
+    // Each write of the realm waits for it.
     @Override
     public long removePropagated(Instant before) {
+        if (!RowLocks.lockRealmAgainstRemoval(em, realmId)) {
+            return 0;
+        }
         Long expired = em.createQuery(LAST_OLD_PROPAGATED, Long.class)
                 .setParameter("realmId", realmId)
                 .setParameter("before", before)

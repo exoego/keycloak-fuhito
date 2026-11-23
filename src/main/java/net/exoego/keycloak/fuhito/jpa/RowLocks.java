@@ -87,6 +87,24 @@ public final class RowLocks {
     }
 
     /**
+     * Locks the row of the realm against the removal of the realm until the end of the transaction. It waits only for
+     * a removal of the realm that runs. It waits for no write of the realm, and no write waits for it. The removal
+     * deletes the row before the other rows of the realm. So a caller that takes the row before the rows that it
+     * deletes never waits for the removal while the removal waits for it.
+     *
+     * @param em the entity manager of the transaction
+     * @param realmId the ID of the realm
+     * @return false when the realm has no row, as a realm that has written nothing yet or one that Keycloak removed
+     */
+    static boolean lockRealmAgainstRemoval(EntityManager em, String realmId) {
+        // JPA has no lock for FOR KEY SHARE.
+        return !em.createNativeQuery("select realm_id from fuhito_realm_write where realm_id = ?1 for key share")
+                .setParameter(1, realmId)
+                .getResultList()
+                .isEmpty();
+    }
+
+    /**
      * Locks the row of a Keycloak user for writes until the end of the transaction. A write that changes the user
      * calls it before {@link #lockRealm}. Keycloak locks the row of a user before the extension locks anything, when
      * it removes the user or its realm. So the write and such a removal wait for each other in turn.

@@ -221,6 +221,7 @@ The projection can also mirror the whole tree into realm groups. A client that u
 When a realm is removed, the extension deletes every row of that realm in the same transaction.
 The removal waits for the writes of the realm that run, and deletes what they wrote too.
 A write of the realm that comes during the removal waits for it. It then fails with 404 and `realm.not_found`, and writes nothing.
+The cleanup of the change log takes the row of the realm before the entries, as the removal does. So the two wait for each other in turn. A cleanup that waited for the removal skips the realm.
 
 The removal can fail with 500 when it comes while the extension writes rows of Keycloak.
 These writes are a rebuild or a timer run of the projection that changes groups or members.
@@ -600,6 +601,7 @@ So a product cannot overwrite a change that another product made after its read.
 - So the other writes of the realm wait while a bulk write runs, and a bulk write waits for the writes that run. Two bulk writes of one realm run one after the other. During the attribute sync, the other writes wait for one piece at a time. Writes that share the lock do not wait for each other on it, and the writes of other realms do not wait at all.
 - Reads take no lock and never wait for a write.
 - The lock is the row of the realm in `FUHITO_REALM_WRITE`. A realm gets it when it is created, and a realm from before the table gets it at its first write. The removal of the realm removes it, and a restore keeps it.
+- The cleanup of the change log takes the weakest lock on that row, before it removes anything. That lock waits only for the removal of the realm, and no write waits for it. A realm with no row has no change log yet, so the cleanup skips it.
 - A write that waited for the removal of its realm fails with 404 and `realm.not_found`. It does not add the row again.
 - A mask with `clearKeycloakName=true` locks the row of the user in Keycloak first, before the lock of the realm. Keycloak locks the row of a user first too, when it removes the user or its realm. So the mask and such a removal wait for each other in turn. While the mask waits for a bulk write, a change of that user in Keycloak waits too.
 - `POST /people/{id}/mask` with `clearKeycloakName=true` reads the user of the person before that first lock. When the person is linked to another user by the time of its lock, the mask fails with 409 and `version.conflict`, and writes nothing. A restore can make such a change and keep the version of the person. The error then has no version, because the version did not change.
@@ -984,6 +986,7 @@ A scheduled task removes the propagated changes that are older than the realm ke
 
 - The task runs every 15 minutes by default. The server option `spi-admin-realm-restapi-extension--fuhito--change-log-cleanup-interval` sets the number of seconds between two runs. A value below 1 fails the start of Keycloak.
 - In a cluster, one node runs it at a time, with the same runner as the scheduled tasks of Keycloak itself.
+- It takes the weakest lock on the row of the realm. That lock waits only for the removal of the realm. See [Writes of two products at once](#writes-of-two-products-at-once).
 - A realm with a value that is not such a number keeps every propagated change. Each node logs one warning for it.
 - A failure in one realm is logged and does not stop the other realms.
 

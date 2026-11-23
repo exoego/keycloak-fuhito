@@ -56,7 +56,8 @@ final class ChangeLogSchedule {
     private ChangeLogSchedule() {
     }
 
-    // A removal waits for the writes of its realm, so it runs on a thread of its own and holds up no task of Keycloak.
+    // The cleanup of a realm waits for its writes and for its removal, so it runs on a thread of its own and holds up
+    // no task of Keycloak.
     static void start(KeycloakSessionFactory factory, long intervalMillis) {
         KeycloakModelUtils.runJobInTransaction(factory, session -> {
             var run = new ClusterAwareScheduledTaskRunner(factory, new FuhitoChangeLogTask(), intervalMillis);
