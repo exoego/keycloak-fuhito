@@ -88,8 +88,8 @@ public final class RowLocks {
 
     /**
      * Locks the row of a Keycloak user for writes until the end of the transaction. A write that changes the user
-     * calls it before {@link #lockRealm}. Keycloak deletes the row of a user before the extension locks anything,
-     * when it removes the user or its realm. So the write and such a removal wait for each other in turn.
+     * calls it before {@link #lockRealm}. Keycloak locks the row of a user before the extension locks anything, when
+     * it removes the user or its realm. So the write and such a removal wait for each other in turn.
      * A user that the realm does not have locks nothing.
      *
      * @param em the entity manager of the transaction
