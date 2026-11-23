@@ -38,7 +38,7 @@ final class TestRealm {
     private TestRealm(String name, Keycloak admin) {
         this.name = name;
         this.admin = admin;
-        this.api = new Api(name, admin.tokenManager().getAccessTokenString());
+        this.api = Api.withTokensOf(name, admin);
     }
 
     static TestRealm create(String prefix) {

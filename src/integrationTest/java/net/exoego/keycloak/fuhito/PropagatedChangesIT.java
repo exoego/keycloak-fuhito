@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -40,7 +41,7 @@ class PropagatedChangesIT {
         realm.setAttributes(new HashMap<>(attributes));
         TestRealm.withTimeZone(realm);
         TestRealm.createRealm(ADMIN, realm);
-        Api api = new Api(realm.getRealm(), ADMIN.tokenManager().getAccessTokenString());
+        Api api = Api.withTokensOf(realm.getRealm(), ADMIN);
         return linked(realm.getRealm(), api, "X病院");
     }
 
@@ -79,14 +80,16 @@ class PropagatedChangesIT {
     }
 
     // The cleanup runs every few seconds. Two runs are well within the wait.
-    private static void waitFor(String what, Callable<Boolean> condition) throws Exception {
+    private static <T> void waitFor(String what, Callable<T> read, Predicate<T> done) throws Exception {
+        T last = null;
         for (int i = 0; i < 240; i++) {
-            if (condition.call()) {
+            last = read.call();
+            if (done.test(last)) {
                 return;
             }
             Thread.sleep(250);
         }
-        throw new AssertionFailedError("the cleanup never " + what);
+        throw new AssertionFailedError("the cleanup never " + what + ". The last value was " + last + ".");
     }
 
     @Test
@@ -160,8 +163,8 @@ class PropagatedChangesIT {
         age(first.realm(), " and sequence_number <> " + kept, 400);
         age(first.realm(), " and sequence_number = " + kept, 20);
 
-        waitFor("removed the old propagated change",
-                () -> api.count("/change-log/count?kind=PROPAGATED") == 1);
+        waitFor("removed the old propagated change", () -> api.count("/change-log/count?kind=PROPAGATED"),
+                count -> count == 1);
 
         assertEquals(writes, api.count("/change-log/count?kind=WRITE"));
         assertEquals(List.of(kept), ok(api.get("/change-log?kind=PROPAGATED")).findValuesAsText("sequence").stream()
@@ -215,8 +218,8 @@ class PropagatedChangesIT {
             }
 
             waitFor("removed the propagated change of the healthy realm",
-                    () -> healthy.api().count("/change-log/count?kind=PROPAGATED") == 0);
-            waitFor("ran twice", () -> count(KEYCLOAK.getLogs(), failed) >= 2);
+                    () -> healthy.api().count("/change-log/count?kind=PROPAGATED"), count -> count == 0);
+            waitFor("ran twice", () -> count(KEYCLOAK.getLogs(), failed), times -> times >= 2);
             // The next run after the trigger is gone removes the change of the failing realm.
             for (Hospital hospital : List.of(bad, failing)) {
                 assertEquals(1, hospital.api().count("/change-log/count?kind=PROPAGATED"), hospital.realm());
