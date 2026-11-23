@@ -8,9 +8,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
+import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Messages;
 import net.exoego.keycloak.fuhito.jpa.JpaChangeLogStore;
+import net.exoego.keycloak.fuhito.jpa.RealmAttributeValues;
 import net.exoego.keycloak.fuhito.service.ChangeLogCleanup;
 import org.jboss.logging.Logger;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
@@ -76,12 +78,12 @@ final class ChangeLogSchedule {
         return Math.min(intervalMillis, FIRST_RUN_MILLIS);
     }
 
-    private record Target(String id, String name, String days) {
+    private record Target(String id, String name) {
     }
 
     private static void removeOld(KeycloakSessionFactory factory, KeycloakSession session) {
         List<Target> realms = session.realms().getRealmsStream()
-                .map(realm -> new Target(realm.getId(), realm.getName(), realm.getAttribute(KEEP_ATTRIBUTE)))
+                .map(realm -> new Target(realm.getId(), realm.getName()))
                 .toList();
         OneAtATime.outsideTransaction(session, () -> {
             // A transaction for each realm, so a failure in one realm leaves the others alone.
@@ -102,10 +104,12 @@ final class ChangeLogSchedule {
         });
     }
 
+    // The setting comes from the database and not from the cache of Keycloak, which can lag behind a removal on another
+    // node.
     private static void removeOld(KeycloakSession session, Target realm) {
-        long removed = ChangeLogCleanup.removeOld(
-                new JpaChangeLogStore(session.getProvider(JpaConnectionProvider.class).getEntityManager(), realm.id()),
-                realm.days(), Instant.now());
+        EntityManager em = session.getProvider(JpaConnectionProvider.class).getEntityManager();
+        long removed = ChangeLogCleanup.removeOld(new JpaChangeLogStore(em, realm.id()),
+                () -> RealmAttributeValues.of(em, realm.id(), KEEP_ATTRIBUTE), Instant.now());
         if (removed > 0) {
             LOG.debugf("The cleanup of the change log removed %d propagated changes of realm %s.", removed,
                     realm.name());

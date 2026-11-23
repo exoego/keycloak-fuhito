@@ -988,6 +988,7 @@ A scheduled task removes the propagated changes that are older than the realm ke
 - The first run comes 15 minutes after the start of Keycloak, or after one interval when that is shorter. So a node that restarts every day still runs it.
 - In a cluster, one node runs it at a time, with the same runner as the scheduled tasks of Keycloak itself.
 - It takes the weakest lock on the row of the realm. That lock waits only for the removal of the realm. See [Writes of two products at once](#writes-of-two-products-at-once).
+- It reads the value of a realm while it holds that lock, right before it removes the entries of the realm.
 - A realm with a value that is not such a number keeps every propagated change. Each node logs one warning for it.
 - A failure in one realm is logged and does not stop the other realms.
 

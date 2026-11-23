@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito;
 
+import java.net.http.HttpResponse;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -13,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 import jakarta.ws.rs.WebApplicationException;
 import org.junit.jupiter.api.Test;
+import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.opentest4j.AssertionFailedError;
@@ -98,6 +100,71 @@ class ChangeLogCleanupLocksIT {
         return sql("select count(*) from " + table + " where realm_id = '" + realmId + "'");
     }
 
+    // A connection that holds the row of the realm as the removal of the realm does. The cleanup of the realm waits
+    // for it before anything else.
+    private static Connection removing(String realmId) throws Exception {
+        Connection connection = connection();
+        connection.setAutoCommit(false);
+        try (PreparedStatement lock = connection.prepareStatement(
+                "select realm_id from fuhito_realm_write where realm_id = ? for update")) {
+            lock.setString(1, realmId);
+            try (ResultSet row = lock.executeQuery()) {
+                assertTrue(row.next());
+            }
+        }
+        return connection;
+    }
+
+    // The holder of the realm that a run of the cleanup comes to first.
+    private static int firstWaitedFor(List<Connection> holders) throws Exception {
+        for (int i = 0; i < 300; i++) {
+            for (int holder = 0; holder < holders.size(); holder++) {
+                if (!waiterOf(holders.get(holder)).isEmpty()) {
+                    return holder;
+                }
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionFailedError("the cleanup never waited");
+    }
+
+    // For a realm with no writes that keeps no propagated change.
+    private static void removedByTheCleanup(String realmId) throws Exception {
+        for (int i = 0; i < 300 && !rows("fuhito_change_log", realmId).equals("0"); i++) {
+            Thread.sleep(100);
+        }
+        assertEquals("0", rows("fuhito_change_log", realmId));
+    }
+
+    private static void addPropagated(String realmId, int sequence) throws Exception {
+        try (Connection connection = connection()) {
+            propagated(connection, realmId, sequence);
+        }
+    }
+
+    // The same ID and name, with no setting of the days.
+    private static Api madeAgain(Keycloak admin, String name, String id) {
+        var realm = new RealmRepresentation();
+        realm.setId(id);
+        realm.setRealm(name);
+        realm.setEnabled(true);
+        realm.setOrganizationsEnabled(true);
+        TestRealm.withTimeZone(realm);
+        TestRealm.createRealm(admin, realm);
+        return new Api(name, admin.tokenManager().getAccessTokenString());
+    }
+
+    // Links a unit to a Keycloak organization and removes the organization.
+    private static void propagatedByKeycloak(Keycloak admin, String realm, Api api) throws Exception {
+        String organization = OrganizationLinkIT.createOrganization(admin, realm, "o" + UUID.randomUUID());
+        HttpResponse<String> unit = api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": "
+                + "{\"name\": \"病院\"}}, \"validFrom\": \"2026-04-01\"}");
+        assertEquals(201, unit.statusCode(), unit.body());
+        assertEquals(200, api.putWithVersion("/org-units/" + Api.json(unit).get("id").asText() + "/organization",
+                "{\"organizationId\": \"" + organization + "\"}").statusCode());
+        admin.realm(realm).organizations().get(organization).delete().close();
+    }
+
     // Each would hold one entry that the other wants, if both took the entries first.
     @Test
     void theCleanupAndTheRemovalOfTheRealmMeetTheEntriesInTurn() throws Exception {
@@ -155,5 +222,44 @@ class ChangeLogCleanupLocksIT {
             assertEquals("0", rows("fuhito_change_log", realmId));
             bulk.commit();
         }
+    }
+
+    // A run lists the realms first. A realm can be removed and made again with the same ID before the run comes to
+    // it, as an import that overwrites realms does.
+    @Test
+    void theCleanupKeepsWhatARealmMadeAgainKeeps() throws Exception {
+        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+        List<TestRealm> realms = List.of(TestRealm.create("cleanup-again", Map.of(KEEP, "0")),
+                TestRealm.create("cleanup-again", Map.of(KEEP, "0")));
+        List<String> ids = realms.stream().map(TestRealm::id).toList();
+        // A run that started before the second realm was made would not come to it. The run that removes this entry
+        // started after.
+        addPropagated(ids.get(1), 1);
+        removedByTheCleanup(ids.get(1));
+
+        int first;
+        Api again;
+        try (Connection one = removing(ids.get(0)); Connection two = removing(ids.get(1))) {
+            List<Connection> holders = List.of(one, two);
+            // The run waits in the realm that it comes to first, and comes to the other one later.
+            first = firstWaitedFor(holders);
+            int later = 1 - first;
+            holders.get(later).rollback();
+            TestRealm removed = realms.get(later);
+            removed.remove();
+            again = madeAgain(admin, removed.name, ids.get(later));
+            propagatedByKeycloak(admin, removed.name, again);
+            // The run removes this entry when it goes on.
+            addPropagated(ids.get(first), 2);
+            holders.get(first).rollback();
+        }
+        removedByTheCleanup(ids.get(first));
+        // Only the next run removes this entry. So the run that waited is over when it is gone.
+        addPropagated(ids.get(first), 3);
+        removedByTheCleanup(ids.get(first));
+
+        assertEquals(List.of("WRITE", "WRITE", "PROPAGATED"),
+                Api.json(again.get("/change-log")).findValuesAsText("kind"));
+        assertEquals(200, again.get("/change-log?after=1").statusCode());
     }
 }

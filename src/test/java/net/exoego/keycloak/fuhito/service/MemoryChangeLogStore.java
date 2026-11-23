@@ -46,6 +46,11 @@ class MemoryChangeLogStore implements ChangeLogStore {
     }
 
     @Override
+    public boolean lockRealmAgainstRemoval() {
+        return true;
+    }
+
+    @Override
     public long removePropagated(Instant before) {
         List<ChangeLogEntry> old = entries.stream()
                 .filter(e -> e.kind() == ChangeLogEntry.Kind.PROPAGATED && e.recordedAt().isBefore(before))

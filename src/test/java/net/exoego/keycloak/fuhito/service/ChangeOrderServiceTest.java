@@ -50,6 +50,11 @@ class ChangeOrderServiceTest {
         }
 
         @Override
+        public boolean lockRealmAgainstRemoval() {
+            return true;
+        }
+
+        @Override
         public long removePropagated(Instant before) {
             return 0;
         }
