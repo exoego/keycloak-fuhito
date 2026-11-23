@@ -38,8 +38,8 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
 
     private static final int DEFAULT_PROJECTION_SECONDS = 60;
 
-    // The same as the scheduled tasks of Keycloak itself.
-    private static final int DEFAULT_CLEANUP_SECONDS = 900;
+    // A realm keeps a propagated change for a number of days, so a run a day is enough.
+    private static final int DEFAULT_CLEANUP_SECONDS = 86_400;
 
     private boolean projectionTimer = true;
 
@@ -108,7 +108,8 @@ public class FuhitoAdminRealmResourceProviderFactory implements AdminRealmResour
                 .name(CLEANUP_INTERVAL_OPTION)
                 .type(ProviderConfigProperty.INTEGER_TYPE)
                 .helpText("The number of seconds between two runs of the task that removes the propagated changes"
-                        + " that each realm keeps no longer.")
+                        + " that each realm keeps no longer. By default it runs once a day. The first run comes"
+                        + " 15 minutes after the start, or after one interval when that is shorter.")
                 .defaultValue(DEFAULT_CLEANUP_SECONDS)
                 .add()
                 .build();

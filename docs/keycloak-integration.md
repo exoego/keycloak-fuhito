@@ -984,7 +984,8 @@ A scheduled task removes the propagated changes that are older than the realm ke
 |---|---|---|
 | `fuhito.changeLog.keepPropagatedDays` | The number of days to keep a propagated change, 0 or more | 90 |
 
-- The task runs every 15 minutes by default. The server option `spi-admin-realm-restapi-extension--fuhito--change-log-cleanup-interval` sets the number of seconds between two runs. A value below 1 fails the start of Keycloak.
+- The task runs once a day by default. The server option `spi-admin-realm-restapi-extension--fuhito--change-log-cleanup-interval` sets the number of seconds between two runs. A value below 1 fails the start of Keycloak.
+- The first run comes 15 minutes after the start of Keycloak, or after one interval when that is shorter. So a node that restarts every day still runs it.
 - In a cluster, one node runs it at a time, with the same runner as the scheduled tasks of Keycloak itself.
 - It takes the weakest lock on the row of the realm. That lock waits only for the removal of the realm. See [Writes of two products at once](#writes-of-two-products-at-once).
 - A realm with a value that is not such a number keeps every propagated change. Each node logs one warning for it.

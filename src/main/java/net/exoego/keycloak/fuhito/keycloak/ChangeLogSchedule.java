@@ -1,5 +1,6 @@
 package net.exoego.keycloak.fuhito.keycloak;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -35,6 +36,8 @@ final class ChangeLogSchedule {
 
     private static final Logger LOG = Logger.getLogger(ChangeLogSchedule.class);
 
+    private static final long FIRST_RUN_MILLIS = Duration.ofMinutes(15).toMillis();
+
     // A realm with a bad setting is logged once on each node, not at every run.
     private static final Map<String, String> SKIPPED = new ConcurrentHashMap<>();
 
@@ -62,8 +65,15 @@ final class ChangeLogSchedule {
         KeycloakModelUtils.runJobInTransaction(factory, session -> {
             var run = new ClusterAwareScheduledTaskRunner(factory, new FuhitoChangeLogTask(), intervalMillis);
             Executor executor = session.getProvider(ExecutorsProvider.class).getExecutor(TASK);
-            session.getProvider(TimerProvider.class).schedule(new InBackground(executor, run), intervalMillis, TASK);
+            session.getProvider(TimerProvider.class).schedule(new InBackground(executor, run),
+                    firstDelayMillis(intervalMillis), intervalMillis, TASK);
         });
+    }
+
+    // The timer of Keycloak waits one interval before the first run. A node that restarts more often than that would
+    // never run the cleanup.
+    static long firstDelayMillis(long intervalMillis) {
+        return Math.min(intervalMillis, FIRST_RUN_MILLIS);
     }
 
     private record Target(String id, String name, String days) {
