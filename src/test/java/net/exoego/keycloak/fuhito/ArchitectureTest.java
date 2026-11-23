@@ -4,6 +4,7 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import jakarta.persistence.EntityManager;
+import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.jpa.JpaAttributeValues;
 import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,18 @@ class ArchitectureTest {
                         call -> call.getTargetOwner().isAssignableTo(EntityManager.class)
                                 && call.getName().equals("createNativeQuery")))
                 .because("every query is JPQL or a criteria query")
+                .check(CLASSES);
+    }
+
+    // The rows of the periods of an assignment have no version. A read that made assignments of them alone would
+    // give a wrong version with no error.
+    @Test
+    void onlyOneClassMakesAssignmentsOutOfStoredRows() {
+        noClasses().that().resideInAPackage("..fuhito.jpa..")
+                .and().doNotHaveFullyQualifiedName("net.exoego.keycloak.fuhito.jpa.AssignmentReads")
+                .should().callConstructorWhere(describe("makes an assignment",
+                        call -> call.getTargetOwner().isEquivalentTo(Assignment.class)))
+                .because("AssignmentReads reads the versions of the assignments with their rows")
                 .check(CLASSES);
     }
 

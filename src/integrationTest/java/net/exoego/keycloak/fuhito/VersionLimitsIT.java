@@ -83,8 +83,8 @@ class VersionLimitsIT {
         ok(api.putWithVersion("/external-ids", payroll.formatted("P-1")));
         KeycloakEnvironment.sql("update fuhito_hierarchy set version = " + Long.MAX_VALUE + " where id = '"
                 + hierarchy + "'");
-        KeycloakEnvironment.sql("update fuhito_assignment set version = " + Long.MAX_VALUE
-                + " where assignment_id = '" + assignment + "'");
+        KeycloakEnvironment.sql("update fuhito_assignment_version set version = " + Long.MAX_VALUE
+                + " where id = '" + assignment + "'");
         KeycloakEnvironment.sql("update fuhito_external_id set version = " + Long.MAX_VALUE
                 + " where resource_id = '" + unit + "' and source = 'payroll'");
         ObjectNode before = RealmExportIT.export(api);

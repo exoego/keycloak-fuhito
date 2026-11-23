@@ -35,18 +35,9 @@ final class KeycloakEnvironment {
             .withUsername("keycloak")
             .withPassword("keycloak");
 
-    static final KeycloakContainer KEYCLOAK =
-            Coverage.keycloak()
-                    .withNetwork(NETWORK)
-                    .withProviderLibsFrom(List.of(new File(System.getProperty("provider.jar"))))
-                    .withEnv("KC_DB", "postgres")
-                    .withEnv("KC_DB_URL", "jdbc:postgresql://postgres:5432/keycloak")
-                    .withEnv("KC_DB_USERNAME", "keycloak")
-                    .withEnv("KC_DB_PASSWORD", "keycloak")
-                    // The timer would run the realms of the tests at times that they cannot know.
-                    .withEnv("KC_SPI_ADMIN_REALM_RESTAPI_EXTENSION__FUHITO__PROJECTION_TIMER_ENABLED", "false")
-                    // The cleanup of the change log removes only what a test made old, so a test can wait for it.
-                    .withEnv("KC_SPI_ADMIN_REALM_RESTAPI_EXTENSION__FUHITO__CHANGE_LOG_CLEANUP_INTERVAL", "2");
+    static final KeycloakContainer KEYCLOAK = keycloakOn("keycloak")
+            // The cleanup of the change log removes only what a test made old, so a test can wait for it.
+            .withEnv("KC_SPI_ADMIN_REALM_RESTAPI_EXTENSION__FUHITO__CHANGE_LOG_CLEANUP_INTERVAL", "2");
 
     static {
         POSTGRES.start();
@@ -56,6 +47,19 @@ final class KeycloakEnvironment {
     }
 
     private KeycloakEnvironment() {
+    }
+
+    /** Makes a Keycloak with the provider jar on a database of the shared server, for a test that starts it. */
+    static KeycloakContainer keycloakOn(String database) {
+        return Coverage.keycloak()
+                .withNetwork(NETWORK)
+                .withProviderLibsFrom(List.of(new File(System.getProperty("provider.jar"))))
+                .withEnv("KC_DB", "postgres")
+                .withEnv("KC_DB_URL", "jdbc:postgresql://postgres:5432/" + database)
+                .withEnv("KC_DB_USERNAME", "keycloak")
+                .withEnv("KC_DB_PASSWORD", "keycloak")
+                // The timer would run the realms of the tests at times that they cannot know.
+                .withEnv("KC_SPI_ADMIN_REALM_RESTAPI_EXTENSION__FUHITO__PROJECTION_TIMER_ENABLED", "false");
     }
 
     /** Opens a connection to the database of Keycloak, for a test that holds a lock. */

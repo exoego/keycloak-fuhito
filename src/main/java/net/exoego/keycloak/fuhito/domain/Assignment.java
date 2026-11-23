@@ -25,8 +25,8 @@ import java.util.Map;
  * @param attributes free values that the realm defines
  * @param source the name of the system that made the assignment, or null. Its IDs in each system are stored
  *        apart.
- * @param version the number that each write of the assignment counts up. Every row of one assignment has the
- *        same one. A new assignment has 1.
+ * @param version the number that each write of the assignment counts up. It is the version of the whole
+ *        assignment, so the rows of one assignment carry the same one. A new assignment has 1.
  */
 public record Assignment(String rowId, String assignmentId, String employmentId, String orgUnitId,
         ValidPeriod period, String jobTitleId, String occupationId, String kindId, String workLocationId,

@@ -1,9 +1,9 @@
 package net.exoego.keycloak.fuhito.jpa;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +15,6 @@ import jakarta.persistence.TypedQuery;
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.MemberCursor;
 import net.exoego.keycloak.fuhito.domain.MemberFilter;
-import net.exoego.keycloak.fuhito.domain.ValidPeriod;
 import net.exoego.keycloak.fuhito.store.AssignmentStore;
 
 /**
@@ -39,14 +38,13 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rows(String assignmentId) {
-        return em.createQuery("""
+        return AssignmentReads.of(em, em.createQuery("""
                         select a from AssignmentEntity a where a.assignmentId = :assignmentId
                         order by a.validFrom""", AssignmentEntity.class)
                 .setParameter("assignmentId", assignmentId)
                 .getResultStream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+                .toList());
     }
 
     @Override
@@ -54,15 +52,14 @@ public class JpaAssignmentStore implements AssignmentStore {
         if (assignmentIds.isEmpty()) {
             return List.of();
         }
-        return em.createQuery("""
+        return AssignmentReads.of(em, em.createQuery("""
                         select a from AssignmentEntity a where %s
                         order by a.assignmentId, a.validFrom"""
                         .formatted(ManyIds.has("a.assignmentId", "assignmentIds")), AssignmentEntity.class)
                 .setParameter("assignmentIds", ManyIds.of(assignmentIds))
                 .getResultStream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+                .toList());
     }
 
     @Override
@@ -72,15 +69,14 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rowsOfEmployments(Collection<String> employmentIds) {
-        return em.createQuery("""
+        return AssignmentReads.of(em, em.createQuery("""
                         select a from AssignmentEntity a where %s
                         order by a.employmentId, a.validFrom, a.id"""
                         .formatted(ManyIds.has("a.employmentId", "employmentIds")), AssignmentEntity.class)
                 .setParameter("employmentIds", ManyIds.of(employmentIds))
                 .getResultStream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+                .toList());
     }
 
     @Override
@@ -88,10 +84,9 @@ public class JpaAssignmentStore implements AssignmentStore {
         if (assignmentIds.isEmpty()) {
             return Map.of();
         }
-        Map<String, List<Assignment>> found = new HashMap<>();
         // The last row is the one with the latest start, which the unique key gives in one step. With not exists,
         // PostgreSQL took the GiST index of the periods, and a read of 1,000 assignments took 14 ms in place of 10.
-        em.createQuery("""
+        return AssignmentReads.byKey(em, em.createQuery("""
                         select x.assignmentId, x.realmId, y from AssignmentEntity x
                         join EmploymentEntity ex on ex.id = x.employmentId
                         join EmploymentEntity ey on ey.personId = ex.personId
@@ -107,9 +102,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                 .setParameter("assignmentIds", ManyIds.of(assignmentIds))
                 .getResultStream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[1]))
-                .forEach(row -> found.computeIfAbsent((String) row[0], id -> new ArrayList<>())
-                        .add(toDomain((AssignmentEntity) row[2])));
-        return found;
+                .toList(), 2);
     }
 
     @Override
@@ -117,8 +110,7 @@ public class JpaAssignmentStore implements AssignmentStore {
         if (employmentIds.isEmpty()) {
             return Map.of();
         }
-        Map<String, List<Assignment>> found = new HashMap<>();
-        em.createQuery("""
+        return AssignmentReads.byKey(em, em.createQuery("""
                         select e.id, x from AssignmentEntity x
                         join EmploymentEntity ex on ex.id = x.employmentId
                         join EmploymentEntity e on e.personId = ex.personId
@@ -130,9 +122,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                 .setParameter("employmentIds", ManyIds.of(employmentIds))
                 .getResultStream()
                 .filter(Rows.inRealm(realmId, row -> ((AssignmentEntity) row[1]).realmId))
-                .forEach(row -> found.computeIfAbsent((String) row[0], id -> new ArrayList<>())
-                        .add(toDomain((AssignmentEntity) row[1])));
-        return found;
+                .toList(), 1);
     }
 
     @Override
@@ -156,7 +146,7 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rowsOn(Collection<String> orgUnitIds, LocalDate date) {
-        return em.createQuery("""
+        return AssignmentReads.of(em, em.createQuery("""
                         select a from AssignmentEntity a where %s
                         and a.validFrom <= :date and (a.validTo is null or a.validTo > :date)"""
                         .formatted(ManyIds.has("a.orgUnitId", "orgUnitIds")),
@@ -165,8 +155,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                 .setParameter("date", date)
                 .getResultStream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+                .toList());
     }
 
     @Override
@@ -193,9 +182,7 @@ public class JpaAssignmentStore implements AssignmentStore {
     public List<Assignment> membersOn(MemberFilter filter, MemberCursor after, int first, int max) {
         var query = em.createQuery(MemberQueries.text(filter, after, false), AssignmentEntity.class);
         MemberQueries.bind(query, realmId, filter, after);
-        return query.setFirstResult(first).setMaxResults(max).getResultStream()
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+        return AssignmentReads.of(em, query.setFirstResult(first).setMaxResults(max).getResultList());
     }
 
     @Override
@@ -251,11 +238,9 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> searchOn(AssignmentStore.Search search, String afterAssignmentId, int first, int max) {
-        return searchQuery(search, afterAssignmentId, false, AssignmentEntity.class)
+        return AssignmentReads.of(em, searchQuery(search, afterAssignmentId, false, AssignmentEntity.class)
                 .setFirstResult(first).setMaxResults(max)
-                .getResultStream()
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+                .getResultList());
     }
 
     @Override
@@ -265,24 +250,25 @@ public class JpaAssignmentStore implements AssignmentStore {
 
     @Override
     public List<Assignment> rowsBySourceOn(String source, LocalDate date) {
-        return em.createQuery("""
+        return AssignmentReads.of(em, em.createQuery("""
                         select a from AssignmentEntity a where a.realmId = :realmId and a.source = :source
                         and a.validFrom <= :date and (a.validTo is null or a.validTo > :date) order by a.id""",
                         AssignmentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("source", source)
                 .setParameter("date", date)
-                .getResultStream()
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+                .getResultList());
     }
 
     @Override
     public void insertAll(List<Assignment> rows) {
-        // A row of an assignment that has rows already takes their version.
-        Map<String, Long> versions = Versions.assignments(em, realmId,
-                rows.stream().map(Assignment::assignmentId).collect(Collectors.toSet()));
+        Set<String> stored = new HashSet<>(Versions.assignments(em, realmId,
+                rows.stream().map(Assignment::assignmentId).collect(Collectors.toSet())).keySet());
         for (Assignment row : rows) {
+            // The row of the version goes first, as the rows of the periods refer to it.
+            if (stored.add(row.assignmentId())) {
+                em.persist(new AssignmentVersionEntity(row.assignmentId(), realmId, row.version()));
+            }
             AssignmentEntity entity = new AssignmentEntity();
             entity.id = row.rowId();
             entity.realmId = realmId;
@@ -290,8 +276,6 @@ public class JpaAssignmentStore implements AssignmentStore {
             entity.employmentId = row.employmentId();
             entity.orgUnitId = row.orgUnitId();
             entity.source = row.source();
-            entity.version = versions.computeIfAbsent(row.assignmentId(), id -> row.version());
-            entity.counted = true;
             copy(row, entity);
             em.persist(entity);
         }
@@ -317,10 +301,19 @@ public class JpaAssignmentStore implements AssignmentStore {
             assignmentIds.add(entity.assignmentId);
         }
         em.flush();
-        Set<String> kept = Versions.assignments(em, realmId, assignmentIds).keySet();
-        ExternalIds.deleteOfGoneAssignments(em, realmId, assignmentIds.stream()
-                .filter(id -> !kept.contains(id))
-                .toList());
+        // The rows are found by their assignments alone, for the reason in Rows.inRealm.
+        Set<String> kept = new HashSet<>(em.createQuery("""
+                        select distinct a.assignmentId from AssignmentEntity a where %s"""
+                        .formatted(ManyIds.has("a.assignmentId", "ids")), String.class)
+                .setParameter("ids", ManyIds.of(assignmentIds))
+                .getResultList());
+        Versions.assignments(em, realmId, kept);
+        List<String> gone = assignmentIds.stream().filter(id -> !kept.contains(id)).toList();
+        ExternalIds.deleteOfGoneAssignments(em, realmId, gone);
+        // A row of the version of a gone assignment would give a later assignment with its ID the old version.
+        for (String id : gone) {
+            em.remove(Rows.require(em, AssignmentVersionEntity.class, id, realmId, found -> found.realmId));
+        }
     }
 
     private static void copy(Assignment row, AssignmentEntity entity) {
@@ -336,12 +329,5 @@ public class JpaAssignmentStore implements AssignmentStore {
         entity.allocationPercent = row.allocationPercent();
         entity.displayOrder = row.displayOrder();
         entity.attributes = row.attributes();
-    }
-
-    static Assignment toDomain(AssignmentEntity e) {
-        return new Assignment(e.id, e.assignmentId, e.employmentId, e.orgUnitId,
-                new ValidPeriod(e.validFrom, e.validTo), e.jobTitleId, e.occupationId, e.kindId, e.workLocationId,
-                e.costCenterId, e.head, e.primary, e.allocationPercent, e.displayOrder, e.attributes, e.source,
-                e.version);
     }
 }

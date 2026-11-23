@@ -27,6 +27,7 @@ public final class RealmData {
             ChangeLogCounterEntity.class,
             ChangeOrderEntity.class,
             AssignmentEntity.class,
+            AssignmentVersionEntity.class,
             EmploymentTermsEntity.class,
             EmploymentEntity.class,
             PersonNameEntity.class,
@@ -178,10 +179,26 @@ public final class RealmData {
      * @param personId the ID of the person
      */
     public static void deletePerson(EntityManager em, String realmId, String personId) {
+        // The versions of the assignments go after the rows that refer to them. A version left behind would give a
+        // later assignment with the same ID the old version. The IDs come from rows of the realm, so the delete finds
+        // the versions by their IDs alone.
+        List<String> assignmentIds = em.createQuery("""
+                        select distinct a.realmId, a.assignmentId from AssignmentEntity a
+                        where a.employmentId in (%s)""".formatted(EMPLOYMENTS), Object[].class)
+                .setParameter("personId", personId)
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, row -> (String) row[0]))
+                .map(row -> (String) row[1])
+                .toList();
         PERSON_DELETES.forEach(query -> em.createQuery(query)
                 .setParameter("realmId", realmId)
                 .setParameter("personId", personId)
                 .executeUpdate());
+        if (!assignmentIds.isEmpty()) {
+            em.createQuery("delete from AssignmentVersionEntity v where %s".formatted(ManyIds.has("v.id", "ids")))
+                    .setParameter("ids", ManyIds.of(assignmentIds))
+                    .executeUpdate();
+        }
     }
 
     private static String ofPerson(String alias) {

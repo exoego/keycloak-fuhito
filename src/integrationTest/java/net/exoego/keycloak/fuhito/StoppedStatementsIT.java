@@ -381,7 +381,7 @@ class StoppedStatementsIT {
         HttpResponse<String> response;
         try (Connection holder = connection()) {
             holder.setAutoCommit(false);
-            update(holder, "update fuhito_assignment set version = version where assignment_id = ?", assignment);
+            update(holder, "update fuhito_assignment_version set version = version where id = ?", assignment);
             CompletableFuture<HttpResponse<String>> sync = waitingFor(holder,
                     () -> realm.api.post("/attribute-sync/run", ""));
             cancelWaitersOf(holder, 2);

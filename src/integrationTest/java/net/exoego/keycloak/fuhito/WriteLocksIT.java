@@ -77,7 +77,7 @@ class WriteLocksIT {
         String employment = staff.get("employment").get("id").asText();
         String assignment = staff.get("assignment").get("id").asText();
 
-        ok(afterHolding("update fuhito_assignment set version = version + 1 where assignment_id = ?", assignment,
+        ok(afterHolding("update fuhito_assignment_version set version = version + 1 where id = ?", assignment,
                 () -> api.put("/employments/" + employment + "/end", "{\"version\": 1, \"validTo\": \"2027-04-01\"}")));
 
         assertEquals(3, version(api, "/assignments/" + assignment));
@@ -96,7 +96,7 @@ class WriteLocksIT {
         String primary = ok(api.post("/assignments", assignment.formatted("true"))).get("id").asText();
         String other = ok(api.post("/assignments", assignment.formatted("false"))).get("id").asText();
 
-        ok(afterHolding("update fuhito_assignment set version = version + 1 where assignment_id = ?", primary,
+        ok(afterHolding("update fuhito_assignment_version set version = version + 1 where id = ?", primary,
                 () -> api.put("/assignments/" + other + "/details", "{\"version\": 1, \"validFrom\": \"2027-04-01\", "
                         + "\"primary\": true, \"switchPrimary\": true}")));
 

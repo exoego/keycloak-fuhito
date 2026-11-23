@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import dasniko.testcontainers.keycloak.KeycloakContainer;
 import liquibase.Scope;
 import liquibase.analytics.configuration.AnalyticsArgs;
 import liquibase.command.CommandScope;
@@ -22,6 +23,7 @@ import liquibase.database.DatabaseFactory;
 import liquibase.database.jvm.JdbcConnection;
 import liquibase.resource.ClassLoaderResourceAccessor;
 import org.junit.jupiter.api.Test;
+import org.keycloak.representations.idm.RealmRepresentation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -102,6 +104,74 @@ class MigrationIT {
                     values ('unit-3', 'realm-1', repeat('o', 255))"""))
                     .getMessage().contains("uk_fuhito_org_unit_kc_org"));
         }
+    }
+
+    // Keycloak runs the change set when it starts on a database whose rows of assignments have the version. The API
+    // then takes the version that the rows had.
+    @Test
+    void theVersionOfAnAssignmentMovesFromItsRowsToARowOfItsOwn() throws Exception {
+        KeycloakEnvironment.sql("create database fuhito_assignment_version");
+        String assignment;
+        try (KeycloakContainer keycloak = KeycloakEnvironment.keycloakOn("fuhito_assignment_version")) {
+            keycloak.start();
+            var realm = new RealmRepresentation();
+            realm.setRealm("migration");
+            realm.setEnabled(true);
+            TestRealm.withTimeZone(realm);
+            TestRealm.createRealm(keycloak.getKeycloakAdminClient(), realm);
+            Api api = api(keycloak);
+            TestRealm.legalEntity(api, "法人");
+            String unit = Api.json(api.post("/org-units", """
+                    {"primaryLanguage": "ja", "names": {"ja": {"name": "病院"}}, "validFrom": "2020-04-01"}"""))
+                    .get("id").asText();
+            String person = Api.json(api.post("/people", """
+                    {"primaryLanguage": "ja", "names": {"ja": {"name": "山田"}}}""")).get("id").asText();
+            assignment = Api.json(api.post("/staff", """
+                    {"personId": "%s", "orgUnitId": "%s", "validFrom": "2020-04-01"}""".formatted(person, unit)))
+                    .get("assignment").get("id").asText();
+            assertEquals(200, api.put("/assignments/" + assignment + "/details", """
+                    {"version": 1, "validFrom": "2024-04-01", "primary": true, "displayOrder": 3}""")
+                    .statusCode());
+            Coverage.save(keycloak);
+        }
+        try (Connection connection = KeycloakEnvironment.connection("fuhito_assignment_version");
+                Statement statement = connection.createStatement()) {
+            // The schema before the change set. The two rows of the assignment have version 7.
+            statement.execute("alter table fuhito_assignment drop constraint fk_fuhito_assignment_version");
+            statement.execute("alter table fuhito_assignment add column version bigint default 1 not null");
+            statement.execute("drop table fuhito_assignment_version");
+            statement.execute("delete from databasechangelog_fuhito where id = '0.1.0-assignment-version'");
+            statement.execute("update fuhito_assignment set version = 7 where assignment_id = '" + assignment + "'");
+            assertEquals(List.of("7", "7"), rows(statement,
+                    "select version from fuhito_assignment where assignment_id = '" + assignment + "'"));
+        }
+
+        try (KeycloakContainer keycloak = KeycloakEnvironment.keycloakOn("fuhito_assignment_version")) {
+            keycloak.start();
+            Api api = api(keycloak);
+            String path = "/assignments/" + assignment;
+            String details = """
+                    {"version": %d, "validFrom": "2025-04-01", "primary": true, "displayOrder": 4}""";
+
+            assertEquals(7, api.version(path));
+            assertEquals(409, api.put(path + "/details", details.formatted(6)).statusCode());
+            assertEquals(200, api.put(path + "/details", details.formatted(7)).statusCode());
+            assertEquals(8, api.version(path));
+            Coverage.save(keycloak);
+        }
+        try (Connection connection = KeycloakEnvironment.connection("fuhito_assignment_version");
+                Statement statement = connection.createStatement()) {
+            assertEquals(List.of(assignment + " 8"),
+                    rows(statement, "select id, version from fuhito_assignment_version"));
+            assertEquals(List.of("0"), rows(statement, """
+                    select count(*) from information_schema.columns
+                    where table_name = 'fuhito_assignment' and column_name = 'version'"""));
+        }
+    }
+
+    private static Api api(KeycloakContainer keycloak) {
+        return new Api(keycloak.getAuthServerUrl(), "migration",
+                keycloak.getKeycloakAdminClient().tokenManager().getAccessTokenString());
     }
 
     private static void update(ClassLoader jar, Database database, Integer count) throws Exception {

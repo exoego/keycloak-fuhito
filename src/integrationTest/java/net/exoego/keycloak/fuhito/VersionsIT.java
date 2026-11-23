@@ -40,6 +40,28 @@ class VersionsIT {
         throw new AssertionError(id + " is not in " + list);
     }
 
+    // The rows of the periods of an assignment have no version. A read that forgot the row of the version would give
+    // another one.
+    @Test
+    void everyReadOfAnAssignmentGivesTheVersionOfItsOwnRow() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("versions-reads");
+        Api api = realm.api;
+        String unit = id(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                + "\"病院\"}}, \"validFrom\": \"2020-04-01\"}"));
+        String person = id(api.post("/people", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": "
+                + "\"山田\"}}}"));
+        String assignment = ok(api.post("/staff", "{\"personId\": \"" + person + "\", \"orgUnitId\": \"" + unit
+                + "\", \"validFrom\": \"2020-04-01\"}")).get("assignment").get("id").asText();
+        KeycloakEnvironment.sql("update fuhito_assignment_version set version = 41 where id = '" + assignment + "'");
+
+        for (String read : List.of("/assignments/" + assignment, "/assignments?orgUnitId=" + unit,
+                "/people/" + person + "/assignments", "/org-units/" + unit + "/members", "/export/assignments")) {
+            assertEquals(List.of("41"), ok(api.get(read)).findValuesAsText("version"), read);
+        }
+        assertEquals(List.of("41"), ok(api.get("/people/" + person + "/history")).get("assignments")
+                .findValuesAsText("version"));
+    }
+
     @Test
     void aNewResourceHasOneAndEachWriteCountsItUpByOne() throws Exception {
         TestRealm realm = TestRealm.withEmployer("versions");

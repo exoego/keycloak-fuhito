@@ -197,6 +197,10 @@ class AssignmentsIT {
         String nurseEmployment = id(api.post("/employments", "{\"userId\": \"" + nurse + "\", \"validFrom\": \"2026-04-01\"}"));
         id(api.post("/assignments", "{\"employmentId\": \"" + nurseEmployment + "\", \"primary\": true, \"orgUnitId\": \""
                 + xMedicine + "\", \"validFrom\": \"2026-04-01\"}"));
+        for (String id : List.of("sql-assignment-1", "sql-assignment-2")) {
+            KeycloakEnvironment.sql("insert into fuhito_assignment_version (id, realm_id) values ('" + id + "', '"
+                    + realm.id() + "')");
+        }
         String insert = "insert into fuhito_assignment (id, realm_id, assignment_id, employment_id, org_unit_id,"
                 + " valid_from, is_primary, attributes) values ('%s', '" + realm.id() + "', '%s', '" + nurseEmployment
                 + "', '" + ySurgery + "', '2027-04-01', %s, '{}')";

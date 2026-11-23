@@ -199,6 +199,10 @@ class SchemaIT {
                     explain select * from fuhito_assignment where employment_id = any('{ex-new-employment-7}')
                     order by employment_id, valid_from, id""")
                     .contains("Index Cond: ((employment_id)::text = ANY"));
+            assertTrue(plan(statement, """
+                    explain select id, version from fuhito_assignment_version
+                    where id = any('{ex-new-assignment-7,ex-new-assignment-8}')""")
+                    .contains("Index Cond: ((id)::text = ANY"));
             connection.rollback();
         }
     }

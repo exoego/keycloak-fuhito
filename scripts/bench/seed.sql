@@ -80,6 +80,11 @@ SELECT 't-' || n, :'realm', 'e-' || n, DATE '2020-04-01', 'bench-full', 'ACTIVE'
 
 -- Person n works in unit n % (units + 1) today. The first people are the heads of their units.
 -- Three in ten were in another unit until 2024.
+-- The version of each assignment comes before its rows, which refer to it.
+INSERT INTO fuhito_assignment_version (id, realm_id, version)
+SELECT 'a-' || n, :'realm', 1 FROM generate_series(0, :people - 1) n
+UNION ALL
+SELECT 'b-' || n, :'realm', 1 FROM generate_series(0, :people - 1) n WHERE n % 10 < 3;
 INSERT INTO fuhito_assignment (id, realm_id, assignment_id, employment_id, org_unit_id, valid_from, valid_to, occupation_id, is_head, is_primary, display_order, attributes)
 SELECT 'a-' || n, :'realm', 'a-' || n, 'e-' || n, 'u-' || (n % (:units + 1)),
        CASE WHEN n % 10 < 3 THEN DATE '2024-04-01' ELSE DATE '2020-04-01' END, NULL,

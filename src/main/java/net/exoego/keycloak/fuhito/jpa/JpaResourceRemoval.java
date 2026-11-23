@@ -62,7 +62,9 @@ public class JpaResourceRemoval implements ResourceRemoval {
                     delete from ExternalIdEntity x where x.realmId = :realmId and x.kind = 'ASSIGNMENT'
                     and x.resourceId = :id""",
                     "delete from AssignmentEntity x where x.assignmentId = :id and "
-                            + Rows.ofRecord("x.realmId", "AssignmentEntity", "assignmentId", "id")));
+                            + Rows.ofRecord("x.realmId", "AssignmentEntity", "assignmentId", "id"),
+                    "delete from AssignmentVersionEntity x where x.id = :id and "
+                            + Rows.ofRecord("x.realmId", "AssignmentVersionEntity", "id", "id")));
 
     // The realms of the resource, found by the ID alone.
     private static final Map<Kind, String> EXISTS = Map.of(
