@@ -85,9 +85,11 @@ final class KeycloakEnvironment {
         return waitingFor(pid(holder), write);
     }
 
-    // The same for a lock of another backend of the database, such as one that waits itself.
+    // The same for a lock of another backend of the database, such as one that waits itself. The cleanup of the
+    // change log can wait for the removal of a realm at any time, so it does not count.
     static <T> CompletableFuture<T> waitingFor(String pid, Callable<T> write) throws Exception {
-        String waiting = "select count(*) from pg_stat_activity where " + pid + " = any(pg_blocking_pids(pid))";
+        String waiting = "select count(*) from pg_stat_activity where " + pid + " = any(pg_blocking_pids(pid))"
+                + " and query not like '%for key share'";
         long before = Long.parseLong(sql(waiting));
         CompletableFuture<T> started = inBackground(write);
         long now = before;

@@ -5,6 +5,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import jakarta.persistence.EntityManager;
 import net.exoego.keycloak.fuhito.jpa.JpaAttributeValues;
+import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.base.DescribedPredicate.describe;
@@ -30,10 +31,12 @@ class ArchitectureTest {
     }
 
     // JPQL names entities and fields that the compiler and Hibernate know. Native SQL has no such check. Only the fill
-    // and the clear of the values of an attribute need it, as JPQL cannot change a value inside JSON text.
+    // and the clear of the values of an attribute need it, as JPQL cannot change a value inside JSON text. So does the
+    // lock of the cleanup of the change log, as JPA has no FOR KEY SHARE.
     @Test
     void noCodeUsesNativeSql() {
         noClasses().that().doNotHaveFullyQualifiedName(JpaAttributeValues.class.getName())
+                .and().doNotHaveFullyQualifiedName(RowLocks.class.getName())
                 .should().callMethodWhere(describe("creates a native query",
                         call -> call.getTargetOwner().isAssignableTo(EntityManager.class)
                                 && call.getName().equals("createNativeQuery")))
