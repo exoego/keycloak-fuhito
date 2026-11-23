@@ -215,6 +215,12 @@ When a realm is removed, the extension deletes every row of that realm in the sa
 The removal waits for the writes of the realm that run, and deletes what they wrote too.
 A write of the realm that comes during the removal waits for it. It then fails with 404 and `realm.not_found`, and writes nothing.
 
+The removal can fail with 500 when it comes while the extension writes rows of Keycloak.
+These writes are a rebuild or a timer run of the projection that changes groups or members, and a mask with `clearKeycloakName=true`.
+The removal and the write then wait for each other, or the removal meets a member that the write has just added.
+One of them fails with 500 and rolls back. So a failed removal leaves the realm as it was.
+Send the removal again after the write ends.
+
 When a user is removed from Keycloak, the extension keeps the history of that person.
 In the same transaction it ends only what would still hold.
 
