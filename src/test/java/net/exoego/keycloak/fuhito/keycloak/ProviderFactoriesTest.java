@@ -31,7 +31,7 @@ class ProviderFactoriesTest {
         List<ProviderConfigProperty> options = new FuhitoAdminRealmResourceProviderFactory().getConfigMetadata();
 
         assertEquals(List.of("projection-timer-enabled boolean true", "projection-timer-interval Integer 60",
-                "change-log-cleanup-interval Integer 900"),
+                "change-log-cleanup-interval Integer 86400"),
                 options.stream().map(option -> option.getName() + " " + option.getType() + " "
                         + option.getDefaultValue()).toList());
     }
