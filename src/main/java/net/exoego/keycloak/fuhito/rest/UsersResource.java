@@ -107,7 +107,8 @@ public class UsersResource {
                             and nothing is written.""",
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("clearKeycloakName") boolean clearKeycloakName) {
-        context.requireWrite();
+        String user = context.requireWriteOfUser(
+                () -> clearKeycloakName && Calls.storableId(context) ? userId : null);
         return Calls.run(context, () -> {
             // The check reads the person, so the lock comes first.
             context.lock(data.ofUser(userId));
@@ -120,7 +121,7 @@ public class UsersResource {
             if (resolved.created() != null) {
                 Writes.record(context, externalIds, new Write.OfPerson(resolved.created()));
             }
-            return data.mask(resolved.person(), clearKeycloakName);
+            return data.mask(resolved.person(), clearKeycloakName, user);
         });
     }
 

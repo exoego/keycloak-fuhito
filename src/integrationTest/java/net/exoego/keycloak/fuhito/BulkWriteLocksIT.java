@@ -19,6 +19,7 @@ import org.keycloak.representations.userprofile.config.UPConfig;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.holding;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.holdingRealm;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.inBackground;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.update;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waiterOf;
@@ -164,6 +165,62 @@ class BulkWriteLocksIT {
         ok(firstImport.get());
         ok(secondImport.get());
         assertEquals("Q", ok(api.get("/hierarchies/" + hierarchy)).get("name").asText());
+    }
+
+    @Test
+    void aMaskThatEmptiesTheNameWaitsForAnImportAndHoldsTheUserMeanwhile() throws Exception {
+        TestRealm realm = TestRealm.create("bulk-mask");
+        Api api = realm.api;
+        String hierarchy = id(api.post("/hierarchies", "{\"code\": \"project\", \"name\": \"P\"}"));
+        String user = realm.user("leaver", "Taro", "Sato");
+        String person = id(api.post("/people", "{\"userId\": \"" + user + "\"}"));
+
+        CompletableFuture<HttpResponse<String>> imported;
+        CompletableFuture<HttpResponse<String>> mask;
+        try (Connection first = holding("fuhito_hierarchy", hierarchy)) {
+            imported = waitingFor(first, () -> api.post("/imports", renameHierarchy(hierarchy, "Q")));
+            mask = waitingFor(waiterOf(first), () -> api.postWithVersion("/people/" + person
+                    + "/mask?clearKeycloakName=true", ""));
+            // So a change of the user in Keycloak waits for the import too.
+            assertTrue(KeycloakEnvironment.sqlError("select id from user_entity where id = '" + user
+                    + "' for no key update nowait").contains("could not obtain lock"));
+            first.commit();
+        }
+
+        ok(imported.get());
+        assertTrue(ok(mask.get()).get("keycloakNameCleared").asBoolean());
+        assertEquals(List.of("", ""), realm.nameOfUser(user));
+        assertEquals("Q", ok(api.get("/hierarchies/" + hierarchy)).get("name").asText());
+    }
+
+    // The mask reads the user of the person before it locks anything. A restore keeps the versions of its export, so
+    // it can link the person to another user meanwhile, with the same version or another one.
+    @Test
+    void aMaskFailsWhenTheLinkOfThePersonChangesWhileItWaits() throws Exception {
+        for (boolean countUp : List.of(true, false)) {
+            TestRealm realm = TestRealm.create("bulk-mask-link");
+            Api api = realm.api;
+            String linked = realm.user("linked", "Taro", "Sato");
+            String other = realm.user("other", "Hanako", "Suzuki");
+            String person = id(api.post("/people", "{\"userId\": \"" + linked + "\"}"));
+
+            CompletableFuture<HttpResponse<String>> mask;
+            try (Connection bulk = holdingRealm(realm.id(), true)) {
+                mask = waitingFor(bulk, () -> api.postWithVersion("/people/" + person
+                        + "/mask?clearKeycloakName=true", ""));
+                update(bulk, "update fuhito_person set user_id = '" + other + "'"
+                        + (countUp ? ", version = version + 1" : "") + " where id = ?", person);
+                bulk.commit();
+            }
+
+            HttpResponse<String> conflict = mask.get();
+            assertEquals(409, conflict.statusCode(), conflict.body());
+            JsonNode error = Api.json(conflict);
+            assertEquals("version.conflict", error.get("error").asText());
+            assertEquals(countUp ? "2" : null, error.path("params").path("version").textValue());
+            assertEquals(List.of("Taro", "Sato"), realm.nameOfUser(linked));
+            assertEquals(List.of("Hanako", "Suzuki"), realm.nameOfUser(other));
+        }
     }
 
     @Test

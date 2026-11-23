@@ -2,10 +2,12 @@ package net.exoego.keycloak.fuhito.rest;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Person;
 import net.exoego.keycloak.fuhito.domain.ResourceType;
 import net.exoego.keycloak.fuhito.rest.RequestContext.Change;
@@ -48,7 +50,16 @@ final class PersonData {
         return scopes.userData(userId);
     }
 
-    MaskRepresentation mask(Person person, boolean clearKeycloakName) {
+    String userOf(String personId) {
+        return scopes.userOfPerson(personId).orElse(null);
+    }
+
+    MaskRepresentation mask(Person person, boolean clearKeycloakName, String lockedUserId) {
+        // The user was read before the locks. A restore keeps the versions of its export, so it can link the person
+        // to another user since then and keep the version.
+        if (clearKeycloakName && !Objects.equals(person.userId(), lockedUserId)) {
+            throw FuhitoException.conflict("version.conflict", Map.of());
+        }
         if (clearKeycloakName && person.userId() != null) {
             context.requireManageUser(person.userId());
         }

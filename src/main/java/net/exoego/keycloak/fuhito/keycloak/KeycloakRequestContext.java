@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -156,6 +157,18 @@ final class KeycloakRequestContext implements RequestContext {
         requireWrite(changesOtherReads.getAsBoolean());
     }
 
+    @Override
+    public String requireWriteOfUser(Supplier<String> userId) {
+        requireRole(FuhitoRoles.MANAGE);
+        requireTimeSettings();
+        String id = userId.get();
+        if (id != null) {
+            RowLocks.lockUser(entityManager, realm.getId(), id);
+        }
+        requireWrite(false);
+        return id;
+    }
+
     private void requireWrite(boolean alone) {
         requireRole(FuhitoRoles.MANAGE);
         writing = true;
@@ -210,7 +223,8 @@ final class KeycloakRequestContext implements RequestContext {
         RowLocks.lock(entityManager, realm.getId(), ids);
     }
 
-    // The row of the realm comes before every other lock, also for a write that did not ask for it.
+    // The row of the realm comes before every other lock but the row of a user, also for a write that did not ask
+    // for it.
     private void lockRealm(boolean alone) {
         if (!realmLocked) {
             try {

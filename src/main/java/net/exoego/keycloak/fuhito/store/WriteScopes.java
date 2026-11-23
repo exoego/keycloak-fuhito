@@ -1,6 +1,7 @@
 package net.exoego.keycloak.fuhito.store;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -27,6 +28,15 @@ public interface WriteScopes {
      * @return the IDs, or none when the user has no person
      */
     Map<String, Set<String>> userData(String userId);
+
+    /**
+     * Finds the Keycloak user that a person is linked to. A mask that empties the name of the user locks the user
+     * before anything else.
+     *
+     * @param personId the ID of the person
+     * @return the ID of the user, or empty when the person has none or does not exist
+     */
+    Optional<String> userOfPerson(String personId);
 
     /**
      * Finds an employment with its assignments, the reporting lines of the assignments, and its roles over org

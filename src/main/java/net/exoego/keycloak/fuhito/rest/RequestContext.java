@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import jakarta.ws.rs.core.Response;
 import net.exoego.keycloak.fuhito.domain.PropagatedChange;
@@ -58,6 +59,17 @@ public interface RequestContext {
      * @param changesOtherReads tells whether the write can change the reads of other resources
      */
     void requireWrite(BooleanSupplier changesOtherReads);
+
+    /**
+     * Requires the same as {@link #requireWrite()} for a write that also changes a Keycloak user, such as a mask that
+     * empties the name of the user. It locks the row of the user first, before the lock of the realm. Keycloak takes
+     * the row first too, when it removes the user or its realm. So the write and such a removal wait for each other
+     * in turn. The user is found after the permission is checked, before any lock is taken.
+     *
+     * @param userId finds the ID of the user, or gives null when the write changes no user
+     * @return the ID that it found, or null
+     */
+    String requireWriteOfUser(Supplier<String> userId);
 
     /**
      * Requires the permission of Keycloak to manage a user. Throws when the caller lacks it.

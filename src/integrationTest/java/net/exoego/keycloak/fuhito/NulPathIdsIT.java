@@ -53,6 +53,7 @@ class NulPathIdsIT {
             "PUT /org-units/{}/time-settings",
             "GET /people/{}", "PUT /people/{}", "DELETE /people/{}", "GET /people/{}/assignments",
             "DELETE /people/{}/data", "GET /people/{}/history", "GET /people/{}/managers", "POST /people/{}/mask",
+            "POST /people/{}/mask?clearKeycloakName=true",
             "GET /people/{}/qualifications", "GET /people/{}/reports", "GET /people/{}/reports/count",
             "GET /people/{}/unit-roles", "GET /people/{}/unit-roles/count",
             "GET /qualifications/{}", "PUT /qualifications/{}", "DELETE /qualifications/{}",
@@ -61,7 +62,8 @@ class NulPathIdsIT {
             "GET /reporting-lines/{}", "PUT /reporting-lines/{}/end", "DELETE /reporting-lines/{}",
             "GET /unit-roles/{}", "PUT /unit-roles/{}/end", "DELETE /unit-roles/{}",
             "GET /users/{}/assignments", "DELETE /users/{}/data", "GET /users/{}/history",
-            "GET /users/{}/managers", "POST /users/{}/mask", "GET /users/{}/qualifications",
+            "GET /users/{}/managers", "POST /users/{}/mask", "POST /users/{}/mask?clearKeycloakName=true",
+            "GET /users/{}/qualifications",
             "GET /users/{}/reports", "GET /users/{}/reports/count", "GET /users/{}/unit-roles",
             "GET /users/{}/unit-roles/count");
 

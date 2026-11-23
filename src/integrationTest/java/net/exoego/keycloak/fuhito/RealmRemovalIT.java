@@ -8,14 +8,19 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
+import jakarta.ws.rs.WebApplicationException;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.deadlocksSince;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.holding;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.holdingRealm;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.logLength;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.sql;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waiterOf;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waitingFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RealmRemovalIT {
 
@@ -127,6 +132,62 @@ class RealmRemovalIT {
         removal.get();
         for (String table : TABLES) {
             assertEquals("0", rows(table, realmId), table);
+        }
+    }
+
+    // The mask locks the row of the user before the rows of the extension, as the removal of the realm does. So one
+    // waits for the other, in either order, and the removal does not fail.
+    @Test
+    void aMaskThatEmptiesTheNameAndTheRemovalOfItsRealmWaitForEachOtherInTurn() throws Exception {
+        for (boolean maskFirst : List.of(true, false)) {
+            String name = maskFirst ? "the mask first" : "the removal first";
+            TestRealm realm = TestRealm.create("removal-mask");
+            String realmId = realm.id();
+            String user = realm.user("leaver", "Taro", "Sato");
+            String person = Api.json(realm.api.post("/people", "{\"userId\": \"" + user + "\"}")).get("id").asText();
+            Callable<HttpResponse<String>> mask = () -> realm.api.postWithVersion("/people/" + person
+                    + "/mask?clearKeycloakName=true", "");
+            Callable<Integer> removal = () -> {
+                try {
+                    realm.remove();
+                    return 204;
+                } catch (WebApplicationException e) {
+                    return e.getResponse().getStatus();
+                }
+            };
+            int log = logLength();
+            CompletableFuture<HttpResponse<String>> masked;
+            CompletableFuture<Integer> removed;
+            if (maskFirst) {
+                try (Connection first = holding("fuhito_person", person)) {
+                    // The mask holds the row of the user, and waits for the person. The removal waits for the user.
+                    masked = waitingFor(first, mask);
+                    removed = waitingFor(waiterOf(first), removal);
+                    first.commit();
+                }
+            } else {
+                try (Connection first = holdingRealm(realmId, false)) {
+                    // The removal deleted every user, and waits for another write of the realm. The mask waits for
+                    // the user.
+                    removed = waitingFor(first, removal);
+                    masked = waitingFor(waiterOf(first), mask);
+                    first.commit();
+                }
+            }
+
+            assertEquals(204, removed.get(), name);
+            HttpResponse<String> response = masked.get();
+            if (maskFirst) {
+                assertEquals(200, response.statusCode(), name + " " + response.body());
+                assertTrue(Api.json(response).get("keycloakNameCleared").asBoolean(), name);
+            } else {
+                assertEquals(404, response.statusCode(), name + " " + response.body());
+                assertEquals("realm.not_found", Api.json(response).get("error").asText(), name);
+            }
+            assertEquals(0, deadlocksSince(log), name);
+            for (String table : TABLES) {
+                assertEquals("0", rows(table, realmId), name + " " + table);
+            }
         }
     }
 
