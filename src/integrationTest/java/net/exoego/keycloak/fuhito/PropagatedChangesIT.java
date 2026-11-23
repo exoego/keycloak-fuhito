@@ -155,9 +155,10 @@ class PropagatedChangesIT {
         long removed = propagated.get(0).get("sequence").asLong();
         long kept = propagated.get(1).get("sequence").asLong();
         long writes = api.count("/change-log/count?kind=WRITE");
-        // The writes are older than any realm keeps a propagated change. The second propagated change is not.
-        age(first.realm(), "", 400);
-        age(first.realm(), " and sequence_number = " + kept, -380);
+        // The writes are older than any realm keeps a propagated change. The second propagated change is not, also
+        // between the two updates, because the cleanup can run at any time.
+        age(first.realm(), " and sequence_number <> " + kept, 400);
+        age(first.realm(), " and sequence_number = " + kept, 20);
 
         waitFor("removed the old propagated change",
                 () -> api.count("/change-log/count?kind=PROPAGATED") == 1);
