@@ -949,7 +949,7 @@ With org units in other time zones, today is the date of the org unit of the ass
 
 A write that can change the reads of other resources holds the lock of its realm alone, as an import does. These are the writes of the table above, apart from a change of the details that keeps the work location and the cost center. That one shares the lock, as before.
 The write decides before it takes the lock, from its request and the stored details of the unit. Its version check makes that decision hold, because another write of the unit between the two would fail the check.
-There is no threshold of a number of reads. A count before the lock could be wrong by the time the write holds the lock. And a write that shares the lock while it compares the reads below could miss a change of another write that runs at the same time, such as a new work location of an assignment. The change of a team of the bench realm holds the realm for about 0.1 seconds, and a new work location of the whole company, which changes 47,000 reads, for about 6 seconds. See [performance.md](performance.md).
+There is no threshold of a number of reads. A count before the lock could be wrong by the time the write holds the lock. And a write that shares the lock while it compares the reads below could miss a change of another write that runs at the same time, such as a new work location of an assignment. The change of a team of the bench realm holds the realm for about 0.1 seconds, and a new work location of the whole company, which changes 47,000 reads, for about 1.2 seconds. See [performance.md](performance.md).
 
 ### The assignments whose `endedOnStart` a write changes
 
