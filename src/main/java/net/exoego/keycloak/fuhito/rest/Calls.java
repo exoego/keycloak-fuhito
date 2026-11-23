@@ -58,6 +58,7 @@ final class Calls {
     /**
      * Runs an operation and turns its failure into an error response. A rule of the database that the operation
      * breaks, such as a unique key, fails with 409 and the code, with the name of the rule in {@code constraint}.
+     * A statement that PostgreSQL stopped fails as {@link StoppedStatement} says.
      *
      * @param <T> the type of the result
      * @param context the request
@@ -76,6 +77,10 @@ final class Calls {
         } catch (RuntimeException e) {
             if (anotherWriteCameFirst(e)) {
                 throw failure(context, FuhitoException.conflict("version.conflict", Map.of()).causedBy(e));
+            }
+            Optional<StoppedStatement> stopped = StoppedStatement.of(e);
+            if (stopped.isPresent()) {
+                throw context.failure(stopped.get());
             }
             Optional<String> rule = ruleCode == null ? Optional.empty() : brokenRule(e);
             if (rule.isEmpty()) {

@@ -4620,6 +4620,10 @@ components:
         The request conflicts with existing data.
         A write with an old version gets it with `version.conflict`.
         A realm with no usable time zone also gets this status on every request.
+        A request that conflicted with another write at the same time gets
+        `write.aborted`, with no values. PostgreSQL stopped it for a deadlock, for a
+        wait for a lock past `lock_timeout`, or for a failed serialization. The same
+        request can succeed when it is sent again later.
       content:
         application/json:
           schema:
@@ -4638,6 +4642,18 @@ components:
             - $ref: "#/components/schemas/Error"
     NotFound:
       description: The target does not exist in the realm.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServiceUnavailable:
+      description: |
+        PostgreSQL stopped a statement of the request because it ran past
+        `statement_timeout`, also while it waited for a lock, or because an
+        administrator stopped it. The error is `request.timed_out`, with no values.
+        The same request can succeed when it is sent again later. A heavy request fails
+        again until the limit of the database changes. The response has no
+        `Retry-After`.
       content:
         application/json:
           schema:
@@ -4850,6 +4866,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /assignments:
     get:
       summary: "Lists the assignments of a date across the realm, ordered by ID, in\
@@ -4932,6 +4950,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Adds an assignment of an employment to an org unit.
       operationId: addAssignment
@@ -4962,6 +4982,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /assignments/count:
     get:
       summary: Counts the assignments that `GET /assignments` lists with the same
@@ -5012,6 +5034,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /assignments/{id}:
     delete:
       summary: "Deletes an assignment that nothing refers to, with all its history."
@@ -5048,6 +5072,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Returns an assignment with the details of every period.
       operationId: getAssignment
@@ -5077,6 +5103,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /assignments/{id}/details:
     put:
       summary: Replaces the details of an assignment from the `validFrom` date of
@@ -5116,6 +5144,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /assignments/{id}/end:
     delete:
       summary: Removes the end of an assignment.
@@ -5157,6 +5187,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     put:
       summary: Sets the end of an assignment.
       description: "Its history stays readable. The end can move earlier or later.\
@@ -5199,6 +5231,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /assignments/{id}/move:
     post:
       summary: "Moves a person to another org unit on a date, in one write."
@@ -5244,6 +5278,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /attribute-definitions:
     get:
       summary: "Lists the definitions of free attributes, by kind of resource and\
@@ -5281,6 +5317,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Defines a free attribute of a kind of resource.
       description: "Later writes of the resource are checked against it. A write with\
@@ -5318,6 +5356,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /attribute-definitions/{id}:
     put:
       summary: Changes whether a definition is required.
@@ -5372,6 +5412,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Returns one definition.
       operationId: getAttributeDefinition
@@ -5401,6 +5443,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: Deletes a definition.
       description: "While a row of the resource has a value of the name, also a row\
@@ -5450,6 +5494,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /attribute-sync/last-run:
     get:
       summary: Returns the state and the counts of the last sync from user attributes.
@@ -5475,6 +5521,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /attribute-sync/run:
     post:
       summary: Makes the assignments and reporting lines of the sync match the user
@@ -5509,6 +5557,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /change-log:
     get:
       summary: "Lists the writes to the realm and the propagated changes, oldest first."
@@ -5614,6 +5664,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /change-log/count:
     get:
       summary: "Counts the entries that `GET /change-log` lists with the same filters,\
@@ -5673,6 +5725,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /change-orders:
     get:
       summary: "Lists the change orders with an effective date in a range, newest\
@@ -5727,6 +5781,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Creates a change order.
       operationId: createChangeOrder
@@ -5755,6 +5811,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /change-orders/count:
     get:
       summary: Counts the change orders that `GET /change-orders` lists with the same
@@ -5790,6 +5848,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /change-orders/{id}:
     put:
       summary: Replaces the values of a change order.
@@ -5832,6 +5892,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Returns one change order.
       operationId: getChangeOrder
@@ -5861,6 +5923,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: Deletes a change order.
       description: A change order with writes cannot be deleted.
@@ -5895,6 +5959,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /change-orders/{id}/announce:
     post:
       summary: Records that a change order was announced.
@@ -5935,6 +6001,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /change-orders/{id}/changes:
     get:
       summary: "Lists the writes that belong to a change order, oldest first."
@@ -5984,6 +6052,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /change-orders/{id}/changes/count:
     get:
       summary: "Counts the writes that `GET /change-orders/{id}/changes` lists."
@@ -6014,6 +6084,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /effective-changes:
     get:
       summary: Lists the resources with a period that starts or ends in a range of
@@ -6076,6 +6148,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /effective-changes/count:
     get:
       summary: Counts the entries that `GET /effective-changes` lists with the same
@@ -6113,6 +6187,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments:
     post:
       summary: Starts an employment of a user.
@@ -6144,6 +6220,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: "Lists the employments of the realm, ordered by ID, each with all its\
         \ terms."
@@ -6235,6 +6313,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments/count:
     get:
       summary: Counts the employments that `GET /employments` lists with the same
@@ -6295,6 +6375,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments/transfers:
     post:
       summary: "Moves every person of one employer to another employer on a date,\
@@ -6332,6 +6414,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments/{id}:
     delete:
       summary: "Deletes an employment that nothing refers to, with all its history."
@@ -6369,6 +6453,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Returns an employment with the terms of every period.
       operationId: getEmployment
@@ -6398,6 +6484,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments/{id}/end:
     delete:
       summary: "Removes the end of an employment, for example to take back a resignation."
@@ -6439,6 +6527,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     put:
       summary: Sets the end of an employment.
       description: "An earlier end is how a person leaves. It also ends the terms,\
@@ -6482,6 +6572,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments/{id}/leave:
     post:
       summary: Puts a person on leave from a date.
@@ -6523,6 +6615,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments/{id}/promotion:
     post:
       summary: "Promotes a person on a date, in one write."
@@ -6564,6 +6658,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments/{id}/return:
     post:
       summary: Ends the leave of a person on a date.
@@ -6604,6 +6700,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments/{id}/terms:
     put:
       summary: Replaces the terms of an employment from the `validFrom` date of the
@@ -6645,6 +6743,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /employments/{id}/transfer:
     post:
       summary: "Moves a person to another employer on a date, in one write."
@@ -6695,6 +6795,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /export/{list}:
     get:
       summary: "Reads one page of one list of every stored row of the realm, ordered\
@@ -6767,6 +6869,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /external-ids:
     put:
       summary: "Stores the ID of one system for a resource, or replaces it."
@@ -6802,6 +6906,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Lists every ID that systems have for one resource.
       description: "The ID of the system that made the resource comes first, then\
@@ -6845,6 +6951,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: Removes the ID of one system from a resource.
       description: "The resource keeps the name of the system that made it in `source`,\
@@ -6895,6 +7003,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /external-ids/lookup:
     get:
       summary: Finds the resource that an ID of a system names.
@@ -6943,6 +7053,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /hierarchies:
     get:
       summary: "Lists the hierarchies of the realm, ordered by code."
@@ -6984,6 +7096,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Creates a hierarchy.
       description: "A second hierarchy puts the same org units in another tree, such\
@@ -7015,6 +7129,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /hierarchies/count:
     get:
       summary: Counts the hierarchies that `GET /hierarchies` lists.
@@ -7036,6 +7152,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /hierarchies/{id}:
     put:
       summary: Changes the name of a hierarchy.
@@ -7080,6 +7198,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Returns one hierarchy.
       operationId: getHierarchy
@@ -7109,6 +7229,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: Deletes a hierarchy.
       description: "The default hierarchy cannot be deleted. A hierarchy with parent\
@@ -7144,6 +7266,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /imports:
     post:
       summary: Loads many rows in one transaction.
@@ -7210,6 +7334,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /imports/csv/{list}:
     get:
       summary: Returns a list on a date as a CSV that the import loads again.
@@ -7280,6 +7406,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Loads one CSV file in one transaction.
       description: "The first row has the column names, in English or in Japanese.\
@@ -7373,6 +7501,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units:
     get:
       summary: "Lists the org units of a date that match the filters, at any depth."
@@ -7489,6 +7619,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Creates an org unit that starts on a date.
       description: "The unit and its `parentId` are in the default hierarchy. A `hierarchy`\
@@ -7522,6 +7654,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/count:
     get:
       summary: Counts the org units that `GET /org-units` lists with the same filters.
@@ -7601,6 +7735,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}:
     delete:
       summary: "Deletes an org unit that nothing refers to, with all its history."
@@ -7639,6 +7775,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Returns an org unit as it is on a date.
       operationId: getOrgUnit
@@ -7681,6 +7819,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     put:
       summary: Replaces the details of an org unit from the `validFrom` date of the
         body.
@@ -7734,6 +7874,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/children:
     get:
       summary: Lists the direct children of an org unit on a date.
@@ -7802,6 +7944,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/children/count:
     get:
       summary: "Counts the children that `GET /org-units/{id}/children` lists with\
@@ -7852,6 +7996,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/end:
     delete:
       summary: Removes the end of an org unit.
@@ -7892,6 +8038,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     put:
       summary: "Ends an org unit, or moves its end."
       description: Its history stays readable for earlier dates. A later end lengthens
@@ -7931,6 +8079,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/history:
     get:
       summary: Returns everything that is stored about an org unit over time.
@@ -7964,6 +8114,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/members:
     get:
       summary: Lists the assignments to an org unit that hold on a date.
@@ -8087,6 +8239,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/members/count:
     get:
       summary: "Counts the members that `GET /org-units/{id}/members` lists with the\
@@ -8176,6 +8330,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/organization:
     delete:
       summary: Removes the link of an org unit to a Keycloak organization.
@@ -8214,6 +8370,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     put:
       summary: Links an org unit to a Keycloak organization.
       description: The link says that the unit stands for the organization. One organization
@@ -8252,6 +8410,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/parent:
     put:
       summary: Gives an org unit a new parent in a hierarchy from a date.
@@ -8300,6 +8460,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/path:
     get:
       summary: Lists the units from the root down to an org unit on a date.
@@ -8347,6 +8509,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/role-holders:
     get:
       summary: Lists who has a role over an org unit on a date.
@@ -8422,6 +8586,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/role-holders/count:
     get:
       summary: "Counts the roles that `GET /org-units/{id}/role-holders` lists with\
@@ -8475,6 +8641,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/subtree:
     get:
       summary: Lists an org unit and everything below it on a date.
@@ -8545,6 +8713,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/subtree/count:
     get:
       summary: "Counts the units that `GET /org-units/{id}/subtree` lists with the\
@@ -8597,6 +8767,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/succession:
     get:
       summary: "Returns the org units that an org unit follows, and the ones that\
@@ -8632,6 +8804,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /org-units/{id}/time-settings:
     put:
       summary: Sets the time zone and the day start of an org unit.
@@ -8672,6 +8846,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people:
     get:
       summary: "Lists the people of the realm, ordered by ID."
@@ -8747,6 +8923,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Creates a person.
       description: "The body needs `primaryLanguage` and `names`, or `userId` of a\
@@ -8777,6 +8955,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/count:
     get:
       summary: Counts the people that `GET /people` lists with the same filters.
@@ -8817,6 +8997,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}:
     put:
       summary: "Replaces the names, the attributes, and the link to a Keycloak user."
@@ -8863,6 +9045,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Returns one person.
       operationId: getPerson
@@ -8892,6 +9076,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: Deletes a person.
       operationId: deletePerson
@@ -8925,6 +9111,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/assignments:
     get:
       summary: Lists the assignments of a person that hold on a date.
@@ -8971,6 +9159,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/data:
     delete:
       summary: Erases everything about one person for good.
@@ -9010,6 +9200,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/history:
     get:
       summary: "Returns every employment and every assignment of a person, with all\
@@ -9041,6 +9233,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/managers:
     get:
       summary: "Lists the managers of a person on a date, for each assignment of the\
@@ -9083,6 +9277,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/mask:
     post:
       summary: Masks the personal data of a person who left. It cannot be undone.
@@ -9135,6 +9331,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/qualifications:
     get:
       summary: "Lists the qualifications of a person, oldest first."
@@ -9182,6 +9380,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/reports:
     get:
       summary: Lists the direct reports of a person on a date.
@@ -9238,6 +9438,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/reports/count:
     get:
       summary: "Counts the direct reports that `GET /people/{id}/reports` lists with\
@@ -9276,6 +9478,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/unit-roles:
     get:
       summary: Lists the roles over org units of a person on a date.
@@ -9332,6 +9536,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /people/{id}/unit-roles/count:
     get:
       summary: "Counts the roles that `GET /people/{id}/unit-roles` lists with the\
@@ -9370,6 +9576,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /projection/last-run:
     get:
       summary: Returns the state and the counts of the last rebuild of the projection.
@@ -9395,6 +9603,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /projection/rebuild:
     post:
       summary: Mirrors the org structure of today into the groups of Keycloak organizations.
@@ -9422,6 +9632,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /qualifications:
     get:
       summary: "Lists the qualifications of the realm, ordered by ID."
@@ -9489,6 +9701,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Adds a qualification of a person.
       description: "The body needs `personId`, `userId`, or both of the same person."
@@ -9520,6 +9734,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /qualifications/count:
     get:
       summary: Counts the qualifications that `GET /qualifications` lists with the
@@ -9555,6 +9771,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /qualifications/{id}:
     put:
       summary: "Replaces the kind, the number, the dates, and the attributes of a\
@@ -9598,6 +9816,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Returns one qualification.
       operationId: getQualification
@@ -9627,6 +9847,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: Deletes a qualification.
       operationId: deleteQualification
@@ -9660,6 +9882,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /ref-items:
     get:
       summary: "Lists the items of a kind, ordered by display order and then by code."
@@ -9723,6 +9947,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Creates an item.
       description: "The body needs `kind`, `code`, `primaryLanguage`, and `names`.\
@@ -9754,6 +9980,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /ref-items/count:
     get:
       summary: Counts the items that `GET /ref-items` lists with the same filters.
@@ -9791,6 +10019,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /ref-items/{id}:
     put:
       summary: Replaces the changeable values of an item.
@@ -9839,6 +10069,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       summary: Returns one item with the names of a date.
       operationId: getRefItem
@@ -9875,6 +10107,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: Deletes an item.
       description: "An item that a field of a resource names fails with 409 and `ref_item.in_use`.\
@@ -9913,6 +10147,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /ref-items/{id}/history:
     get:
       summary: Returns every period of the names of an item.
@@ -9946,6 +10182,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /ref-kinds:
     get:
       summary: "Lists the kinds of reference data, the fixed ones first, then the\
@@ -9970,6 +10208,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: "Adds a kind of reference data to the realm, such as a working time\
         \ system or a collective agreement."
@@ -10002,6 +10242,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /ref-kinds/{code}:
     put:
       summary: Changes the names of a kind of the realm.
@@ -10046,6 +10288,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: Removes a kind of the realm that has no items.
       description: A kind with items fails with 409 and `ref_kind.in_use`. So does
@@ -10082,6 +10326,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /reorganizations:
     post:
       summary: "Changes many org units on one date, in one transaction."
@@ -10122,6 +10368,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /reporting-lines:
     post:
       summary: Adds a reporting line from an assignment to a manager.
@@ -10153,6 +10401,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /reporting-lines/{id}:
     get:
       summary: Returns one reporting line.
@@ -10183,6 +10433,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: "Deletes a reporting line, as if it had never been stored."
       operationId: deleteReportingLine
@@ -10216,6 +10468,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /reporting-lines/{id}/end:
     put:
       summary: Ends a reporting line earlier.
@@ -10253,6 +10507,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /restore:
     post:
       summary: "Loads an export into a realm that has no data of the extension, or\
@@ -10346,6 +10602,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /staff:
     post:
       summary: Starts an employment and adds its first assignment in one call.
@@ -10380,6 +10638,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /unit-roles:
     get:
       summary: "Lists the roles over org units of a date across the realm, ordered\
@@ -10455,6 +10715,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     post:
       summary: Gives an employment a role over an org unit.
       description: "The role is not membership. The end of the employment ends the\
@@ -10485,6 +10747,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /unit-roles/count:
     get:
       summary: Counts the roles that `GET /unit-roles` lists with the same filters.
@@ -10524,6 +10788,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /unit-roles/{id}:
     get:
       summary: Returns one role over an org unit.
@@ -10554,6 +10820,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     delete:
       summary: Deletes a role that was stored by mistake.
       description: End a role that held for a while. Its entries in the change log
@@ -10589,6 +10857,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /unit-roles/{id}/end:
     put:
       summary: Ends a role over an org unit earlier.
@@ -10626,6 +10896,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/assignments:
     get:
       summary: Lists the assignments of a user that hold on a date.
@@ -10672,6 +10944,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/data:
     delete:
       summary: Erases everything about one user for good.
@@ -10704,6 +10978,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/history:
     get:
       summary: "Returns every employment and every assignment of a user, with all\
@@ -10735,6 +11011,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/managers:
     get:
       summary: "Lists the managers of a user on a date, for each assignment of the\
@@ -10777,6 +11055,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/mask:
     post:
       summary: Masks the personal data of a user who left. It cannot be undone.
@@ -10823,6 +11103,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/qualifications:
     get:
       summary: "Lists the qualifications of a user, oldest first."
@@ -10870,6 +11152,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/reports:
     get:
       summary: Lists the direct reports of a user on a date.
@@ -10926,6 +11210,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/reports/count:
     get:
       summary: "Counts the direct reports that `GET /users/{userId}/reports` lists\
@@ -10964,6 +11250,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/unit-roles:
     get:
       summary: Lists the roles over org units of a user on a date.
@@ -11020,6 +11308,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /users/{userId}/unit-roles/count:
     get:
       summary: "Counts the roles that `GET /users/{userId}/unit-roles` lists with\
@@ -11058,3 +11348,5 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"

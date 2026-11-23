@@ -32,6 +32,8 @@ import net.exoego.keycloak.fuhito.jpa.JpaChangeOrderStore;
 import net.exoego.keycloak.fuhito.jpa.RowLocks;
 import net.exoego.keycloak.fuhito.rest.ErrorRepresentation;
 import net.exoego.keycloak.fuhito.rest.RequestContext;
+import net.exoego.keycloak.fuhito.rest.StoppedStatement;
+import org.jboss.logging.Logger;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.OrganizationModel;
@@ -59,6 +61,8 @@ final class KeycloakRequestContext implements RequestContext {
     static final String DAYS_AHEAD_ATTRIBUTE = "fuhito.structure.daysAhead";
 
     private static final String LANGUAGE_ATTRIBUTE = "fuhito.language";
+
+    private static final Logger LOG = Logger.getLogger(KeycloakRequestContext.class);
 
     private static final Pattern OWS_AROUND = Pattern.compile("^[ \\t]+|[ \\t]+$");
 
@@ -99,7 +103,7 @@ final class KeycloakRequestContext implements RequestContext {
 
     // Keycloak picks the client of the roles by the realm of the caller, the same as for its own admin roles.
     private void requireRole(String... roles) {
-        if (!auth.hasOneAdminRole(roles)) {
+        if (!stoppable(() -> auth.hasOneAdminRole(roles))) {
             throw new ForbiddenException();
         }
     }
@@ -154,17 +158,20 @@ final class KeycloakRequestContext implements RequestContext {
     public void requireWrite(BooleanSupplier changesOtherReads) {
         requireRole(FuhitoRoles.MANAGE);
         requireTimeSettings();
-        requireWrite(changesOtherReads.getAsBoolean());
+        requireWrite(stoppable(changesOtherReads::getAsBoolean));
     }
 
     @Override
     public String requireWriteOfUser(Supplier<String> userId) {
         requireRole(FuhitoRoles.MANAGE);
         requireTimeSettings();
-        String id = userId.get();
-        if (id != null) {
-            RowLocks.lockUser(entityManager, realm.getId(), id);
-        }
+        String id = stoppable(() -> {
+            String found = userId.get();
+            if (found != null) {
+                RowLocks.lockUser(entityManager, realm.getId(), found);
+            }
+            return found;
+        });
         // No check of the role after the wait. Keycloak removes the roles with the realm, so the check would fail with
         // 403 where the lock of the realm fails with 404.
         lockForWrite(false);
@@ -179,13 +186,25 @@ final class KeycloakRequestContext implements RequestContext {
 
     private void lockForWrite(boolean alone) {
         writing = true;
-        // Before the check, so that it finds a change order that a bulk write added.
-        lockRealm(alone);
-        String changeOrderId = changeOrderId();
-        if (changeOrderId != null
-                && new JpaChangeOrderStore(entityManager, realm.getId()).find(changeOrderId).isEmpty()) {
-            throw failure(error(Response.Status.BAD_REQUEST, "change_order.not_found",
-                    Map.of("id", changeOrderId)));
+        stoppable(() -> {
+            // Before the check, so that it finds a change order that a bulk write added.
+            lockRealm(alone);
+            String changeOrderId = changeOrderId();
+            if (changeOrderId != null
+                    && new JpaChangeOrderStore(entityManager, realm.getId()).find(changeOrderId).isEmpty()) {
+                throw failure(error(Response.Status.BAD_REQUEST, "change_order.not_found",
+                        Map.of("id", changeOrderId)));
+            }
+            return null;
+        });
+    }
+
+    // The checks and the locks of a requirement run before Calls.run, which handles a stop in the operation.
+    private <T> T stoppable(Supplier<T> step) {
+        try {
+            return step.get();
+        } catch (RuntimeException e) {
+            throw StoppedStatement.of(e).<RuntimeException>map(this::failure).orElse(e);
         }
     }
 
@@ -331,6 +350,16 @@ final class KeycloakRequestContext implements RequestContext {
     @Override
     public RuntimeException failure(Response response) {
         return new ErrorResponseException(response);
+    }
+
+    // The raw path keeps a line break of the path encoded, so the entry stays on one line.
+    @Override
+    public RuntimeException failure(StoppedStatement stopped) {
+        LOG.warnf("%s %s failed with %d %s. PostgreSQL stopped a statement with %s: %s.",
+                session.getContext().getHttpRequest().getHttpMethod(),
+                session.getContext().getUri().getRequestUri().getRawPath(), stopped.status().getStatusCode(),
+                stopped.code(), stopped.sqlState(), stopped.message());
+        return failure(error(stopped.status(), stopped.code(), Map.of()));
     }
 
     @Override

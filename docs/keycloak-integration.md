@@ -197,8 +197,9 @@ The records of the members that it added describe Keycloak too. So an export doe
 
 The removal of an organization in Keycloak can fail with 500 when a rebuild or a timer run changes the members of its groups at the same time.
 Keycloak takes the members out one by one and removes the groups last. A transaction of the rebuild changes several members in another order.
-So the two can wait for each other, and PostgreSQL fails one of them. Keycloak answers 500 for that, as it does for every deadlock.
+So the two can wait for each other, and PostgreSQL fails one of them. Keycloak answers 500 for a removal that fails so, as it does for every deadlock in its own endpoints.
 A failed removal rolls back, so the organization stays as it was. Send the removal again after the rebuild ends.
+A call of `POST /projection/rebuild` that fails so gets 409 and `write.aborted`, and keeps the pieces that it finished. A timer run that fails so logs the error and runs again later.
 
 ### Projection into realm groups
 
@@ -223,8 +224,9 @@ A write of the realm that comes during the removal waits for it. It then fails w
 The removal can fail with 500 when it comes while the extension writes rows of Keycloak.
 These writes are a rebuild or a timer run of the projection that changes groups or members.
 The removal and the write then wait for each other, or the removal meets a member that the write has just added.
-One of them fails with 500 and rolls back. So a failed removal leaves the realm as it was.
+One of them fails and rolls back. A failed removal gets 500 from Keycloak and leaves the realm as it was.
 Send the removal again after the write ends.
+A call of `POST /projection/rebuild` that PostgreSQL fails gets 409 and `write.aborted`, and keeps the pieces that it finished. A timer run that fails logs the error and runs again later.
 
 When a user is removed from Keycloak, the extension keeps the history of that person.
 In the same transaction it ends only what would still hold.
@@ -595,12 +597,13 @@ So a product cannot overwrite a change that another product made after its read.
 - Each realm has one lock for its writes. A bulk write takes it alone, at its start and before anything else. The bulk writes are `POST /imports`, also as a dry run, `POST /imports/csv/{list}`, and `POST /restore`. The attribute sync takes it alone for each piece of users. A change of the realm attribute `fuhito.nameOrder` that puts the other part first takes it alone in the transaction of the change.
 - Every other write of the realm shares this lock, before its other locks. These are the other writes of the API, the removal of a user or of an organization in Keycloak, a change of the name of a user in Keycloak, the rebuild of the projection, and the record of the last run of a job.
 - So the other writes of the realm wait while a bulk write runs, and a bulk write waits for the writes that run. Two bulk writes of one realm run one after the other. During the attribute sync, the other writes wait for one piece at a time. Writes that share the lock do not wait for each other on it, and the writes of other realms do not wait at all.
-- Reads take no lock and never wait.
+- Reads take no lock and never wait for a write.
 - The lock is the row of the realm in `FUHITO_REALM_WRITE`. A realm gets it when it is created, and a realm from before the table gets it at its first write. The removal of the realm removes it, and a restore keeps it.
 - A write that waited for the removal of its realm fails with 404 and `realm.not_found`. It does not add the row again.
 - A mask with `clearKeycloakName=true` locks the row of the user in Keycloak first, before the lock of the realm. Keycloak locks the row of a user first too, when it removes the user or its realm. So the mask and such a removal wait for each other in turn. While the mask waits for a bulk write, a change of that user in Keycloak waits too.
 - `POST /people/{id}/mask` with `clearKeycloakName=true` reads the user of the person before that first lock. When the person is linked to another user by the time of its lock, the mask fails with 409 and `version.conflict`, and writes nothing. A restore can make such a change and keep the version of the person. The error then has no version, because the version did not change.
 - A write can still meet a row that another write changed without a lock, for example a row of an ID of another system that another write changed at the same moment. The later write then fails with 409 and `version.conflict` too. Its error has no version, because the conflict was on another row.
+- A write can still lose a deadlock with a write that takes its rows in another order, such as a removal in Keycloak. PostgreSQL then stops one of them. A write of the API that PostgreSQL stops fails with 409 and `write.aborted`. So does a write whose wait for a lock runs past `lock_timeout`. A wait past `statement_timeout` fails with 503 and `request.timed_out`. This holds also for the wait for the lock of the realm at the start of a write. The write rolls back, and the same request can succeed when it is sent again later. See [Errors](#errors).
 
 For example, a product reads an employment, and changes its terms with the version that it read.
 
@@ -632,6 +635,8 @@ The caller retries safely in this way.
 - A create with `source` and `externalId` fails with 409 and `external_id.taken` when it is sent again. `GET /external-ids/lookup` with the same type, system, and ID finds the resource that the first request made.
 - A create with another value that must be unique, such as the code of an org unit or of a reference item, fails with 409 in the same way.
 - A create with no unique value can make a second resource. The caller finds the second one and deletes it.
+
+A response with 409 and `write.aborted`, or with 503 and `request.timed_out`, is not such a timeout. PostgreSQL stopped the request, and its transaction rolled back. The caller sends the same request again later. See [A statement that PostgreSQL stops](#a-statement-that-postgresql-stops).
 
 For example, a product creates a person with the ID of its own system. The request times out, so the product sends it again.
 
@@ -1010,7 +1015,7 @@ The language of `message` is the tag of `Accept-Language` that gives the names, 
 English and Japanese exist. Any other language, and a request with no such tag, gets English.
 A header that is not in the form of RFC 9110 gets 400 and `invalid.header`, with the message in English.
 To add a language, add a `messages_xx.properties` file next to the others.
-A failed request writes nothing.
+A failed request writes nothing. Only a rebuild of the projection and a sync from user attributes keep the pieces that they finished, because each piece is a transaction of its own.
 
 | Status | Meaning |
 |---|---|
@@ -1018,3 +1023,27 @@ A failed request writes nothing.
 | 404 | The target does not exist in the realm |
 | 409 | The request conflicts with existing data |
 | 410 | A read of the change log would leave out a propagated change that is removed |
+| 503 | PostgreSQL stopped a statement of the request, for example one that ran too long |
+
+### A statement that PostgreSQL stops
+
+PostgreSQL can stop a statement of a request. The request then gets an error of the extension by the SQL state, and not 500 from Keycloak.
+This holds for every request of the API, reads included. It also holds while a write waits for the lock of its realm at its start.
+
+| SQL state | When it happens | Status | Error |
+|---|---|---|---|
+| `40P01` | A deadlock. PostgreSQL stopped this transaction | 409 | `write.aborted` |
+| `55P03` | A wait for a lock ran past `lock_timeout` | 409 | `write.aborted` |
+| `40001` | A serialization failure. It does not happen at READ COMMITTED, the default of Keycloak | 409 | `write.aborted` |
+| `57014` | A statement ran past `statement_timeout`, also while it waited for a lock. A statement that an administrator stops with `pg_cancel_backend` gives the same state | 503 | `request.timed_out` |
+
+- `write.aborted` says that another write ran at the same time. The same request can succeed when it is sent again later.
+- `request.timed_out` is not always a conflict. A heavy statement times out again until the time limit of the database changes. A read takes no lock of a row, so it mostly meets only this one.
+- Both errors have no values in `params`, as the client does the same for every cause. The log of PostgreSQL has the cause, because it logs each error with its statement by default.
+- The response has no `Retry-After`. The extension does not know when the request would succeed.
+- The transaction of the request rolls back, as for every other error.
+- Keycloak logs nothing for an error response of the extension. So the extension writes one line at WARN to the log of Keycloak for each such failure, with no stack trace. The line names the method, the path, the status, the code, the SQL state, and the message of PostgreSQL.
+
+```
+PUT /admin/realms/acme/fuhito/org-units/123 failed with 409 write.aborted. PostgreSQL stopped a statement with 40P01: deadlock detected.
+```

@@ -40,6 +40,7 @@ public interface RequestContext {
      * Requires the permission to change organization data. Throws when the caller lacks it.
      * Also throws when the request names a change order that does not exist.
      * The write shares the lock of its realm until the end of the transaction. So it waits while a bulk write runs.
+     * A wait that PostgreSQL stops fails as {@link #failure(StoppedStatement)} says. So do the other requirements.
      */
     void requireWrite();
 
@@ -165,6 +166,16 @@ public interface RequestContext {
      * @return the exception to throw
      */
     RuntimeException failure(Response response);
+
+    /**
+     * Makes an exception that ends the request with the error of a statement that PostgreSQL stopped, and rolls back
+     * the transaction. It also writes one line about it to the log of Keycloak at WARN. Keycloak logs no error
+     * response that has a body, so the failure would leave no trace in its log otherwise.
+     *
+     * @param stopped the statement that PostgreSQL stopped
+     * @return the exception to throw
+     */
+    RuntimeException failure(StoppedStatement stopped);
 
     /**
      * The kind of a change, for the event log.
