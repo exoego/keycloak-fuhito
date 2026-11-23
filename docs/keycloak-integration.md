@@ -195,6 +195,11 @@ The projection goes one way. The tables of this extension stay the source of tru
 The projection records no admin events and no change log entries. It changes data of Keycloak, not data of the extension.
 The records of the members that it added describe Keycloak too. So an export does not have them, and a restore keeps them.
 
+The removal of an organization in Keycloak can fail with 500 when a rebuild or a timer run changes the members of its groups at the same time.
+Keycloak takes the members out one by one and removes the groups last. A transaction of the rebuild changes several members in another order.
+So the two can wait for each other, and PostgreSQL fails one of them. Keycloak answers 500 for that, as it does for every deadlock.
+A failed removal rolls back, so the organization stays as it was. Send the removal again after the rebuild ends.
+
 ### Projection into realm groups
 
 The projection can also mirror the whole tree into realm groups. A client that uses realm groups or realm roles can then use it, and so can a realm with Organizations turned off.
