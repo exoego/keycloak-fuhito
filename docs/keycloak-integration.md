@@ -216,7 +216,7 @@ The removal waits for the writes of the realm that run, and deletes what they wr
 A write of the realm that comes during the removal waits for it. It then fails with 404 and `realm.not_found`, and writes nothing.
 
 The removal can fail with 500 when it comes while the extension writes rows of Keycloak.
-These writes are a rebuild or a timer run of the projection that changes groups or members, and a mask with `clearKeycloakName=true`.
+These writes are a rebuild or a timer run of the projection that changes groups or members.
 The removal and the write then wait for each other, or the removal meets a member that the write has just added.
 One of them fails with 500 and rolls back. So a failed removal leaves the realm as it was.
 Send the removal again after the write ends.
@@ -593,6 +593,8 @@ So a product cannot overwrite a change that another product made after its read.
 - Reads take no lock and never wait.
 - The lock is the row of the realm in `FUHITO_REALM_WRITE`. A realm gets it when it is created, and a realm from before the table gets it at its first write. The removal of the realm removes it, and a restore keeps it.
 - A write that waited for the removal of its realm fails with 404 and `realm.not_found`. It does not add the row again.
+- A mask with `clearKeycloakName=true` locks the row of the user in Keycloak first, before the lock of the realm. Keycloak locks the row of a user first too, when it removes the user or its realm. So the mask and such a removal wait for each other in turn. While the mask waits for a bulk write, a change of that user in Keycloak waits too.
+- `POST /people/{id}/mask` with `clearKeycloakName=true` reads the user of the person before that first lock. When the person is linked to another user by the time of its lock, the mask fails with 409 and `version.conflict`, and writes nothing. A restore can make such a change and keep the version of the person. The error then has no version, because the version did not change.
 - A write can still meet a row that another write changed without a lock, for example a row of an ID of another system that another write changed at the same moment. The later write then fails with 409 and `version.conflict` too. Its error has no version, because the conflict was on another row.
 
 For example, a product reads an employment, and changes its terms with the version that it read.
