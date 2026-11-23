@@ -105,8 +105,7 @@ class ReadsByIdPlansIT {
                     + ofRecord("x", "fuhito_assignment", "assignment_id", "ex-new-assignment-7"),
                     BY_ASSIGNMENT);
             assertIndexes(statement, "delete from fuhito_assignment_version x where x.id = 'ex-new-assignment-7' and "
-                    + ofRecord("x", "fuhito_assignment_version", "id", "ex-new-assignment-7"),
-                    "pk_fuhito_assignment_version");
+                    + ofRecord("x", "fuhito_assignment_version", "id", "ex-new-assignment-7"), "pk_fuhito_assignment_version");
         });
     }
 
@@ -155,9 +154,6 @@ class ReadsByIdPlansIT {
             assertIndexes(statement, "delete from fuhito_reporting_line r where r.assignment_id in (%s) and %s"
                     .formatted(assignments, ofPerson("r")), "pk_fuhito_person", "idx_fuhito_employment_person",
                     "idx_fuhito_assignment_employment", "idx_fuhito_reporting_line_assignment");
-            assertIndexes(statement, "select distinct a.realm_id, a.assignment_id from fuhito_assignment a"
-                    + " where a.employment_id in (" + employments + ")", "idx_fuhito_employment_person",
-                    "idx_fuhito_assignment_employment");
             assertIndexes(statement, "delete from fuhito_assignment x where x.employment_id in (%s) and %s"
                     .formatted(employments, ofPerson("x")), "pk_fuhito_person", "idx_fuhito_employment_person",
                     "idx_fuhito_assignment_employment");

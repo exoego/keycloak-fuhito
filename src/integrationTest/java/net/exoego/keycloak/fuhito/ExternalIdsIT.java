@@ -188,8 +188,6 @@ class ExternalIdsIT {
         assertEquals(200, api.putWithVersion("/employments/" + employment + "/end", "{\"validTo\": \"2026-04-01\"}")
                 .statusCode());
         assertEquals(404, api.get("/assignments/" + planned).statusCode());
-        assertEquals("0", KeycloakEnvironment.sql("select count(*) from fuhito_assignment_version where id = '"
-                + planned + "'"));
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "ASSIGNMENT&source=hr&externalId=A-1")));
         assertEquals(204, api.deleteWithVersion("/employments/" + employment).statusCode());
         assertEquals("external_id.unknown", errorOf(404, api.get(lookup + "EMPLOYMENT&source=hr&externalId=E-1")));

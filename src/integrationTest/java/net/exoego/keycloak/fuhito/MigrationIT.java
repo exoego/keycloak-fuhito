@@ -136,14 +136,13 @@ class MigrationIT {
         }
         try (Connection connection = KeycloakEnvironment.connection("fuhito_assignment_version");
                 Statement statement = connection.createStatement()) {
-            // The schema before the change set. The two rows of the assignment have version 7.
+            // The schema before the change set. The two rows of the only assignment have version 7.
             statement.execute("alter table fuhito_assignment drop constraint fk_fuhito_assignment_version");
             statement.execute("alter table fuhito_assignment add column version bigint default 1 not null");
             statement.execute("drop table fuhito_assignment_version");
             statement.execute("delete from databasechangelog_fuhito where id = '0.1.0-assignment-version'");
-            statement.execute("update fuhito_assignment set version = 7 where assignment_id = '" + assignment + "'");
-            assertEquals(List.of("7", "7"), rows(statement,
-                    "select version from fuhito_assignment where assignment_id = '" + assignment + "'"));
+            statement.execute("update fuhito_assignment set version = 7");
+            assertEquals(List.of("7", "7"), rows(statement, "select version from fuhito_assignment"));
         }
 
         try (KeycloakContainer keycloak = KeycloakEnvironment.keycloakOn("fuhito_assignment_version")) {

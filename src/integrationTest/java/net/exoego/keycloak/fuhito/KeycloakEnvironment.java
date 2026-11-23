@@ -166,6 +166,19 @@ final class KeycloakEnvironment {
                 .count();
     }
 
+    // The rows of the version of an assignment. The version goes with the last row of the periods.
+    static long versionRows(String assignmentId) throws SQLException {
+        try (Connection connection = connection();
+                PreparedStatement statement = connection.prepareStatement(
+                        "select count(*) from fuhito_assignment_version where id = ?")) {
+            statement.setString(1, assignmentId);
+            try (ResultSet row = statement.executeQuery()) {
+                row.next();
+                return row.getLong(1);
+            }
+        }
+    }
+
     static void update(Connection connection, String sql, String id) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, id);
