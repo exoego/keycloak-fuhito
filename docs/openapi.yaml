@@ -2496,7 +2496,8 @@ components:
             as its size.
         error:
           type: string
-          description: The code of the error of a failed run.
+          description: "The error code of a failed run, as an error response has it.\
+            \ `internal` when the error has no code."
     Leave:
       required:
       - version

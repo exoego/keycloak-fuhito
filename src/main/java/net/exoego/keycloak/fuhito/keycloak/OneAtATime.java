@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.domain.Unchecked;
 import net.exoego.keycloak.fuhito.jpa.JpaJobRunStore;
+import net.exoego.keycloak.fuhito.rest.StoppedStatement;
 import org.keycloak.cluster.ClusterProvider;
 import org.keycloak.cluster.ExecutionResult;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
@@ -128,8 +129,10 @@ final class OneAtATime {
                     .ended(job, Instant.now(), "FAILED", null, e.code()));
             throw e;
         } catch (RuntimeException e) {
+            // The code that an error response of the job would have.
+            String code = StoppedStatement.of(e).map(StoppedStatement::code).orElse("internal");
             KeycloakModelUtils.runJobInTransaction(factory, session -> runs(session, realmId)
-                    .ended(job, Instant.now(), "FAILED", null, "internal"));
+                    .ended(job, Instant.now(), "FAILED", null, code));
             throw e;
         }
     }

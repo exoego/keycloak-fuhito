@@ -131,6 +131,7 @@ A rebuild with no change in between changes nothing.
 A first rebuild of a large realm takes many minutes, and the call stays open for that time. A proxy or a load balancer between the caller and Keycloak may end the call first. The rebuild goes on in the server anyway.
 `GET /projection/last-run` reads the last run, also one that the timer started. It has `state`, `startedAt`, `endedAt`, the counts of the report, and the code of an error.
 The state is `RUNNING`, `DONE`, or `FAILED`. A run that still shows `RUNNING` after six hours shows `ABANDONED`, for example because its node stopped.
+A failed run has the error code that an error response would have, also when PostgreSQL stopped a statement of the run. The code is `internal` when the error has no code.
 
 A rebuild does its work in pieces, and each piece is one transaction. One transaction for a large realm would run into the transaction timeout of Keycloak.
 So a rebuild that fails in the middle keeps the pieces that it finished. The groups are then partly up to date. The next rebuild does the rest.
@@ -1046,4 +1047,13 @@ This holds for every request of the API, reads included. It also holds while a w
 
 ```
 PUT /admin/realms/acme/fuhito/org-units/123 failed with 409 write.aborted. PostgreSQL stopped a statement with 40P01: deadlock detected.
+```
+
+A long job gets the same codes.
+
+- The sync from user attributes lists a user whose statement PostgreSQL stopped in `failed`, with the error of the table above. The sync goes on with the other users. See [scim.md](scim.md). The log gets one line at WARN for the user, with no stack trace.
+- A rebuild of the projection or a sync that PostgreSQL stops keeps the same code in `error` of its last run.
+
+```
+The sync from user attributes failed for the user with the ID 4f0c2a6e-58b1-4c39-9a0e-7d3e1b2c5f80 with request.timed_out. PostgreSQL stopped a statement with 57014: canceling statement due to statement timeout.
 ```

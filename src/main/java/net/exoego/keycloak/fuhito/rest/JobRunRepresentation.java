@@ -28,7 +28,8 @@ public record JobRunRepresentation(
         String endedAt,
         @Schema(description = "The counts of the report of a run that is done. A list counts as its size.")
         Map<String, Object> report,
-        @Schema(description = "The code of the error of a failed run.")
+        @Schema(description = "The error code of a failed run, as an error response has it. `internal` when the "
+                + "error has no code.")
         String error) {
 
     // The lock of a run goes away after the same time.

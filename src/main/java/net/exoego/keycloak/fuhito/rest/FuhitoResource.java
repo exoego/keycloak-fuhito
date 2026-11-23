@@ -79,6 +79,7 @@ import org.eclipse.microprofile.openapi.annotations.enums.SecuritySchemeType;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import org.jboss.logging.Logger;
 
 /**
  * The root of the admin REST API for one realm.
@@ -116,6 +117,8 @@ public class FuhitoResource {
     }
 
     private static final String VERSION = loadVersion();
+
+    private static final Logger LOG = Logger.getLogger(FuhitoResource.class);
 
     private final String realmId;
     private final RequestContext context;
@@ -478,6 +481,16 @@ public class FuhitoResource {
             @Override
             public <T> T alone(Supplier<T> run) {
                 return pieces.alone("sync", !dryRun, run);
+            }
+
+            @Override
+            public Optional<String> stopped(String userId, RuntimeException error) {
+                return StoppedStatement.of(error).map(stopped -> {
+                    LOG.warnf("The sync from user attributes failed for the user with the ID %s with %s. PostgreSQL "
+                            + "stopped a statement with %s: %s.", userId, stopped.code(), stopped.sqlState(),
+                            stopped.message());
+                    return stopped.code();
+                });
             }
         }), new JpaJobRunStore(entityManager, realmId));
     }

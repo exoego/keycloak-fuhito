@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -171,6 +172,12 @@ class AttributeSyncServiceTest {
         private int count;
         private int realmGoneAfter = Integer.MAX_VALUE;
         private Predicate<ImportReport.Write> rejected = write -> false;
+        private Optional<String> stopped = Optional.empty();
+
+        @Override
+        public Optional<String> stopped(String userId, RuntimeException error) {
+            return stopped;
+        }
 
         @Override
         public <T> T inNewTransaction(Function<AttributeSyncService.Parts, T> piece) {
@@ -269,6 +276,24 @@ class AttributeSyncServiceTest {
         assertEquals(List.of(), again.failed());
         assertEquals(1, again.assignmentsEnded());
         assertEquals(List.of("Internal Medicine 2026-06-15 2026-06-16 - primary"), assignmentsOf("bob"));
+    }
+
+    @Test
+    void aUserWhoseStatementTheDatabaseStoppedGetsTheCodeOfTheWork() {
+        set("alice", "med", null, null, null);
+        set("bob", "med", null, null, null);
+        run();
+        nextDay();
+        attributes.clear();
+        Transactions work = new Transactions();
+        work.rejected = write -> write instanceof ImportReport.Write.OfAssignment ended
+                && "bob".equals(ended.state().userId());
+        work.stopped = Optional.of("write.aborted");
+
+        SyncReport report = new AttributeSyncService(work).run();
+
+        assertEquals(List.of(new Failed("bob", "write.aborted")), report.failed());
+        assertEquals(1, report.assignmentsEnded());
     }
 
     private List<String> assignmentsOf(String userId) {
