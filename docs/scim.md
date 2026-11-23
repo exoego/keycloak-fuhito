@@ -94,7 +94,7 @@ The reason is `unknown` when nothing has the value, or when it names a deactivat
 A user that the sync cannot handle does not stop the other users.
 The response lists each such user in `failed`, with the error code that an error response would have.
 The code is `internal` when the error has no code. The log of the server then has the cause.
-A user whose statement PostgreSQL stopped, for example for a deadlock, gets `internal` too, and not `write.aborted` or `request.timed_out`.
+A user whose statement PostgreSQL stopped, for example for a deadlock, gets `write.aborted` or `request.timed_out`, as a request would. The log then has one line at WARN with the ID of the user, the SQL state, and the message of PostgreSQL, with no stack trace. See [A statement that PostgreSQL stops](keycloak-integration.md#a-statement-that-postgresql-stops).
 Nothing of a failed user is written, and the next run tries the user again.
 For example, a user who needs a new employment fails with `employment.employer_required` when the realm has several legal entities and no `fuhito.sync.employer`.
 

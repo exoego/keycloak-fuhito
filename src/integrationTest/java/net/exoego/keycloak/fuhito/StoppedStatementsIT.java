@@ -20,6 +20,7 @@ import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.keycloak.representations.userprofile.config.UPConfig;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.connection;
@@ -36,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A request whose statement PostgreSQL stops gets an error of the extension, and leaves one line in the log of
- * Keycloak.
+ * Keycloak. A user of the sync and the last run of a job get the same code.
  */
 class StoppedStatementsIT {
 
@@ -69,6 +70,55 @@ class StoppedStatementsIT {
         String query = sql("select query from pg_stat_activity where pid = " + pid);
         assertEquals("true", sql("select pg_cancel_backend(" + pid + ")"));
         return query.toLowerCase(Locale.ROOT);
+    }
+
+    // Stops the statements that wait for the lock of the connection, one after another. After a stop, a statement
+    // can wait again in a new transaction.
+    private static void cancelWaitersOf(Connection holder, int times) throws Exception {
+        String waiting;
+        try (Statement statement = holder.createStatement();
+                ResultSet row = statement.executeQuery("select pg_backend_pid()")) {
+            assertTrue(row.next());
+            waiting = "select pid || ' ' || xact_start from pg_stat_activity where " + row.getString(1)
+                    + " = any(pg_blocking_pids(pid))";
+        }
+        String before = "";
+        for (int stopped = 0; stopped < times; stopped++) {
+            String now = sql(waiting);
+            for (int i = 0; i < 300 && (now.isEmpty() || now.equals(before)); i++) {
+                Thread.sleep(100);
+                now = sql(waiting);
+            }
+            assertFalse(now.isEmpty() || now.equals(before), "nothing waited again after " + stopped + " stops");
+            assertEquals("true", sql("select pg_cancel_backend(" + now.substring(0, now.indexOf(' ')) + ")"));
+            before = now;
+        }
+    }
+
+    private static void assertLastRun(String state, String error, HttpResponse<String> response) throws Exception {
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode run = Api.json(response);
+        assertEquals(List.of(state, error), List.of(run.get("state").asText(), run.path("error").asText()));
+    }
+
+    private static TestRealm syncRealm(String prefix) {
+        TestRealm realm = TestRealm.withEmployer(prefix, Map.of("fuhito.sync.enabled", "true"));
+        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+        // Without this, the user profile of Keycloak drops attributes that it does not know.
+        UPConfig profile = admin.realm(realm.name).users().userProfile().getConfiguration();
+        profile.setUnmanagedAttributePolicy(UPConfig.UnmanagedAttributePolicy.ENABLED);
+        admin.realm(realm.name).users().userProfile().update(profile);
+        return realm;
+    }
+
+    private static String syncUser(TestRealm realm, String username, Map<String, String> attributes) {
+        var user = new UserRepresentation();
+        user.setUsername(username);
+        user.setEnabled(true);
+        attributes.forEach(user::singleAttribute);
+        try (Response created = KEYCLOAK.getKeycloakAdminClient().realm(realm.name).users().create(user)) {
+            return CreatedResponseUtil.getCreatedId(created);
+        }
     }
 
     // The line of the extension about the request. The container hands the log over a little later.
@@ -285,8 +335,72 @@ class StoppedStatementsIT {
                 + "again later.", response);
         assertLogged(log, " POST /admin/realms/" + realm + "/fuhito/projection/rebuild failed with 409 "
                 + "write.aborted. " + DEADLOCK);
+        assertLastRun("FAILED", "write.aborted", api.get("/projection/last-run"));
         assertEquals("2", sql("select count(*) from fuhito_projected_member where realm_id = '" + realmId + "'"));
         assertEquals(200, api.post("/projection/rebuild", "").statusCode());
         assertEquals("0", sql("select count(*) from fuhito_projected_member where realm_id = '" + realmId + "'"));
+    }
+
+    // Each piece of the sync takes the lock of the realm alone. The record of the run only shares it.
+    @Test
+    void aSyncThatPostgreSqlStopsKeepsTheCodeOfItsErrorAsTheLastRun() throws Exception {
+        TestRealm realm = syncRealm("stopped-sync-run");
+        int log = logLength();
+
+        HttpResponse<String> response;
+        try (Connection holder = holdingRealm(realm.id(), false)) {
+            CompletableFuture<HttpResponse<String>> sync = waitingFor(holder,
+                    () -> realm.api.post("/attribute-sync/run", ""));
+            cancelWaiterOf(holder);
+            response = sync.get(60, TimeUnit.SECONDS);
+            holder.rollback();
+        }
+
+        assertError(503, "request.timed_out", "The operation timed out. Try it again later, or review the time limit "
+                + "of the database.", response);
+        assertLogged(log, " POST /admin/realms/" + realm.name + "/fuhito/attribute-sync/run failed with 503 "
+                + "request.timed_out. " + CANCELED);
+        assertLastRun("FAILED", "request.timed_out", realm.api.get("/attribute-sync/last-run"));
+    }
+
+    // A piece of users that fails runs again with each user alone. So the statement of bob is stopped twice.
+    @Test
+    void aUserOfTheSyncWhoseStatementPostgreSqlStopsFailsWithTheCodeOfTheError() throws Exception {
+        TestRealm realm = syncRealm("stopped-sync-user");
+        id(realm.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"内科\"}}, "
+                + "\"code\": \"naika\", \"validFrom\": \"2020-04-01\"}"));
+        String alice = syncUser(realm, "alice", Map.of("department", "naika", "title", "院長"));
+        String bob = syncUser(realm, "bob", Map.of("department", "naika", "title", "院長"));
+        assertEquals(200, realm.api.post("/attribute-sync/run", "").statusCode());
+        String assignment = Api.json(realm.api.get("/users/" + bob + "/assignments")).get(0).get("assignmentId")
+                .asText();
+        // The next run gives the title to both assignments.
+        realm.refItem("JOB_TITLE", "head", "院長");
+        int log = logLength();
+
+        HttpResponse<String> response;
+        try (Connection holder = connection()) {
+            holder.setAutoCommit(false);
+            update(holder, "update fuhito_assignment set version = version where assignment_id = ?", assignment);
+            CompletableFuture<HttpResponse<String>> sync = waitingFor(holder,
+                    () -> realm.api.post("/attribute-sync/run", ""));
+            cancelWaitersOf(holder, 2);
+            response = sync.get(60, TimeUnit.SECONDS);
+            holder.rollback();
+        }
+
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode report = Api.json(response);
+        JsonNode failed = report.get("failed");
+        assertEquals(1, failed.size(), response.body());
+        assertEquals(List.of(bob, "request.timed_out"),
+                List.of(failed.get(0).get("userId").asText(), failed.get(0).get("error").asText()));
+        assertEquals(1, report.get("assignmentsChanged").asInt());
+        assertLogged(log, " The sync from user attributes failed for the user with the ID " + bob
+                + " with request.timed_out. " + CANCELED);
+        assertEquals("head", Api.json(realm.api.get("/users/" + alice + "/assignments")).get(0).get("jobTitle")
+                .asText());
+        JsonNode again = Api.json(realm.api.post("/attribute-sync/run", ""));
+        assertEquals(List.of(1, 0), List.of(again.get("assignmentsChanged").asInt(), again.get("failed").size()));
     }
 }

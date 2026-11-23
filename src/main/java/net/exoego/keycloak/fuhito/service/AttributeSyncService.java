@@ -108,6 +108,18 @@ public class AttributeSyncService {
         default <T> T alone(Supplier<T> run) {
             return run.get();
         }
+
+        /**
+         * Gives the error code of a user whose statement the database stopped, as a request would get it, and logs
+         * the stop.
+         *
+         * @param userId the ID of the user
+         * @param error the error of the user, which has no code of its own
+         * @return the code, or empty when the database stopped no statement
+         */
+        default Optional<String> stopped(String userId, RuntimeException error) {
+            return Optional.empty();
+        }
     }
 
     private record Plan(Matcher matcher, Map<String, Assignment> owned, List<Values> users) {
@@ -263,9 +275,13 @@ public class AttributeSyncService {
         });
     }
 
-    private static Failed failure(String userId, RuntimeException e) {
+    private Failed failure(String userId, RuntimeException e) {
         if (e instanceof FuhitoException known) {
             return new Failed(userId, known.code());
+        }
+        Optional<String> stopped = work.stopped(userId, e);
+        if (stopped.isPresent()) {
+            return new Failed(userId, stopped.get());
         }
         LOG.errorf(e, "The sync from user attributes failed for the user with the ID %s.", userId);
         return new Failed(userId, "internal");
