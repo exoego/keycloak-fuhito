@@ -137,8 +137,9 @@ final class KeycloakEnvironment {
     static Connection holdingRealm(String realmId, boolean alone) throws Exception {
         Connection connection = connection();
         connection.setAutoCommit(false);
-        try (PreparedStatement statement = connection.prepareStatement("select realm_id from fuhito_realm_write"
-                + " where realm_id = ? for " + (alone ? "no key update" : "share"))) {
+        try (PreparedStatement statement = connection.prepareStatement(alone
+                ? "select realm_id from fuhito_realm_write where realm_id = ? for no key update"
+                : "select realm_id from fuhito_realm_write where realm_id = ? for share")) {
             statement.setString(1, realmId);
             try (ResultSet row = statement.executeQuery()) {
                 assertTrue(row.next());
