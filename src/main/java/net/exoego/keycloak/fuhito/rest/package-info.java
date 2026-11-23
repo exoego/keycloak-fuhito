@@ -251,6 +251,21 @@
                                     The request conflicts with existing data.
                                     A write with an old version gets it with `version.conflict`.
                                     A realm with no usable time zone also gets this status on every request.
+                                    A request that conflicted with another write at the same time gets
+                                    `write.aborted`, with no values. PostgreSQL stopped it for a deadlock, for a
+                                    wait for a lock past `lock_timeout`, or for a failed serialization. The same
+                                    request can succeed when it is sent again later.
+                                    """,
+                            content = @Content(mediaType = "application/json",
+                                    schema = @Schema(implementation = ErrorRepresentation.class))),
+                    @APIResponse(name = "ServiceUnavailable",
+                            description = """
+                                    PostgreSQL stopped a statement of the request because it ran past
+                                    `statement_timeout`, also while it waited for a lock, or because an
+                                    administrator stopped it. The error is `request.timed_out`, with no values.
+                                    The same request can succeed when it is sent again later. A heavy request fails
+                                    again until the limit of the database changes. The response has no
+                                    `Retry-After`.
                                     """,
                             content = @Content(mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorRepresentation.class))),

@@ -24,6 +24,9 @@ microprofile-openapi = { module = "org.eclipse.microprofile.openapi:microprofile
 # The annotations above name this one. Without it the compiler warns, and a warning fails the build.
 osgi-versioning = { module = "org.osgi:org.osgi.annotation.versioning", version = "1.1.2" }
 archunit = { module = "com.tngtech.archunit:archunit", version = "1.5.1" }
+# The unit tests build error responses, which needs an implementation of JAX-RS. Keycloak brings its own.
+# The version comes from the Keycloak parent POM.
+resteasy-core = { module = "org.jboss.resteasy:resteasy-core" }
 testcontainers-keycloak = { module = "com.github.dasniko:testcontainers-keycloak", version = "4.4.0" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version = "2.0.5" }
 # The integration tests read the database directly. The version comes from the Keycloak parent POM.

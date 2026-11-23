@@ -15,5 +15,6 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 @APIResponse(responseCode = "401", ref = "Unauthorized")
 @APIResponse(responseCode = "403", ref = "Forbidden")
 @APIResponse(responseCode = "409", ref = "Conflict")
+@APIResponse(responseCode = "503", ref = "ServiceUnavailable")
 @interface ApiErrors {
 }

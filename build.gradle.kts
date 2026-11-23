@@ -127,6 +127,7 @@ testing {
             useJUnitJupiter(libs.versions.junit)
             dependencies {
                 implementation(libs.archunit)
+                runtimeOnly(libs.resteasy.core)
             }
             targets.all {
                 testTask.configure {
