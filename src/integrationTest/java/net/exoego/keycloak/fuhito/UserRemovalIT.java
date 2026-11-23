@@ -1,16 +1,26 @@
 package net.exoego.keycloak.fuhito;
 
 import java.net.http.HttpResponse;
+import java.sql.Connection;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.LongStream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.Test;
 
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.deadlocksSince;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.holding;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.logLength;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waiterOf;
+import static net.exoego.keycloak.fuhito.KeycloakEnvironment.waitingFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -310,6 +320,51 @@ class UserRemovalIT {
         List<Long> numbers = new ArrayList<>();
         Api.json(api.get("/change-log")).forEach(entry -> numbers.add(entry.get("sequence").asLong()));
         assertEquals(LongStream.rangeClosed(1, last + 2).boxed().toList(), numbers);
+    }
+
+    // The mask and the removal both lock the row of the user before the rows of the extension. So one waits for the
+    // other, in either order, and neither fails.
+    @Test
+    void aMaskThatEmptiesTheNameAndTheRemovalOfTheUserWaitForEachOtherInTurn() throws Exception {
+        for (String endpoint : List.of("people", "users")) {
+            for (boolean maskFirst : List.of(true, false)) {
+                String name = endpoint + (maskFirst ? ", the mask first" : ", the removal first");
+                TestRealm realm = TestRealm.create("user-removal-mask");
+                String user = realm.user("leaver", "Taro", "Sato");
+                // With a name of its own, the person keeps its version when the user goes.
+                String person = Api.json(realm.api.post("/people", "{\"userId\": \"" + user + "\", "
+                        + "\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"佐藤\"}}}")).get("id").asText();
+                Callable<HttpResponse<String>> mask = () -> endpoint.equals("people")
+                        ? realm.api.postWithVersion("/people/" + person + "/mask?clearKeycloakName=true", "")
+                        : realm.api.post("/users/" + user + "/mask?clearKeycloakName=true", "");
+                Callable<Integer> removal = () -> {
+                    try (Response removed = KEYCLOAK.getKeycloakAdminClient().realm(realm.name).users().delete(user)) {
+                        return removed.getStatus();
+                    }
+                };
+                int log = logLength();
+                CompletableFuture<HttpResponse<String>> masked;
+                CompletableFuture<Integer> removed;
+                try (Connection first = holding("fuhito_person", person)) {
+                    // The first one waits for the person, and holds the row of the user. The second one waits for it.
+                    if (maskFirst) {
+                        masked = waitingFor(first, mask);
+                        removed = waitingFor(waiterOf(first), removal);
+                    } else {
+                        removed = waitingFor(first, removal);
+                        masked = waitingFor(waiterOf(first), mask);
+                    }
+                    first.commit();
+                }
+
+                assertEquals(204, removed.get(), name);
+                HttpResponse<String> response = masked.get();
+                assertEquals(200, response.statusCode(), name + " " + response.body());
+                // A mask after the removal finds no user to change.
+                assertEquals(maskFirst, Api.json(response).get("keycloakNameCleared").asBoolean(), name);
+                assertEquals(0, deadlocksSince(log), name);
+            }
+        }
     }
 
     @Test

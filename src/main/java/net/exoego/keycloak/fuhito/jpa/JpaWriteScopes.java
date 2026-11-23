@@ -3,6 +3,7 @@ package net.exoego.keycloak.fuhito.jpa;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -62,6 +63,17 @@ public class JpaWriteScopes implements WriteScopes {
                 .forEach(personId -> personData(personId).forEach((collection, ids) -> all
                         .computeIfAbsent(collection, any -> new HashSet<>()).addAll(ids)));
         return all;
+    }
+
+    @Override
+    public Optional<String> userOfPerson(String personId) {
+        return em.createQuery("""
+                        select p.userId from PersonEntity p where p.realmId = :realmId and p.id = :id
+                        and p.userId is not null""", String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("id", personId)
+                .getResultStream()
+                .findFirst();
     }
 
     @Override

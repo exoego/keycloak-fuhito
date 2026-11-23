@@ -98,11 +98,22 @@ final class Calls {
         return Optional.empty();
     }
 
-    // PostgreSQL cannot hold NUL in a text, and fails a query that has it. So no resource has such an ID.
+    /**
+     * Tells whether a resource can have the ID that the path names. PostgreSQL cannot hold NUL in a text, and fails a
+     * query that has it. So a read before {@link #run(RequestContext, Supplier)} checks this first.
+     *
+     * @param context the request
+     * @return false when the ID has NUL
+     */
+    static boolean storableId(RequestContext context) {
+        List<String> parts = context.pathParts();
+        return parts.size() < 2 || parts.get(1).indexOf('\0') < 0;
+    }
+
     private static void requireStorableId(RequestContext context) {
         List<String> parts = context.pathParts();
         Missing missing = parts.size() > 1 ? MISSING.get(parts.getFirst()) : null;
-        if (missing != null && parts.get(1).indexOf('\0') >= 0) {
+        if (missing != null && !storableId(context)) {
             throw FuhitoException.notFound(missing.code(), Map.of(missing.param(), parts.get(1)));
         }
     }

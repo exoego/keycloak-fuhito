@@ -1,7 +1,6 @@
 package net.exoego.keycloak.fuhito;
 
 import java.io.File;
-import java.net.http.HttpResponse;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -19,6 +18,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * One Keycloak with the provider jar and one PostgreSQL, shared by all integration tests of a run.
@@ -81,17 +81,15 @@ final class KeycloakEnvironment {
     }
 
     // Starts a write, waits until the database makes it wait for the lock of the connection, and returns it.
-    static CompletableFuture<HttpResponse<String>> waitingFor(Connection holder,
-            Callable<HttpResponse<String>> write) throws Exception {
+    static <T> CompletableFuture<T> waitingFor(Connection holder, Callable<T> write) throws Exception {
         return waitingFor(pid(holder), write);
     }
 
     // The same for a lock of another backend of the database, such as one that waits itself.
-    static CompletableFuture<HttpResponse<String>> waitingFor(String pid, Callable<HttpResponse<String>> write)
-            throws Exception {
+    static <T> CompletableFuture<T> waitingFor(String pid, Callable<T> write) throws Exception {
         String waiting = "select count(*) from pg_stat_activity where " + pid + " = any(pg_blocking_pids(pid))";
         long before = Long.parseLong(sql(waiting));
-        CompletableFuture<HttpResponse<String>> started = inBackground(write);
+        CompletableFuture<T> started = inBackground(write);
         long now = before;
         for (int i = 0; i < 300 && now == before; i++) {
             Thread.sleep(100);
@@ -132,6 +130,34 @@ final class KeycloakEnvironment {
         connection.setAutoCommit(false);
         update(connection, "update " + table + " set version = version where id = ?", id);
         return connection;
+    }
+
+    // A connection that holds the lock of the writes of a realm, as a write that has not ended does. A bulk write
+    // holds it alone.
+    static Connection holdingRealm(String realmId, boolean alone) throws Exception {
+        Connection connection = connection();
+        connection.setAutoCommit(false);
+        try (PreparedStatement statement = connection.prepareStatement(alone
+                ? "select realm_id from fuhito_realm_write where realm_id = ? for no key update"
+                : "select realm_id from fuhito_realm_write where realm_id = ? for share")) {
+            statement.setString(1, realmId);
+            try (ResultSet row = statement.executeQuery()) {
+                assertTrue(row.next());
+            }
+        }
+        return connection;
+    }
+
+    // The length of the log of Keycloak, so that a test reads only what comes after it.
+    static int logLength() {
+        return KEYCLOAK.getLogs().length();
+    }
+
+    // The deadlocks that PostgreSQL found since the log had the length. It ends each one with an error of one side.
+    static long deadlocksSince(int logLength) {
+        return KEYCLOAK.getLogs().substring(logLength).lines()
+                .filter(line -> line.contains("deadlock detected"))
+                .count();
     }
 
     static void update(Connection connection, String sql, String id) throws Exception {

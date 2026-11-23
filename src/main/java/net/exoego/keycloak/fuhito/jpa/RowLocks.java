@@ -14,14 +14,16 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Root;
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import org.keycloak.models.jpa.entities.UserEntity;
 
 /**
  * Keeps two writes of one resource apart. It locks the stored rows of resources until the end of the transaction,
  * and sends the writes of a request before the commit, so that a conflict fails the request.
  *
- * <p>Every write locks in one order. The row of the realm comes first. Then the kinds come in the order in which an
- * import applies its lists, and the resources of one kind in the order of their IDs. So two writes that change the
- * same resources never wait for each other at once.
+ * <p>Every write locks in one order. A write that changes a Keycloak user locks the row of the user first. The row
+ * of the realm comes next. Then the kinds come in the order in which an import applies its lists, and the resources
+ * of one kind in the order of their IDs. So two writes that change the same resources never wait for each other at
+ * once.
  */
 public final class RowLocks {
 
@@ -59,7 +61,8 @@ public final class RowLocks {
      * Locks the row of the realm for writes until the end of the transaction. A bulk write, such as an import,
      * locks it alone, and every other write shares it. So the other writes of the realm wait while a bulk write
      * runs, and a bulk write waits for the writes that run. A write calls it once, before it locks or reads
-     * anything that it changes. The first write of a realm adds the row.
+     * anything that it changes. Only the row of a Keycloak user that {@link #lockUser} locks comes before it.
+     * The first write of a realm adds the row.
      * The removal of the realm makes a write wait too. The write then finds the realm gone, and fails.
      *
      * @param em the entity manager of the transaction
@@ -81,6 +84,24 @@ public final class RowLocks {
             }
             row.getSingleResult();
         }
+    }
+
+    /**
+     * Locks the row of a Keycloak user for writes until the end of the transaction. A write that changes the user
+     * calls it before {@link #lockRealm}. Keycloak locks the row of a user before the extension locks anything, when
+     * it removes the user or its realm. So the write and such a removal wait for each other in turn.
+     * A user that the realm does not have locks nothing.
+     *
+     * @param em the entity manager of the transaction
+     * @param realmId the ID of the realm
+     * @param userId the ID of the user
+     */
+    public static void lockUser(EntityManager em, String realmId, String userId) {
+        em.createQuery("select u from UserEntity u where u.realmId = :realmId and u.id = :id", UserEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("id", userId)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList();
     }
 
     /**

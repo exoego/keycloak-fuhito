@@ -441,9 +441,10 @@ public class PeopleResource {
                     schema = @Schema(defaultValue = "false"))
             @QueryParam("clearKeycloakName") boolean clearKeycloakName,
             VersionCheckRepresentation body) {
-        context.requireWrite();
+        String user = context.requireWriteOfUser(
+                () -> clearKeycloakName && Calls.storableId(context) ? data.userOf(id) : null);
         return Calls.guarded(context, body, () -> version(id), () -> data.ofPerson(id),
-                () -> data.mask(service.get(id).person(), clearKeycloakName));
+                () -> data.mask(service.get(id).person(), clearKeycloakName, user));
     }
 
     @DELETE
