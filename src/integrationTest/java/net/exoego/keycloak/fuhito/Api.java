@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -17,13 +18,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.keycloak.admin.client.Keycloak;
 
 import static net.exoego.keycloak.fuhito.KeycloakEnvironment.KEYCLOAK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * Calls the admin REST API of the extension for one realm with one token.
+ * Calls the admin REST API of the extension for one realm, with one token or with the tokens of an admin client.
  */
 final class Api {
 
@@ -41,19 +43,27 @@ final class Api {
 
     private final String serverUrl;
     private final String realm;
-    private final String token;
+    private final Supplier<String> token;
     private final String acceptLanguage;
 
     Api(String realm, String token) {
-        this(KEYCLOAK.getAuthServerUrl(), realm, token, null);
+        this(KEYCLOAK.getAuthServerUrl(), realm, token);
     }
 
     /** Calls another Keycloak than the shared one. */
     Api(String serverUrl, String realm, String token) {
-        this(serverUrl, realm, token, null);
+        this(serverUrl, realm, () -> token, null);
     }
 
-    private Api(String serverUrl, String realm, String token, String acceptLanguage) {
+    /**
+     * Asks the admin client for a token at each call. A token lasts a minute, and the client renews it before it
+     * ends. So a test that waits longer can still call.
+     */
+    static Api withTokensOf(String realm, Keycloak admin) {
+        return new Api(KEYCLOAK.getAuthServerUrl(), realm, () -> admin.tokenManager().getAccessTokenString(), null);
+    }
+
+    private Api(String serverUrl, String realm, Supplier<String> token, String acceptLanguage) {
         this.serverUrl = serverUrl;
         this.realm = realm;
         this.token = token;
@@ -204,7 +214,7 @@ final class Api {
                         URI.create(serverUrl + "/admin/realms/" + realm + "/fuhito" + path))
                 .POST(BodyPublishers.ofByteArray(body))
                 .header("Content-Type", contentType)
-                .header("Authorization", "Bearer " + token);
+                .header("Authorization", "Bearer " + token.get());
         if (acceptLanguage != null) {
             request.header("Accept-Language", acceptLanguage);
         }
@@ -254,8 +264,9 @@ final class Api {
         if (acceptLanguage != null) {
             request.header("Accept-Language", acceptLanguage);
         }
-        if (token != null) {
-            request.header("Authorization", "Bearer " + token);
+        String bearer = token.get();
+        if (bearer != null) {
+            request.header("Authorization", "Bearer " + bearer);
         }
         return HTTP.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
