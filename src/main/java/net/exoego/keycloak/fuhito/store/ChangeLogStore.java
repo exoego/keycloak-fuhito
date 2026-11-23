@@ -69,8 +69,17 @@ public interface ChangeLogStore {
     Bounds bounds();
 
     /**
+     * Locks the realm against its removal until the end of the transaction. It waits only for a removal of the realm
+     * that runs. The removal takes the realm before the entries. So a caller that removes entries takes this lock
+     * first, or the two can meet the entries in opposite orders and deadlock.
+     *
+     * @return false when the realm has nothing to lock, as a realm that has written nothing yet or one that is removed
+     */
+    boolean lockRealmAgainstRemoval();
+
+    /**
      * Removes the propagated changes that were recorded before a time, and keeps the largest number that it removed.
-     * It removes no entry of a write.
+     * It removes no entry of a write. The caller takes {@link #lockRealmAgainstRemoval()} first.
      *
      * @param before the time
      * @return the number of removed entries
