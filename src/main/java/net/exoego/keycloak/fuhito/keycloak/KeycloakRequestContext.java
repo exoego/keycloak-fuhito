@@ -165,14 +165,20 @@ final class KeycloakRequestContext implements RequestContext {
         if (id != null) {
             RowLocks.lockUser(entityManager, realm.getId(), id);
         }
-        requireWrite(false);
+        // No check of the role after the wait. Keycloak removes the roles with the realm, so the check would fail with
+        // 403 where the lock of the realm fails with 404.
+        lockForWrite(false);
         return id;
     }
 
     private void requireWrite(boolean alone) {
         requireRole(FuhitoRoles.MANAGE);
-        writing = true;
         requireTimeSettings();
+        lockForWrite(alone);
+    }
+
+    private void lockForWrite(boolean alone) {
+        writing = true;
         // Before the check, so that it finds a change order that a bulk write added.
         lockRealm(alone);
         String changeOrderId = changeOrderId();
