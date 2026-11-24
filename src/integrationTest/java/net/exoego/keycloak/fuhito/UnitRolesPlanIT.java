@@ -92,11 +92,11 @@ class UnitRolesPlanIT {
             connection.setAutoCommit(false);
             realmsWithOldStatistics(statement, MORE_TABLES);
             moreRows(statement, "ex-old", 20);
-            statement.execute("analyze " + MORE_TABLES);
+            statement.execute("analyze %s".formatted(MORE_TABLES));
             moreRows(statement, "ex-new", 3000);
             List<Executable> checks = new ArrayList<>(checks(statement, "old"));
             freshStatistics(statement);
-            statement.execute("analyze " + MORE_TABLES);
+            statement.execute("analyze %s".formatted(MORE_TABLES));
             checks.addAll(checks(statement, "fresh"));
             String overlap = assertThrows(SQLException.class, () -> statement.execute("""
                     insert into fuhito_unit_role (id, realm_id, employment_id, org_unit_id, role_id, valid_from)
