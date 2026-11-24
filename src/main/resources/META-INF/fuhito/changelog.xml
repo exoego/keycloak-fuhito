@@ -1349,4 +1349,13 @@
             WHERE (daterange(VALID_FROM, VALID_TO) IS NOT NULL)
         </sql>
     </changeSet>
+
+    <!-- The search for the legal entities finds their versions by the unit types that mark one. Before, it found every
+         version of the realm on the date and kept those with such a type. While the statistics did not know a new
+         realm, that read took a nested loop over the versions of the realm, and read every org unit for each one. -->
+    <changeSet id="0.1.0-org-unit-version-type-index" author="keycloak-fuhito">
+        <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_TYPE">
+            <column name="UNIT_TYPE_ID"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>
