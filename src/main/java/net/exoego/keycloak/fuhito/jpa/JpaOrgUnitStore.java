@@ -48,11 +48,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     // A rollup unit is not in the default hierarchy.
     private static final String DEFAULT_ROOT = NO_PARENT + marked("rollupUnit", false);
 
+    // The versions are found by their units alone, for the reason in Rows.inRealm.
     private static final String PLACED = """
             select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
                 and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)
             from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
-            where v.realmId = :realmId and %s and v.%s""".formatted(TreeQuery.onDate("l"),
+            where %s and v.%s""".formatted(TreeQuery.onDate("l"),
             ManyIds.has("v.orgUnitId", "ids"), TreeQuery.onDate("v"));
 
     // The walks up look up each step with TreeQuery.parentOf. The last row of a walk has no unit. The first units
@@ -139,14 +140,17 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return marked("lateralUnit", lateral);
     }
 
-    private static final String SIBLINGS = """
-             from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId%%s
-            where v.realmId = :realmId and v.%s and %%s%%s""".formatted(TreeQuery.onDate("v"));
-
-    private static final String CHILD_OF = """
-            exists (select 1 from OrgUnitLinkEntity l where l.realmId = :realmId
-            and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.parentId = :parentId
-            and l.%s)""".formatted(TreeQuery.onDate("l"));
+    // While the statistics did not know a new hierarchy, it looked like it had no links, and PostgreSQL read every link
+    // of it with UK_FUHITO_ORG_UNIT_LINK_FROM instead of the index of the parent. So a sub-select gives the hierarchy,
+    // which PostgreSQL does not know when it plans. The links are of the realm of the parent, so the versions of the
+    // children are found by their units alone.
+    private static final String CHILDREN = """
+             from OrgUnitLinkEntity l join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.%s
+            join OrgUnitEntity u on u.id = v.orgUnitId%%s
+            where l.parentId = :parentId
+            and l.hierarchyId = (select h.id from HierarchyEntity h where h.id = :hierarchyId)
+            and l.%s and %s%%s""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
+            Rows.ofUnit("l.realmId", "parentId"));
 
     private final EntityManager em;
     private final String realmId;
@@ -570,7 +574,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
-                .getResultList(), row -> (String) row[2]);
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, row -> ((OrgUnitVersionEntity) row[1]).realmId))
+                .toList(), row -> (String) row[2]);
     }
 
     @Override
@@ -587,9 +593,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     private <T> TypedQuery<T> childrenQuery(String hierarchyId, String parentId, Boolean lateral, LocalDate date,
             boolean count, Class<T> type) {
-        return em.createQuery((count ? "select count(v)" : "select u, v") + SIBLINGS.formatted(
-                        count ? "" : OrgUnitNames.JOIN_PRIMARY, CHILD_OF, nature(lateral))
-                        + (count ? "" : SIBLING_ORDER), type)
+        return em.createQuery((count ? "select count(v)" : "select u, v") + CHILDREN.formatted(
+                        count ? "" : OrgUnitNames.JOIN_PRIMARY, nature(lateral)) + (count ? "" : SIBLING_ORDER), type)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("date", date)
@@ -713,12 +718,14 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return found;
     }
 
+    // The hierarchy comes from a sub-select, for the reason in CHILDREN. This one reads no table, so with fresh
+    // statistics the read takes no more time than with the hierarchy as a value.
     @Override
     public List<OrgUnitLink> childLinks(String hierarchyId, String parentId) {
         return em.createQuery("""
                         select l from OrgUnitLinkEntity l where l.realmId = :realmId
-                        and l.hierarchyId = :hierarchyId and l.parentId = :parentId order by l.validFrom, l.childId""",
-                        OrgUnitLinkEntity.class)
+                        and l.hierarchyId = (select :hierarchyId) and l.parentId = :parentId
+                        order by l.validFrom, l.childId""", OrgUnitLinkEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("parentId", parentId)

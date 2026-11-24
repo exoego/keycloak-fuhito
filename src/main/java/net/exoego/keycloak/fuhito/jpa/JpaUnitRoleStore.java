@@ -24,6 +24,11 @@ public class JpaUnitRoleStore implements UnitRoleStore {
 
     private static final String WITH_PERSON = "select r, e.personId, p.userId" + FROM_PERSON;
 
+    // With "|| ''", PostgreSQL cannot find the roles by IDX_FUHITO_UNIT_ROLE_ROLE, so a read that names the org unit
+    // finds them by the unit. While the statistics did not know a new realm, a plain comparison took that index and
+    // read every unit role of the role.
+    private static final String ROLE_OF_UNIT = "r.roleId || '' = :roleId";
+
     // The database goes up from the unit, so a read does not load the tree. The walk looks up each step as
     // JpaOrgUnitStore.LINE does, and the last row has no unit.
     // The nearest unit of each role comes from the roles that the read finds. PostgreSQL expects about 100 units in
@@ -109,7 +114,7 @@ public class JpaUnitRoleStore implements UnitRoleStore {
 
     private <T> TypedQuery<T> holdersQuery(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
             LocalDate date, boolean count, Class<T> type) {
-        TypedQuery<T> query = em.createQuery(HOLDERS.formatted(roleId == null ? "" : " and r.roleId = :roleId",
+        TypedQuery<T> query = em.createQuery(HOLDERS.formatted(roleId == null ? "" : " and " + ROLE_OF_UNIT,
                         count ? "count(h.id)" : HOLDER, nearest ? " where h.depth = h.nearest" : "")
                         + (count ? "" : " order by h.depth, h.code, h.id"), type)
                 .setParameter("realmId", realmId)
@@ -160,7 +165,7 @@ public class JpaUnitRoleStore implements UnitRoleStore {
             Class<T> type) {
         StringBuilder where = new StringBuilder("r.").append(TreeQuery.onDate("r"));
         if (search.roleId() != null) {
-            where.append(" and r.roleId = :roleId");
+            where.append(search.orgUnitId() == null ? " and r.roleId = :roleId" : " and " + ROLE_OF_UNIT);
         }
         if (search.orgUnitId() != null) {
             where.append(" and r.orgUnitId = :orgUnitId");

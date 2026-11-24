@@ -110,15 +110,17 @@ public class JpaRealmExportStore implements RealmExportStore {
         return page(OrgUnitEntity.class, "id", JpaOrgUnitStore::toDomain);
     }
 
+    // The versions are found by their units alone, for the reason in Rows.inRealm.
     @Override
     public List<OrgUnitVersion> versionsOf(Collection<String> orgUnitIds) {
         return JpaOrgUnitStore.withNames(em, realmId, em.createQuery("""
-                        select v from OrgUnitVersionEntity v where v.realmId = :realmId and %s
+                        select v from OrgUnitVersionEntity v where %s
                         order by v.orgUnitId, v.validFrom""".formatted(ManyIds.has("v.orgUnitId", "ids")),
                         OrgUnitVersionEntity.class)
-                .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(orgUnitIds))
-                .getResultList());
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, v -> v.realmId))
+                .toList());
     }
 
     @Override

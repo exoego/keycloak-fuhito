@@ -88,8 +88,8 @@ class ReportsAndHoldersPlanIT {
                     "\\(a(_\\d+)?\\.assignment_id\\)"));
         }
         // The nearest holders of each role come from the roles of the walk, so the roles are read once. A read of one
-        // role finds its roles by the unit too.
-        for (String role : List.of("", " and r.role_id = 'ex-new-role-2'")) {
+        // role finds its roles by the unit too, and not by IDX_FUHITO_UNIT_ROLE_ROLE.
+        for (String role : List.of("", " and r.role_id || '' = 'ex-new-role-2'")) {
             for (String nearest : List.of("", " where h.depth = h.nearest")) {
                 for (String holders : List.of("""
                         select h.id, h.employment_id, h.person_id, h.user_id, h.org_unit_id, h.role_id,
