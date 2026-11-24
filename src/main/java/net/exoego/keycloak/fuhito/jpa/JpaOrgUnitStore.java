@@ -86,10 +86,14 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             TreeQuery.onDate("v"), TreeQuery.parentOf("a.ancestorId", "hierarchyId"));
 
     // The first units are found without the realm, for the reason in Rows.inRealm, so the walk checks the realm of
-    // its rows.
+    // its rows. Each ID looks up its version in a sub-select of one row, which PostgreSQL does not turn into a join.
+    // With all IDs in one condition, it read the whole table while the statistics did not know a new realm. A join
+    // read it also with fresh statistics.
     private static final String LEGAL_ENTITIES = "with " + TreeQuery.legalEntities("""
-            from OrgUnitVersionEntity v where %s and v.%s""".formatted(ManyIds.has("v.orgUnitId", "ids"),
-            TreeQuery.onDate("v")), "hierarchyId") + """
+            from %s i join lateral (select x.orgUnitId as orgUnitId, x.unitTypeId as unitTypeId,
+                x.realmId as realmId from OrgUnitVersionEntity x where x.orgUnitId = i.id and x.%s
+                order by x.validFrom desc fetch first 1 rows only) v""".formatted(ManyIds.rows("ids"),
+            TreeQuery.onDate("x")), "hierarchyId") + """
             select e.unitId, e.entityId from LegalEntities e where e.realmId = :realmId and e.entityId is not null""";
 
     // A path ends below a parent with no version on the date.

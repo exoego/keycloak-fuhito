@@ -3,6 +3,8 @@ package net.exoego.keycloak.fuhito;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -72,10 +74,14 @@ class TreeWalkPlanIT {
 
     private static void assertWalksUpToTheLegalEntity(Statement statement) throws Exception {
         employersAreLegalEntities(statement);
-        String entities = walk(statement, legalEntitiesOn());
+        String entities = walk(statement, legalEntitiesOn("ex-new-unit-2999,ex-new-unit-777"));
         assertIndexFinds(entities, LINK_OF_CHILD, "child_id", "\\(e(_\\d+)?\\.above_id\\)");
         assertIndexFinds(entities, VERSION_OF_UNIT, "org_unit_id", "\\(e(_\\d+)?\\.above_id\\)");
-        assertIndexFinds(entities, VERSION_OF_UNIT, "org_unit_id", "ANY");
+        assertIndexFinds(entities, VERSION_OF_UNIT, "org_unit_id", "unnest");
+
+        // The units of a page of 100 members.
+        String page = IntStream.range(1000, 1100).mapToObj(i -> "ex-new-unit-" + i).collect(Collectors.joining(","));
+        assertIndexFinds(walk(statement, legalEntitiesOn(page)), VERSION_OF_UNIT, "org_unit_id", "unnest");
 
         String seconded = walk(statement, membersOfOneUnitBySecondment());
         assertIndexFinds(seconded, LINK_OF_CHILD, "child_id", "\\(e(_\\d+)?\\.above_id\\)");
@@ -369,10 +375,13 @@ class TreeWalkPlanIT {
                 .formatted(version);
     }
 
-    // JpaOrgUnitStore.LEGAL_ENTITIES.
-    private static String legalEntitiesOn() {
-        return "with recursive " + legalEntities("from fuhito_org_unit_version v where v.org_unit_id = %s and %s"
-                .formatted(IDS, onDate("v"))) + """
+    // JpaOrgUnitStore.LEGAL_ENTITIES for some units.
+    private static String legalEntitiesOn(String ids) {
+        return "with recursive " + legalEntities("""
+                from (select cast(unnest(cast('{%s}' as varchar[])) as varchar)) i(id) join lateral (
+                    select x.org_unit_id, x.unit_type_id, x.realm_id from fuhito_org_unit_version x
+                    where x.org_unit_id = i.id and %s order by x.valid_from desc fetch first 1 rows only) v on true"""
+                .formatted(ids, onDate("x"))) + """
                 select e.unit_id, e.entity_id from legal_entities e
                 where e.realm_id = 'ex-new-realm' and e.entity_id is not null""";
     }
