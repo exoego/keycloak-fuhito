@@ -35,7 +35,7 @@ class PersonExternalIdsPlanIT {
     private static final Set<String> INDEXES = Set.of("uk_fuhito_external_id_source", "pk_fuhito_person",
             "idx_fuhito_employment_person", "idx_fuhito_assignment_employment", "idx_fuhito_qualification_person",
             "idx_fuhito_reporting_line_manager_person", "idx_fuhito_reporting_line_assignment",
-            "ex_fuhito_unit_role_period");
+            "idx_fuhito_unit_role_employment");
 
     // The rows are written once for both statistics, as in ExternalEmployerPlanIT.
     @Test

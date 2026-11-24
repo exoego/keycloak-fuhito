@@ -1358,4 +1358,23 @@
             <column name="UNIT_TYPE_ID"/>
         </createIndex>
     </changeSet>
+
+    <!-- The index of the exclusion constraint on unit roles now serves only the constraint, as the one of the rows of
+         assignments does. With old and with fresh statistics, every read of unit roles by the employment or by the
+         org unit took this index, and the reads took 1.4 to 3.5 times as long as with
+         IDX_FUHITO_UNIT_ROLE_EMPLOYMENT or IDX_FUHITO_UNIT_ROLE_ORG_UNIT. A read by the role alone took it with old
+         statistics, and now reads the table in no more time. Like 0.1.0-no-overlap, this change set waits for
+         btree_gist. -->
+    <changeSet id="0.1.0-unit-role-period-index" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>ALTER TABLE FUHITO_UNIT_ROLE DROP CONSTRAINT EX_FUHITO_UNIT_ROLE_PERIOD</sql>
+        <sql>
+            ALTER TABLE FUHITO_UNIT_ROLE ADD CONSTRAINT EX_FUHITO_UNIT_ROLE_PERIOD
+            EXCLUDE USING gist (EMPLOYMENT_ID WITH =, ORG_UNIT_ID WITH =, ROLE_ID WITH =,
+            daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+            WHERE (daterange(VALID_FROM, VALID_TO) IS NOT NULL)
+        </sql>
+    </changeSet>
 </databaseChangeLog>
