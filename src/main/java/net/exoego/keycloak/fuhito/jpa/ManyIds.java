@@ -25,6 +25,18 @@ final class ManyIds {
     }
 
     /**
+     * A derived table in HQL with one row for each ID of a parameter, in the column {@code id}.
+     * The function {@code unnest} of Hibernate needs the type of the array before the parameter is bound, so the
+     * table is written as SQL.
+     *
+     * @param parameter the name of the parameter, which takes the value of {@link #of}
+     * @return the derived table, to put after {@code from} with an alias
+     */
+    static String rows(String parameter) {
+        return "(select cast(sql('unnest(?)', :%s) as String) as id)".formatted(parameter);
+    }
+
+    /**
      * The value to bind.
      *
      * @param ids the IDs
