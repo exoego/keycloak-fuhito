@@ -1350,6 +1350,15 @@
         </sql>
     </changeSet>
 
+    <!-- The search for the legal entities finds their versions by the unit types that mark one. Before, it found every
+         version of the realm on the date and kept those with such a type. While the statistics did not know a new
+         realm, that read took a nested loop over the versions of the realm, and read every org unit for each one. -->
+    <changeSet id="0.1.0-org-unit-version-type-index" author="keycloak-fuhito">
+        <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_TYPE">
+            <column name="UNIT_TYPE_ID"/>
+        </createIndex>
+    </changeSet>
+
     <!-- The index of the exclusion constraint on unit roles now serves only the constraint, as the one of the rows of
          assignments does. With old and with fresh statistics, every read of unit roles by the employment or by the
          org unit took this index, and the reads took 1.5 to 3 times as long as with IDX_FUHITO_UNIT_ROLE_EMPLOYMENT or
