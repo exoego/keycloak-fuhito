@@ -11,6 +11,7 @@ import static net.exoego.keycloak.fuhito.OldStatistics.freshStatistics;
 import static net.exoego.keycloak.fuhito.OldStatistics.plan;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmOfUnit;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmsWithOldStatistics;
+import static net.exoego.keycloak.fuhito.TreeWalkPlanIT.assertIndexFinds;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,17 +66,24 @@ class OrgUnitVersionPlanIT {
                     assertFalse(plan.matches(OTHER_INDEX), plan);
                 }));
 
-        // The children of a unit name the realm, so while the statistics are old they can take an index of the realm
-        // instead.
-        String children = plan(statement, """
-                explain select * from fuhito_org_unit_version v join fuhito_org_unit u on u.id = v.org_unit_id
-                join fuhito_org_unit_version_name p on p.version_id = v.id and p.is_primary = true
-                where v.realm_id = 'ex-new-realm' and v.%1$s and exists (select 1 from fuhito_org_unit_link l
-                where l.realm_id = 'ex-new-realm' and l.hierarchy_id = 'ex-new-hierarchy'
-                and l.child_id = v.org_unit_id and l.parent_id = 'ex-new-unit-4' and l.%2$s)
-                order by v.display_order, p.phonetic_name, p.name, v.org_unit_id fetch first 100 rows only"""
-                .formatted(ON_DATE.formatted("v"), ON_DATE.formatted("l")));
-        assertFalse(children.contains("ex_fuhito_org_unit_version_period"), children);
+        // The page and the count of the children of a unit, JpaOrgUnitStore.childrenOn and countChildrenOn.
+        String children = """
+                from fuhito_org_unit_link l join fuhito_org_unit_version v on v.org_unit_id = l.child_id and v.%s
+                join fuhito_org_unit u on u.id = v.org_unit_id%%s
+                where l.parent_id = 'ex-new-unit-4'
+                and l.hierarchy_id = (select h.id from fuhito_hierarchy h where h.id = 'ex-new-hierarchy')
+                and l.%s and %s""".formatted(ON_DATE.formatted("v"), ON_DATE.formatted("l"),
+                realmOfUnit("l", "ex-new-unit-4"));
+        String page = "explain select u.*, v.* "
+                + children.formatted(" join fuhito_org_unit_version_name p on p.version_id = v.id and p.is_primary")
+                + " order by v.display_order, p.phonetic_name, p.name, v.org_unit_id fetch first 100 rows only";
+        String count = "explain select count(v.id) " + children.formatted("");
+        assertAll(Stream.of(page, count).<Executable>map(explain -> () -> {
+            String plan = plan(statement, explain);
+            assertIndexFinds(plan, "idx_fuhito_org_unit_link_parent", "parent_id", "'ex-new-unit-4'", "hierarchy_id");
+            assertIndexFinds(plan, "uk_fuhito_org_unit_version_from", "org_unit_id", "\\((l\\.child_id|u\\.id)\\)");
+            assertFalse(plan.matches(OTHER_INDEX), plan);
+        }));
     }
 
     // placedOn of JpaOrgUnitStore. The writes of memberships, of unit roles and of employments with a legal entity run

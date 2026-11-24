@@ -137,14 +137,17 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return marked("lateralUnit", lateral);
     }
 
-    private static final String SIBLINGS = """
-             from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId%%s
-            where v.realmId = :realmId and v.%s and %%s%%s""".formatted(TreeQuery.onDate("v"));
-
-    private static final String CHILD_OF = """
-            exists (select 1 from OrgUnitLinkEntity l where l.realmId = :realmId
-            and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.parentId = :parentId
-            and l.%s)""".formatted(TreeQuery.onDate("l"));
+    // While the statistics did not know a new hierarchy, it looked like it had no links, and PostgreSQL read every link
+    // of it with UK_FUHITO_ORG_UNIT_LINK_FROM instead of the index of the parent. So a sub-select gives the hierarchy,
+    // which PostgreSQL does not know when it plans. The links are of the realm of the parent, so the versions of the
+    // children are found by their units alone.
+    private static final String CHILDREN = """
+             from OrgUnitLinkEntity l join OrgUnitVersionEntity v on v.orgUnitId = l.childId and v.%s
+            join OrgUnitEntity u on u.id = v.orgUnitId%%s
+            where l.parentId = :parentId
+            and l.hierarchyId = (select h.id from HierarchyEntity h where h.id = :hierarchyId)
+            and l.%s and %s%%s""".formatted(TreeQuery.onDate("v"), TreeQuery.onDate("l"),
+            Rows.ofUnit("l.realmId", "parentId"));
 
     private final EntityManager em;
     private final String realmId;
@@ -587,9 +590,8 @@ public class JpaOrgUnitStore implements OrgUnitStore {
 
     private <T> TypedQuery<T> childrenQuery(String hierarchyId, String parentId, Boolean lateral, LocalDate date,
             boolean count, Class<T> type) {
-        return em.createQuery((count ? "select count(v)" : "select u, v") + SIBLINGS.formatted(
-                        count ? "" : OrgUnitNames.JOIN_PRIMARY, CHILD_OF, nature(lateral))
-                        + (count ? "" : SIBLING_ORDER), type)
+        return em.createQuery((count ? "select count(v)" : "select u, v") + CHILDREN.formatted(
+                        count ? "" : OrgUnitNames.JOIN_PRIMARY, nature(lateral)) + (count ? "" : SIBLING_ORDER), type)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("date", date)
