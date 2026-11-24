@@ -48,14 +48,15 @@ final class AssignmentReads {
     }
 
     // The IDs come from rows of the realm, so the query finds the versions by their IDs alone, for the reason in
-    // Rows.inRealm.
+    // Rows.inRealm. With all IDs in one condition, PostgreSQL scanned the whole table while the statistics knew only a
+    // few of its rows. A sub-select for each ID takes the key, as a scan there would read the table once for each ID.
     private static Map<String, Long> versions(EntityManager em, List<AssignmentEntity> rows) {
         Map<String, Long> versions = new HashMap<>();
         if (rows.isEmpty()) {
             return versions;
         }
-        em.createQuery("select v.id, v.version from AssignmentVersionEntity v where %s"
-                        .formatted(ManyIds.has("v.id", "ids")), Object[].class)
+        em.createQuery("select i.id, (select v.version from AssignmentVersionEntity v where v.id = i.id) from %s i"
+                        .formatted(ManyIds.rows("ids")), Object[].class)
                 .setParameter("ids", ManyIds.of(rows.stream().map(row -> row.assignmentId).distinct().toList()))
                 .getResultStream()
                 .forEach(row -> versions.put((String) row[0], (Long) row[1]));

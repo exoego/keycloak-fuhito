@@ -421,6 +421,7 @@ What the runs showed.
 - The update of the versions writes one row for each of the 44,200 assignments, with no exclusion constraint to check. It took 0.17 seconds in place of 6.4.
 - The 47,844 entries of the change log took 0.4 seconds. Most of the rest of the write is outside the database.
 - A read of assignments sends one more query for their versions. It took 0.5 ms for a page of 1,000 assignments, and 1.6 ms for the 1,000 members below a division, by `EXPLAIN ANALYZE`. The reads above took at most 6 ms more than on `main`.
+- Later, that query looks up the version of each ID in a sub-select, which takes `PK_FUHITO_ASSIGNMENT_VERSION`. With all IDs in one condition, PostgreSQL scanned the whole table while the statistics knew only a few of its rows, as during an import into a new realm. With 5,000 assignments in the new realm, the versions of 10 of them took 0.201 ms with the scan and 0.026 ms by the key. A lookup by the key takes 2 to 3.5 µs for each ID in a table of any size. For 1,000 IDs, a scan of a small table is faster. With 5,000 rows, it took 0.25 ms in place of 2.3 ms.
 - A read of one person or one assignment did not change.
 - With 500,000 people, the read of 1,000 members below a division took 173 ms in place of 112, in one run of each. Its statements took 61 ms in the database in place of 57. A page of 1,000 assignments took 208 ms in place of 195.
 
