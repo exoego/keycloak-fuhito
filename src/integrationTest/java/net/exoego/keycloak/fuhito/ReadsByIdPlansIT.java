@@ -38,7 +38,7 @@ class ReadsByIdPlansIT {
 
     private static final String MORE_TABLES = """
             fuhito_ref_item, fuhito_qualification, fuhito_reporting_line, fuhito_external_id, fuhito_change_order,
-            fuhito_change_log""";
+            fuhito_change_log, fuhito_unit_role""";
 
     private static OldStatistics.Shared shared;
 
@@ -127,8 +127,6 @@ class ReadsByIdPlansIT {
         });
     }
 
-    // The roles over org units have no index that starts with the realm, so the check of the IDs of other systems
-    // leaves them out.
     @Test
     void theRemovalOfAPersonFindsTheRowsByThePerson() throws Exception {
         withOldStatistics(statement -> {
@@ -143,11 +141,14 @@ class ReadsByIdPlansIT {
                     (select q.id from fuhito_qualification q where q.person_id = %s))
                     or (x.resource_kind = 'REPORTING_LINE' and (x.resource_id in
                     (select r.id from fuhito_reporting_line r where r.manager_person_id = %s)
-                    or x.resource_id in (select r.id from fuhito_reporting_line r where r.assignment_id in (%s)))))"""
-                    .formatted(ofPerson("x"), PERSON, employments, assignments, PERSON, PERSON, assignments),
+                    or x.resource_id in (select r.id from fuhito_reporting_line r where r.assignment_id in (%s))))
+                    or (x.resource_kind = 'UNIT_ROLE' and x.resource_id in
+                    (select r.id from fuhito_unit_role r where r.employment_id in (%s))))"""
+                    .formatted(ofPerson("x"), PERSON, employments, assignments, PERSON, PERSON, assignments,
+                            employments),
                     "pk_fuhito_person", "idx_fuhito_employment_person", "idx_fuhito_assignment_employment",
                     "idx_fuhito_qualification_person", "idx_fuhito_reporting_line_manager_person",
-                    "idx_fuhito_reporting_line_assignment");
+                    "idx_fuhito_reporting_line_assignment", "idx_fuhito_unit_role_employment");
             assertIndexes(statement, "delete from fuhito_reporting_line r where r.manager_person_id = %s and %s"
                     .formatted(PERSON, ofPerson("r")), "pk_fuhito_person", "idx_fuhito_reporting_line_manager_person");
             assertIndexes(statement, "delete from fuhito_reporting_line r where r.assignment_id in (%s) and %s"
@@ -307,6 +308,67 @@ class ReadsByIdPlansIT {
         });
     }
 
+    // The reads of the roles over org units by the employment or by the org unit. ReportsAndHoldersPlanIT checks the
+    // walk up for the holders.
+    @Test
+    void theRolesOverOrgUnitsAreFoundByTheEmploymentOrTheOrgUnitWithOldAndWithFreshStatistics() throws Exception {
+        shared.checkWithFreshStatistics(statement -> {
+            String from = """
+                    from fuhito_unit_role r join fuhito_employment e on e.id = r.employment_id
+                    join fuhito_person p on p.id = e.person_id where r.realm_id = 'ex-new-realm' and""";
+            String withPerson = "select r.*, e.person_id, p.user_id " + from;
+            String employments = "select e.id from fuhito_employment e where e.person_id = " + PERSON;
+            String ofPersonOn = " e.person_id = %s and %s".formatted(PERSON, ON.formatted("r"));
+            String byUnit = " r.org_unit_id = 'ex-new-unit-7'";
+            String page = " offset 0 rows fetch first 100 rows only";
+            Set<String> ofPersonOnDate = Set.of("idx_fuhito_employment_person", "idx_fuhito_unit_role_employment",
+                    "pk_fuhito_person");
+            Map<String, Set<String>> reads = new LinkedHashMap<>();
+            // findByEmployment, ofPersonOn and countOfPersonOn of JpaUnitRoleStore.
+            reads.put(withPerson + " r.employment_id = 'ex-new-employment-7' order by r.valid_from, r.id",
+                    Set.of("idx_fuhito_unit_role_employment", "pk_fuhito_employment", "pk_fuhito_person"));
+            reads.put(withPerson + ofPersonOn + " order by r.valid_from, r.id" + page, ofPersonOnDate);
+            reads.put("select count(r.id) " + from + ofPersonOn, ofPersonOnDate);
+            // The delete of RealmData.deletePerson, the scopes of a write of a person and of an employment, and the
+            // check of the removal of an employment.
+            reads.put("delete from fuhito_unit_role r where r.employment_id in (%s) and %s"
+                    .formatted(employments, ofPerson("r")), Set.of("pk_fuhito_person", "idx_fuhito_employment_person",
+                    "idx_fuhito_unit_role_employment"));
+            reads.put("select r.realm_id, r.id from fuhito_unit_role r where r.employment_id in (%s)"
+                    .formatted(employments), Set.of("idx_fuhito_employment_person", "idx_fuhito_unit_role_employment"));
+            reads.put("""
+                    select r.realm_id, r.id from fuhito_unit_role r where r.employment_id in
+                    (select e.id from fuhito_employment e where e.id = 'ex-new-employment-7')""",
+                    Set.of("pk_fuhito_employment", "idx_fuhito_unit_role_employment"));
+            reads.put("select distinct x.realm_id from fuhito_unit_role x"
+                    + " where x.employment_id = 'ex-new-employment-7'", Set.of("idx_fuhito_unit_role_employment"));
+            // The check of the removal of an org unit, JpaOrgUnitStore.unitRolesHoldingFrom, and searchOn and
+            // countSearchOn of JpaUnitRoleStore.
+            Set<String> ofUnit = Set.of("idx_fuhito_unit_role_org_unit");
+            reads.put("select distinct x.realm_id from fuhito_unit_role x where x.org_unit_id = 'ex-new-unit-7'",
+                    ofUnit);
+            reads.put("select count(r.id) from fuhito_unit_role r where r.realm_id = 'ex-new-realm' and" + byUnit
+                    + " and (r.valid_to is null or r.valid_to > '2026-04-01')", ofUnit);
+            reads.put(withPerson + " " + ON.formatted("r") + " and" + byUnit + " order by r.id" + page,
+                    Set.of("idx_fuhito_unit_role_org_unit", "pk_fuhito_employment", "pk_fuhito_person"));
+            reads.put("select count(r.id) from fuhito_unit_role r where r.realm_id = 'ex-new-realm' and "
+                    + ON.formatted("r") + " and" + byUnit, ofUnit);
+            List<Executable> checks = new ArrayList<>();
+            for (String statistics : List.of("old", "fresh")) {
+                if (statistics.equals("fresh")) {
+                    OldStatistics.freshStatistics(statement);
+                    statement.execute("analyze fuhito_unit_role");
+                }
+                for (Map.Entry<String, Set<String>> read : reads.entrySet()) {
+                    String plan = OldStatistics.plan(statement, "explain " + read.getKey());
+                    checks.add(() -> assertEquals(new TreeSet<>(read.getValue()), indexesOf(plan),
+                            statistics + " " + read.getKey() + "\n" + plan));
+                }
+            }
+            assertAll(checks);
+        });
+    }
+
     // JpaAssignmentStore.endedOnStart for the assignments of a page.
     @Test
     void theAssignmentsThatEndOnTheStartOfOthersAreFoundThroughTheirPeople() throws Exception {
@@ -375,7 +437,7 @@ class ReadsByIdPlansIT {
     }
 
     // The rows of OldStatistics, and a qualification for each person, a reporting line and an ID of another system
-    // for each assignment, and an entry of the change log for each employment.
+    // for each assignment, an entry of the change log and a role over its unit for each employment, of three roles.
     private static void oldStatistics(Statement statement) throws Exception {
         OldStatistics.realmsWithOldStatistics(statement, MORE_TABLES);
         moreRows(statement, "ex-old", 20);
@@ -402,7 +464,12 @@ class ReadsByIdPlansIT {
                 resource_path, change_order_id, sequence_number, kind)
                 select '%1$s-log-' || i, '%1$s-realm', now() - (%2$d - i) * interval '1 hour', 'EMPLOYMENT',
                 '%1$s-employment-' || i, 'CREATE', '/x', case when i %% 20 = 0 then '%1$s-order' end, i,
-                case when i %% 3 = 0 then 'PROPAGATED' else 'WRITE' end from generate_series(1, %2$d) i""")) {
+                case when i %% 3 = 0 then 'PROPAGATED' else 'WRITE' end from generate_series(1, %2$d) i""", """
+                insert into fuhito_ref_item (id, realm_id, kind, code, attributes)
+                select '%1$s-role-' || i, '%1$s-realm', 'UNIT_ROLE', 'R' || i, '{}' from generate_series(1, 3) i""", """
+                insert into fuhito_unit_role (id, realm_id, employment_id, org_unit_id, role_id, includes_descendants,
+                valid_from) select '%1$s-unit-role-' || i, '%1$s-realm', '%1$s-employment-' || i, '%1$s-unit-' || i,
+                '%1$s-role-' || (i %% 3 + 1), i %% 2 = 0, '2026-04-01' from generate_series(1, %2$d) i""")) {
             statement.execute(insert.formatted(prefix, count));
         }
     }

@@ -26,9 +26,6 @@ class ReportsAndHoldersPlanIT {
 
     private static final String MANAGER = "'ex-new-person-20'";
 
-    // The roles over a unit can take the GiST index of their periods. #836 is about it.
-    private static final String ROLES_OF_UNIT = "(idx_fuhito_unit_role_org_unit|ex_fuhito_unit_role_period)";
-
     private static final Set<String> REPORTS_INDEXES = Set.of("pk_fuhito_person", "idx_fuhito_employment_person",
             "pk_fuhito_employment", "idx_fuhito_assignment_employment", "idx_fuhito_assignment_org_unit",
             "uk_fuhito_assignment_from", "uk_fuhito_employment_terms_from",
@@ -36,8 +33,7 @@ class ReportsAndHoldersPlanIT {
             "idx_fuhito_reporting_line_manager_person", "idx_fuhito_reporting_line_assignment");
 
     private static final Set<String> HOLDERS_INDEXES = Set.of("pk_fuhito_org_unit", "uk_fuhito_org_unit_link_from",
-            "idx_fuhito_unit_role_org_unit", "ex_fuhito_unit_role_period", "pk_fuhito_employment", "pk_fuhito_person",
-            "pk_fuhito_ref_item");
+            "idx_fuhito_unit_role_org_unit", "pk_fuhito_employment", "pk_fuhito_person", "pk_fuhito_ref_item");
 
     private static final Pattern INDEX = Pattern.compile("(?:using|Bitmap Index Scan on) (\\w+)");
 
@@ -91,20 +87,23 @@ class ReportsAndHoldersPlanIT {
             checks.add(() -> assertIndexFinds(plan, "idx_fuhito_reporting_line_assignment", "assignment_id",
                     "\\(a(_\\d+)?\\.assignment_id\\)"));
         }
-        // The nearest holders of each role come from the roles of the walk, so the roles are read once.
-        for (String nearest : List.of("", " where h.depth = h.nearest")) {
-            for (String holders : List.of("""
-                    select h.id, h.employment_id, h.person_id, h.user_id, h.org_unit_id, h.role_id,
-                    h.includes_descendants, h.valid_from, h.valid_to, h.version from holders h%s
-                    order by h.depth, h.code, h.id offset 0 rows fetch first 100 rows only""",
-                    "select count(h.id) from holders h%s")) {
-                String plan = walk(statement, holders(holders.formatted(nearest)));
-                checks.add(() -> assertSteps(plan, HOLDERS_INDEXES));
-                checks.add(() -> assertIndexFinds(plan, "pk_fuhito_org_unit", "'ex-new-unit-2999'"));
-                checks.add(() -> assertIndexFinds(plan, "uk_fuhito_org_unit_link_from", "child_id",
-                        "\\(a(_\\d+)?\\.id\\)"));
-                checks.add(() -> assertOneLookup(plan, "fuhito_unit_role", ROLES_OF_UNIT, "org_unit_id",
-                        "\\(a(_\\d+)?\\.id\\)"));
+        // The nearest holders of each role come from the roles of the walk, so the roles are read once. A read of one
+        // role finds its roles by the unit too.
+        for (String role : List.of("", " and r.role_id = 'ex-new-role-2'")) {
+            for (String nearest : List.of("", " where h.depth = h.nearest")) {
+                for (String holders : List.of("""
+                        select h.id, h.employment_id, h.person_id, h.user_id, h.org_unit_id, h.role_id,
+                        h.includes_descendants, h.valid_from, h.valid_to, h.version from holders h%s
+                        order by h.depth, h.code, h.id offset 0 rows fetch first 100 rows only""",
+                        "select count(h.id) from holders h%s")) {
+                    String plan = walk(statement, holders(role, holders.formatted(nearest)));
+                    checks.add(() -> assertSteps(plan, HOLDERS_INDEXES));
+                    checks.add(() -> assertIndexFinds(plan, "pk_fuhito_org_unit", "'ex-new-unit-2999'"));
+                    checks.add(() -> assertIndexFinds(plan, "uk_fuhito_org_unit_link_from", "child_id",
+                            "\\(a(_\\d+)?\\.id\\)"));
+                    checks.add(() -> assertOneLookup(plan, "fuhito_unit_role", "idx_fuhito_unit_role_org_unit",
+                            "org_unit_id", "\\(a(_\\d+)?\\.id\\)"));
+                }
             }
         }
         return checks;
@@ -259,7 +258,7 @@ class ReportsAndHoldersPlanIT {
     }
 
     // JpaUnitRoleStore.HOLDERS from a unit four levels down.
-    private static String holders(String select) {
+    private static String holders(String role, String select) {
         return """
                 with recursive above (id, depth, realm_id) as (
                     select u.id, 0, u.realm_id from fuhito_org_unit u where u.id = 'ex-new-unit-2999'
@@ -276,7 +275,7 @@ class ReportsAndHoldersPlanIT {
                     join fuhito_employment e on e.id = r.employment_id
                     join fuhito_person p on p.id = e.person_id
                     join fuhito_ref_item k on k.id = r.role_id
-                    where a.realm_id = 'ex-new-realm' and (a.depth = 0 or r.includes_descendants = true))
-                %s""".formatted(onDate("l"), onDate("r"), select);
+                    where a.realm_id = 'ex-new-realm' and (a.depth = 0 or r.includes_descendants = true)%s)
+                %s""".formatted(onDate("l"), onDate("r"), role, select);
     }
 }

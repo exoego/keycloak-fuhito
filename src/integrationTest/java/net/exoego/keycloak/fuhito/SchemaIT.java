@@ -114,6 +114,37 @@ class SchemaIT {
         }
     }
 
+    // Nothing is committed, so the plan checks find no more employments.
+    @Test
+    void theDatabaseRejectsOverlappingRolesOfOneEmploymentOverOneUnit() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            statement.execute("""
+                    insert into fuhito_person (id, realm_id, attributes) values ('ex-p9', 'ex-realm-9', '{}');
+                    insert into fuhito_org_unit (id, realm_id) values ('ex-u9', 'ex-realm-9');
+                    insert into fuhito_employment (id, realm_id, valid_from, person_id, employer_id)
+                    values ('ex-e9', 'ex-realm-9', '2026-04-01', 'ex-p9', 'ex-u9');
+                    insert into fuhito_ref_item (id, realm_id, kind, code, attributes)
+                    values ('ex-r9', 'ex-realm-9', 'UNIT_ROLE', 'a', '{}'),
+                    ('ex-r10', 'ex-realm-9', 'UNIT_ROLE', 'b', '{}')""");
+            String insert = """
+                    insert into fuhito_unit_role (id, realm_id, employment_id, org_unit_id, role_id, valid_from,
+                    valid_to) values ('%s', 'ex-realm-9', 'ex-e9', 'ex-u9', '%s', '%s', %s)""";
+            statement.execute(insert.formatted("ex-ur1", "ex-r9", "2026-04-01", "'2027-04-01'"));
+            var savepoint = connection.setSavepoint();
+            assertTrue(assertThrows(java.sql.SQLException.class, () -> statement.execute(
+                    insert.formatted("ex-ur2", "ex-r9", "2027-03-31", "null"))).getMessage()
+                    .contains("ex_fuhito_unit_role_period"));
+            connection.rollback(savepoint);
+
+            // The next period may start on the end date, and another role may use the same dates.
+            statement.execute(insert.formatted("ex-ur3", "ex-r9", "2027-04-01", "null"));
+            statement.execute(insert.formatted("ex-ur4", "ex-r10", "2026-04-01", "null"));
+            connection.rollback();
+        }
+    }
+
     @Test
     void theDatabaseRejectsASecondPrimaryNameOfOneVersion() throws Exception {
         KeycloakEnvironment.sql("insert into fuhito_org_unit (id, realm_id) values ('ex-u5', 'ex-realm-4')");
