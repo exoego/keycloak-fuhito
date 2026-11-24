@@ -1388,4 +1388,28 @@
             <column name="ID"/>
         </createIndex>
     </changeSet>
+
+    <!-- A page of a list of an export reads the rows of the realm in the order of the ID. While the statistics did not
+         know a new realm, PostgreSQL took an index that starts with the realm for each page, and read and sorted every
+         row of the realm. These indexes give the rows of one realm in that order, so a page stops at its end. They are
+         on REALM_ID || '', which only the pages compare. With an index on the plain realm, a read by the realm and
+         another column, such as the user of a person, took it while the statistics were old, and read every row of
+         the realm. The erasures have UK_FUHITO_ERASURE_PERSON already. -->
+    <changeSet id="0.1.0-export-page-indexes" author="keycloak-fuhito" dbms="postgresql">
+        <sql>CREATE INDEX IDX_FUHITO_REF_KIND_EXPORT ON FUHITO_REF_KIND ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_REF_ITEM_EXPORT ON FUHITO_REF_ITEM ((REALM_ID || ''), ID)</sql>
+        <sql>
+            CREATE INDEX IDX_FUHITO_ATTRIBUTE_DEFINITION_EXPORT ON FUHITO_ATTRIBUTE_DEFINITION ((REALM_ID || ''), ID)
+        </sql>
+        <sql>CREATE INDEX IDX_FUHITO_HIERARCHY_EXPORT ON FUHITO_HIERARCHY ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_ORG_UNIT_EXPORT ON FUHITO_ORG_UNIT ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_PERSON_EXPORT ON FUHITO_PERSON ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_EMPLOYMENT_EXPORT ON FUHITO_EMPLOYMENT ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_ASSIGNMENT_VERSION_EXPORT ON FUHITO_ASSIGNMENT_VERSION ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_REPORTING_LINE_EXPORT ON FUHITO_REPORTING_LINE ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_UNIT_ROLE_EXPORT ON FUHITO_UNIT_ROLE ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_QUALIFICATION_EXPORT ON FUHITO_QUALIFICATION ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_EXTERNAL_ID_EXPORT ON FUHITO_EXTERNAL_ID ((REALM_ID || ''), ID)</sql>
+        <sql>CREATE INDEX IDX_FUHITO_CHANGE_ORDER_EXPORT ON FUHITO_CHANGE_ORDER ((REALM_ID || ''), ID)</sql>
+    </changeSet>
 </databaseChangeLog>

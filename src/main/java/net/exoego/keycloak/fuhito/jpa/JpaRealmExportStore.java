@@ -57,28 +57,30 @@ public class JpaRealmExportStore implements RealmExportStore {
         this.realmId = realmId;
     }
 
-    // The criteria API names the entity by its class, so no query text is put together.
-    private <E, T> Page<T> page(Class<E> entity, String idField, Function<E, T> toDomain) {
+    // The criteria API names the entity by its class, so no query text is put together. Only the pages compare
+    // REALM_ID || '', so only they take the index of the export of each table, for the reason in the change set
+    // 0.1.0-export-page-indexes.
+    private <E, T> Page<T> page(Class<E> entity, Function<E, T> toDomain) {
         return (afterId, max) -> {
             CriteriaBuilder builder = em.getCriteriaBuilder();
             CriteriaQuery<E> query = builder.createQuery(entity);
             Root<E> row = query.from(entity);
-            query.where(builder.equal(row.get("realmId"), realmId),
-                    builder.greaterThan(row.get(idField), afterId == null ? "" : afterId));
-            query.orderBy(builder.asc(row.get(idField)));
+            query.where(builder.equal(builder.concat(row.get("realmId"), builder.literal("")), realmId),
+                    builder.greaterThan(row.get("id"), afterId == null ? "" : afterId));
+            query.orderBy(builder.asc(row.get("id")));
             return em.createQuery(query).setMaxResults(max).getResultStream().map(toDomain).toList();
         };
     }
 
     @Override
     public Page<RealmKind> refKinds() {
-        Page<RealmKindEntity> rows = page(RealmKindEntity.class, "id", Function.identity());
+        Page<RealmKindEntity> rows = page(RealmKindEntity.class, Function.identity());
         return (afterId, max) -> JpaRealmKindStore.withNames(em, realmId, rows.read(afterId, max));
     }
 
     @Override
     public Page<RefItem> refItems() {
-        Page<RefItemEntity> rows = page(RefItemEntity.class, "id", Function.identity());
+        Page<RefItemEntity> rows = page(RefItemEntity.class, Function.identity());
         return (afterId, max) -> JpaRefItemStore.withNames(em, realmId, rows.read(afterId, max), null);
     }
 
@@ -89,25 +91,17 @@ public class JpaRealmExportStore implements RealmExportStore {
 
     @Override
     public Page<AttributeDefinition> attributeDefinitions() {
-        return page(AttributeDefinitionEntity.class, "id", JpaAttributeDefinitionStore::toDomain);
+        return page(AttributeDefinitionEntity.class, JpaAttributeDefinitionStore::toDomain);
     }
 
     @Override
     public Page<Hierarchy> hierarchies() {
-        return (afterId, max) -> em.createQuery("""
-                        select h from HierarchyEntity h where h.realmId = :realmId
-                        and h.id > :after order by h.id""", HierarchyEntity.class)
-                .setParameter("realmId", realmId)
-                .setParameter("after", afterId == null ? "" : afterId)
-                .setMaxResults(max)
-                .getResultStream()
-                .map(JpaHierarchyStore::toDomain)
-                .toList();
+        return page(HierarchyEntity.class, JpaHierarchyStore::toDomain);
     }
 
     @Override
     public Page<OrgUnit> orgUnits() {
-        return page(OrgUnitEntity.class, "id", JpaOrgUnitStore::toDomain);
+        return page(OrgUnitEntity.class, JpaOrgUnitStore::toDomain);
     }
 
     // The versions are found by their units alone, for the reason in Rows.inRealm.
@@ -151,7 +145,7 @@ public class JpaRealmExportStore implements RealmExportStore {
 
     @Override
     public Page<Person> people() {
-        Page<PersonEntity> rows = page(PersonEntity.class, "id", Function.identity());
+        Page<PersonEntity> rows = page(PersonEntity.class, Function.identity());
         return (afterId, max) -> JpaPersonStore.withNames(em, realmId, rows.read(afterId, max));
     }
 
@@ -170,7 +164,7 @@ public class JpaRealmExportStore implements RealmExportStore {
 
     @Override
     public Page<Employment> employments() {
-        return page(EmploymentEntity.class, "id", JpaEmploymentStore::toDomain);
+        return page(EmploymentEntity.class, JpaEmploymentStore::toDomain);
     }
 
     @Override
@@ -178,11 +172,13 @@ public class JpaRealmExportStore implements RealmExportStore {
         return new JpaEmploymentStore(em, realmId).termsOf(employmentIds);
     }
 
+    // An assignment has one row of its version as long as it has rows. The page takes the index of the export of
+    // that table, for the reason in page.
     @Override
     public Page<String> assignmentIds() {
         return (afterId, max) -> em.createQuery("""
-                        select distinct a.assignmentId from AssignmentEntity a where a.realmId = :realmId
-                        and a.assignmentId > :after order by a.assignmentId""", String.class)
+                        select v.id from AssignmentVersionEntity v where (v.realmId || '') = :realmId
+                        and v.id > :after order by v.id""", String.class)
                 .setParameter("realmId", realmId)
                 .setParameter("after", afterId == null ? "" : afterId)
                 .setMaxResults(max)
@@ -204,28 +200,28 @@ public class JpaRealmExportStore implements RealmExportStore {
 
     @Override
     public Page<ReportingLine> reportingLines() {
-        return page(ReportingLineEntity.class, "id", JpaReportingLineStore::toDomain);
+        return page(ReportingLineEntity.class, JpaReportingLineStore::toDomain);
     }
 
     @Override
     public Page<UnitRole> unitRoles() {
-        return page(UnitRoleEntity.class, "id", e -> new UnitRole(e.id, e.employmentId, null, null, e.orgUnitId,
+        return page(UnitRoleEntity.class, e -> new UnitRole(e.id, e.employmentId, null, null, e.orgUnitId,
                 e.roleId, e.includesDescendants, new ValidPeriod(e.validFrom, e.validTo), e.version));
     }
 
     @Override
     public Page<Qualification> qualifications() {
-        return page(QualificationEntity.class, "id", JpaQualificationStore::toDomain);
+        return page(QualificationEntity.class, JpaQualificationStore::toDomain);
     }
 
     @Override
     public Page<ExternalId> externalIds() {
-        return page(ExternalIdEntity.class, "id", JpaExternalIdStore::toDomain);
+        return page(ExternalIdEntity.class, JpaExternalIdStore::toDomain);
     }
 
     @Override
     public Page<ChangeOrder> changeOrders() {
-        return page(ChangeOrderEntity.class, "id", JpaChangeOrderStore::toDomain);
+        return page(ChangeOrderEntity.class, JpaChangeOrderStore::toDomain);
     }
 
     // The last runs of the jobs and the members that the projection added are not data, and an export has none of
@@ -338,9 +334,18 @@ public class JpaRealmExportStore implements RealmExportStore {
         RealmData.deleteForRestore(em, realmId);
     }
 
+    // The unique key of the realm and the person gives the page in its order, also while the statistics are old.
     @Override
     public Page<Erasure> erasures() {
-        return page(ErasureEntity.class, "personId", e -> new Erasure(e.personId, e.erasedAt));
+        return (afterId, max) -> em.createQuery("""
+                        select e from ErasureEntity e where e.realmId = :realmId and e.personId > :after
+                        order by e.personId""", ErasureEntity.class)
+                .setParameter("realmId", realmId)
+                .setParameter("after", afterId == null ? "" : afterId)
+                .setMaxResults(max)
+                .getResultStream()
+                .map(e -> new Erasure(e.personId, e.erasedAt))
+                .toList();
     }
 
     @Override
