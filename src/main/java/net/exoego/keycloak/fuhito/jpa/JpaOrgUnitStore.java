@@ -33,9 +33,12 @@ import net.exoego.keycloak.fuhito.store.OrgUnitStore;
  */
 public class JpaOrgUnitStore implements OrgUnitStore {
 
+    // A sub-select finds the hierarchy by its key, as in Rows.ofUnit. While the statistics did not know a new
+    // hierarchy, its value made its links look like one row, and PostgreSQL read them all for each version.
     private static final String NO_PARENT = """
             not exists (select 1 from OrgUnitLinkEntity l where l.realmId = :realmId
-            and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)""".formatted(TreeQuery.onDate("l"));
+            and l.hierarchyId = (select h.id from HierarchyEntity h where h.id = :hierarchyId)
+            and l.childId = v.orgUnitId and l.%s)""".formatted(TreeQuery.onDate("l"));
 
     // A hierarchy other than the default one has only the units that are linked in it.
     private static final String LINKED_ROOT = NO_PARENT + """

@@ -11,6 +11,8 @@ import org.junit.jupiter.api.function.Executable;
 import static net.exoego.keycloak.fuhito.OldStatistics.freshStatistics;
 import static net.exoego.keycloak.fuhito.OldStatistics.plan;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmsWithOldStatistics;
+import static net.exoego.keycloak.fuhito.TreeWalkPlanIT.assertIndexFinds;
+import static net.exoego.keycloak.fuhito.TreeWalkPlanIT.assertIndexOrHashFinds;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -48,6 +50,36 @@ class OrgUnitLinkPlanIT {
             explain select * from fuhito_org_unit_link l where l.hierarchy_id = 'ex-new-hierarchy'
             and l.child_id = %s order by l.valid_from""".formatted(UNITS));
 
+    private static final String PAGE = WITH_PARENT + """
+             join fuhito_org_unit_version_name p on p.version_id = v.id and p.is_primary = true
+            where v.realm_id = 'ex-new-realm' and %s and %s
+            order by v.display_order, p.phonetic_name, p.name, v.org_unit_id fetch first 100 rows only""";
+
+    private static final String NO_PARENT = """
+            not exists (select 1 from fuhito_org_unit_link x where x.realm_id = 'ex-new-realm'
+            and x.hierarchy_id = (select h.id from fuhito_hierarchy h where h.id = 'ex-new-hierarchy')
+            and x.child_id = v.org_unit_id and %s)""".formatted(ON_DATE.formatted("x"));
+
+    // The lookup of the links of a unit in NO_PARENT, by the alias of the links.
+    private static final String PARENT_OF_ROOT = "uk_fuhito_org_unit_link_from on fuhito_org_unit_link x";
+
+    // A lookup of the links by the hierarchy alone reads every link of the hierarchy.
+    private static final String BY_HIERARCHY_ALONE =
+            "Index Cond: \\(+\\(hierarchy_id\\)::text = '[^']*'::text\\)( AND \\(valid_\\w+ [^)]*\\))?\\)?";
+
+    // The roots of searchOn and countSearchOn of JpaOrgUnitStore, of the default hierarchy and of another one.
+    private static final List<String> ROOTS = List.of(
+            PAGE.formatted(ON_DATE.formatted("v"), NO_PARENT + """
+                     and not exists (select 1 from fuhito_ref_item g where g.id = v.unit_type_id
+                    and g.rollup_unit = true)"""),
+            """
+            select count(v.id) from fuhito_org_unit_version v join fuhito_org_unit u on u.id = v.org_unit_id
+            where v.realm_id = 'ex-new-realm' and %s and %s""".formatted(ON_DATE.formatted("v"), NO_PARENT),
+            PAGE.formatted(ON_DATE.formatted("v"), NO_PARENT + """
+                     and exists (select 1 from fuhito_org_unit_link c where c.realm_id = 'ex-new-realm'
+                    and c.hierarchy_id = 'ex-new-hierarchy' and c.parent_id = v.org_unit_id and %s)"""
+                    .formatted(ON_DATE.formatted("c"))));
+
     // The rows are written once for both statistics, as in OrgUnitVersionPlanIT. Each plan is read before the next
     // analyze, and the checks run at the end, so a failure shows every read with both statistics.
     @Test
@@ -71,6 +103,39 @@ class OrgUnitLinkPlanIT {
             checks.add(() -> {
                 assertTrue(plan.contains("uk_fuhito_org_unit_link_from"), plan);
                 assertFalse(plan.contains("ex_fuhito_org_unit_link_period"), plan);
+            });
+        }
+        return checks;
+    }
+
+    // While the statistics were old, PostgreSQL read every link of the hierarchy for each version to find the roots.
+    @Test
+    void aSearchForTheRootsLooksUpTheParentOfEachUnitByTheChildWithOldAndWithFreshStatistics() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+            List<Executable> checks = new ArrayList<>(rootChecks(statement, false));
+            freshStatistics(statement);
+            checks.addAll(rootChecks(statement, true));
+            connection.rollback();
+            assertAll(checks);
+        }
+    }
+
+    // With fresh statistics, PostgreSQL may also join the links with the versions by the child with a hash.
+    private static List<Executable> rootChecks(Statement statement, boolean fresh) throws Exception {
+        List<Executable> checks = new ArrayList<>();
+        for (String read : ROOTS) {
+            String plan = plan(statement, "explain " + read);
+            checks.add(() -> {
+                assertFalse(plan.lines().map(String::strip).anyMatch(line -> line.matches(BY_HIERARCHY_ALONE)), plan);
+                assertFalse(plan.contains("ex_fuhito_org_unit_link_period"), plan);
+                if (fresh) {
+                    assertIndexOrHashFinds(plan, PARENT_OF_ROOT, "child_id", "\\(v\\.org_unit_id\\)");
+                } else {
+                    assertIndexFinds(plan, PARENT_OF_ROOT, "child_id", "\\(v\\.org_unit_id\\)");
+                }
             });
         }
         return checks;
