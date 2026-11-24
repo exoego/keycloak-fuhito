@@ -92,17 +92,20 @@ class ReportsAndHoldersPlanIT {
             checks.add(() -> assertIndexFinds(plan, "idx_fuhito_reporting_line_assignment", "assignment_id",
                     "\\(a(_\\d+)?\\.assignment_id\\)"));
         }
-        // The check of a nearer holder of the same role reads the roles of the role. #608 is about it.
-        for (String nearest : List.of("", NEAREST)) {
+        // The nearest holders of each role come from the roles of the walk, so the roles are read once.
+        for (String nearest : List.of("", " where h.depth = h.nearest")) {
             for (String holders : List.of("""
-                    select r.*, e.person_id, p.user_id %s order by a.depth, k.code, r.id
-                    offset 0 rows fetch first 100 rows only""", "select count(r.id) %s")) {
-                String plan = walk(statement, holders(holders, nearest));
+                    select h.id, h.employment_id, h.person_id, h.user_id, h.org_unit_id, h.role_id,
+                    h.includes_descendants, h.valid_from, h.valid_to, h.version from holders h%s
+                    order by h.depth, h.code, h.id offset 0 rows fetch first 100 rows only""",
+                    "select count(h.id) from holders h%s")) {
+                String plan = walk(statement, holders(holders.formatted(nearest)));
                 checks.add(() -> assertSteps(plan, HOLDERS_INDEXES));
                 checks.add(() -> assertIndexFinds(plan, "pk_fuhito_org_unit", "'ex-new-unit-2999'"));
                 checks.add(() -> assertIndexFinds(plan, "uk_fuhito_org_unit_link_from", "child_id",
                         "\\(a(_\\d+)?\\.id\\)"));
-                checks.add(() -> assertIndexOrHashFinds(plan, ROLES_OF_UNIT, "org_unit_id", "\\(a(_\\d+)?\\.id\\)"));
+                checks.add(() -> assertOneLookup(plan, "fuhito_unit_role", ROLES_OF_UNIT, "org_unit_id",
+                        "\\(a(_\\d+)?\\.id\\)"));
             }
         }
         return checks;
@@ -152,6 +155,12 @@ class ReportsAndHoldersPlanIT {
 
     private static void assertIndexFinds(String plan, String index, String... parts) {
         assertTrue(indexFinds(plan, index, parts), () -> index + " " + List.of(parts) + "\n" + plan);
+    }
+
+    // The plan scans the table once, and finds its rows in the index by all the parts.
+    private static void assertOneLookup(String plan, String table, String index, String... parts) {
+        long scans = plan.lines().filter(line -> line.matches(".* Scan (using \\w+ )?on " + table + " .*")).count();
+        assertTrue(scans == 1 && indexFinds(plan, index, parts), () -> index + " " + List.of(parts) + "\n" + plan);
     }
 
     private static void assertIndexOrHashFinds(String plan, String index, String... parts) {
@@ -250,22 +259,8 @@ class ReportsAndHoldersPlanIT {
                 leads("h"), onDate("l"), onDate("v"), onDate("s"), select);
     }
 
-    // JpaUnitRoleStore.NEAREST.
-    private static final String NEAREST = """
-             and not exists (select 1 from above b join fuhito_unit_role o on o.org_unit_id = b.id
-            and o.realm_id = 'ex-new-realm' and %s where o.role_id = r.role_id and b.depth < a.depth
-            and (b.depth = 0 or o.includes_descendants = true))""".formatted(onDate("o"));
-
     // JpaUnitRoleStore.HOLDERS from a unit four levels down.
-    private static String holders(String select, String nearest) {
-        String from = """
-                from above a
-                join fuhito_unit_role r on r.org_unit_id = a.id and r.realm_id = 'ex-new-realm' and %s
-                join fuhito_employment e on e.id = r.employment_id
-                join fuhito_person p on p.id = e.person_id
-                join fuhito_ref_item k on k.id = r.role_id
-                where a.realm_id = 'ex-new-realm' and (a.depth = 0 or r.includes_descendants = true)%s"""
-                .formatted(onDate("r"), nearest);
+    private static String holders(String select) {
         return """
                 with recursive above (id, depth, realm_id) as (
                     select u.id, 0, u.realm_id from fuhito_org_unit u where u.id = 'ex-new-unit-2999'
@@ -273,7 +268,16 @@ class ReportsAndHoldersPlanIT {
                     select (select l.parent_id from fuhito_org_unit_link l where l.child_id = a.id
                         and l.realm_id = 'ex-new-realm' and l.hierarchy_id = 'ex-new-hierarchy' and %s),
                         a.depth + 1, a.realm_id
-                    from above a where a.id is not null)
-                %s""".formatted(onDate("l"), select.formatted(from));
+                    from above a where a.id is not null),
+                holders as (
+                    select r.*, e.person_id, p.user_id, k.code, a.depth,
+                        min(a.depth) over (partition by r.role_id) as nearest
+                    from above a
+                    join fuhito_unit_role r on r.org_unit_id = a.id and r.realm_id = 'ex-new-realm' and %s
+                    join fuhito_employment e on e.id = r.employment_id
+                    join fuhito_person p on p.id = e.person_id
+                    join fuhito_ref_item k on k.id = r.role_id
+                    where a.realm_id = 'ex-new-realm' and (a.depth = 0 or r.includes_descendants = true))
+                %s""".formatted(onDate("l"), onDate("r"), select);
     }
 }
