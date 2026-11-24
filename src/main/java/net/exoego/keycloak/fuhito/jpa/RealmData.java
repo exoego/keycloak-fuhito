@@ -62,20 +62,19 @@ public final class RealmData {
 
     // Every query is one fixed text. The order matters, because later queries read rows of earlier ones.
     private static final List<String> PERSON_DELETES = List.of(
-            // The IDs that systems have for the person and for the records of the person.
+            // The IDs that systems have for the person and for the records of the person. PostgreSQL looks up each
+            // pair of a kind and a record in the unique key of the IDs. A condition with "or" for each kind would
+            // read the IDs of every realm.
             """
-            delete from ExternalIdEntity x where %s
-            and ((x.kind = 'PERSON' and x.resourceId = :personId)
-            or (x.kind = 'EMPLOYMENT' and x.resourceId in (%s))
-            or (x.kind = 'ASSIGNMENT' and x.resourceId in (%s))
-            or (x.kind = 'QUALIFICATION' and x.resourceId in
-            (select q.id from QualificationEntity q where q.personId = :personId))
-            or (x.kind = 'REPORTING_LINE' and (x.resourceId in
-            (select r.id from ReportingLineEntity r where r.managerPersonId = :personId)
-            or x.resourceId in (select r.id from ReportingLineEntity r where r.assignmentId in (%s))))
-            or (x.kind = 'UNIT_ROLE' and x.resourceId in
-            (select r.id from UnitRoleEntity r where r.employmentId in (%s))))"""
-                    .formatted(ofPerson("x"), EMPLOYMENTS, ASSIGNMENTS, ASSIGNMENTS, EMPLOYMENTS),
+            delete from ExternalIdEntity x where %s and (x.kind, x.resourceId) in (
+            select 'PERSON', p.id from PersonEntity p where p.id = :personId
+            union all select 'EMPLOYMENT', e.id from EmploymentEntity e where e.personId = :personId
+            union all select 'ASSIGNMENT', a.assignmentId from AssignmentEntity a where a.employmentId in (%s)
+            union all select 'QUALIFICATION', q.id from QualificationEntity q where q.personId = :personId
+            union all select 'REPORTING_LINE', r.id from ReportingLineEntity r where r.managerPersonId = :personId
+            union all select 'REPORTING_LINE', r.id from ReportingLineEntity r where r.assignmentId in (%s)
+            union all select 'UNIT_ROLE', r.id from UnitRoleEntity r where r.employmentId in (%s))"""
+                    .formatted(ofPerson("x"), EMPLOYMENTS, ASSIGNMENTS, EMPLOYMENTS),
             // Lines where the person is the manager, and lines where the person reports. Each takes its own index.
             "delete from ReportingLineEntity r where r.managerPersonId = :personId and " + ofPerson("r"),
             "delete from ReportingLineEntity r where r.assignmentId in (%s) and %s".formatted(ASSIGNMENTS,

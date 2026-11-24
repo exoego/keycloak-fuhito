@@ -127,28 +127,13 @@ class ReadsByIdPlansIT {
         });
     }
 
+    // PersonExternalIdsPlanIT checks the delete of the IDs of other systems.
     @Test
     void theRemovalOfAPersonFindsTheRowsByThePerson() throws Exception {
         withOldStatistics(statement -> {
             String employments = "select e.id from fuhito_employment e where e.person_id = " + PERSON;
             String assignments = "select a.assignment_id from fuhito_assignment a where a.employment_id in ("
                     + employments + ")";
-            assertIndexes(statement, """
-                    delete from fuhito_external_id x where %s and ((x.resource_kind = 'PERSON' and x.resource_id = %s)
-                    or (x.resource_kind = 'EMPLOYMENT' and x.resource_id in (%s))
-                    or (x.resource_kind = 'ASSIGNMENT' and x.resource_id in (%s))
-                    or (x.resource_kind = 'QUALIFICATION' and x.resource_id in
-                    (select q.id from fuhito_qualification q where q.person_id = %s))
-                    or (x.resource_kind = 'REPORTING_LINE' and (x.resource_id in
-                    (select r.id from fuhito_reporting_line r where r.manager_person_id = %s)
-                    or x.resource_id in (select r.id from fuhito_reporting_line r where r.assignment_id in (%s))))
-                    or (x.resource_kind = 'UNIT_ROLE' and x.resource_id in
-                    (select r.id from fuhito_unit_role r where r.employment_id in (%s))))"""
-                    .formatted(ofPerson("x"), PERSON, employments, assignments, PERSON, PERSON, assignments,
-                            employments),
-                    "pk_fuhito_person", "idx_fuhito_employment_person", "idx_fuhito_assignment_employment",
-                    "idx_fuhito_qualification_person", "idx_fuhito_reporting_line_manager_person",
-                    "idx_fuhito_reporting_line_assignment", "idx_fuhito_unit_role_employment");
             assertIndexes(statement, "delete from fuhito_reporting_line r where r.manager_person_id = %s and %s"
                     .formatted(PERSON, ofPerson("r")), "pk_fuhito_person", "idx_fuhito_reporting_line_manager_person");
             assertIndexes(statement, "delete from fuhito_reporting_line r where r.assignment_id in (%s) and %s"
