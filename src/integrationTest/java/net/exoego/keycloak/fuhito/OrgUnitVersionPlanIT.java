@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// The plans of the reads of JpaOrgUnitStore and JpaResourceRemoval that find the versions of org units by their units,
-// or by their unit types.
+// The plans of the reads of JpaOrgUnitStore, JpaRealmExportStore and JpaResourceRemoval that find the versions of org
+// units by their units, or by their unit types.
 class OrgUnitVersionPlanIT {
 
     // The index of the exclusion constraint, or an index that starts with the realm.
@@ -53,6 +53,9 @@ class OrgUnitVersionPlanIT {
                 "explain select * " + OF_UNITS + " order by v.valid_from",
                 "explain select v.realm_id, v.org_unit_id, v.valid_from, v.valid_to " + OF_UNITS
                         + " order by v.valid_from",
+                "explain select * " + OF_UNITS + " order by v.org_unit_id, v.valid_from",
+                placed("ex-new-unit-7"),
+                placed("ex-new-unit-7,ex-new-unit-8"),
                 """
                 explain delete from fuhito_org_unit_version_name x where x.realm_id = 'ex-new-realm'
                 and x.version_id in (select v.id from fuhito_org_unit_version v where %s)""".formatted(OF_UNIT),
@@ -73,6 +76,18 @@ class OrgUnitVersionPlanIT {
                 order by v.display_order, p.phonetic_name, p.name, v.org_unit_id fetch first 100 rows only"""
                 .formatted(ON_DATE.formatted("v"), ON_DATE.formatted("l")));
         assertFalse(children.contains("ex_fuhito_org_unit_version_period"), children);
+    }
+
+    // placedOn of JpaOrgUnitStore. The writes of memberships, of unit roles and of employments with a legal entity run
+    // it for one unit.
+    private static String placed(String ids) {
+        return """
+                explain select u.*, v.*, (select l.parent_id from fuhito_org_unit_link l
+                where l.realm_id = 'ex-new-realm' and l.hierarchy_id = 'ex-new-hierarchy'
+                and l.child_id = v.org_unit_id and l.%s)
+                from fuhito_org_unit_version v join fuhito_org_unit u on u.id = v.org_unit_id
+                where v.org_unit_id = any('{%s}') and v.%s""".formatted(ON_DATE.formatted("l"), ids,
+                ON_DATE.formatted("v"));
     }
 
     // The search of JpaOrgUnitStore for legal entities, as a list of employments with no employer runs it. It reads
