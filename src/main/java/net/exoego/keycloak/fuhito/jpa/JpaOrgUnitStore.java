@@ -45,11 +45,12 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     // A rollup unit is not in the default hierarchy.
     private static final String DEFAULT_ROOT = NO_PARENT + marked("rollupUnit", false);
 
+    // The versions are found by their units alone, for the reason in Rows.inRealm.
     private static final String PLACED = """
             select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
                 and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)
             from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId
-            where v.realmId = :realmId and %s and v.%s""".formatted(TreeQuery.onDate("l"),
+            where %s and v.%s""".formatted(TreeQuery.onDate("l"),
             ManyIds.has("v.orgUnitId", "ids"), TreeQuery.onDate("v"));
 
     // The walks up look up each step with TreeQuery.parentOf. The last row of a walk has no unit. The first units
@@ -570,7 +571,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
-                .getResultList(), row -> (String) row[2]);
+                .getResultStream()
+                .filter(Rows.inRealm(realmId, row -> ((OrgUnitVersionEntity) row[1]).realmId))
+                .toList(), row -> (String) row[2]);
     }
 
     @Override
