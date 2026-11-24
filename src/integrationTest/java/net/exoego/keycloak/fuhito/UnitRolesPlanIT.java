@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// The plans of the reads of unit roles by the employment or by the org unit. ReportsAndHoldersPlanIT checks the walk
-// up for the holders, and PersonExternalIdsPlanIT the delete of the IDs of other systems of a person.
+// The plans of the reads of unit roles by the employment, by the org unit or by the role. ReportsAndHoldersPlanIT
+// checks the walk up for the holders, and PersonExternalIdsPlanIT the delete of the IDs of other systems of a person.
 class UnitRolesPlanIT {
 
     private static final Pattern INDEX = Pattern.compile("(?:using|Bitmap Index Scan on) (\\w+)");
@@ -48,6 +48,10 @@ class UnitRolesPlanIT {
     private static final Set<String> OF_PERSON_ON_DATE = Set.of("idx_fuhito_employment_person",
             "idx_fuhito_unit_role_employment", "pk_fuhito_person");
     private static final Set<String> BY_UNIT = Set.of("idx_fuhito_unit_role_org_unit");
+    private static final Set<String> BY_UNIT_WITH_PERSON = Set.of("idx_fuhito_unit_role_org_unit",
+            "pk_fuhito_employment", "pk_fuhito_person");
+    private static final Set<String> BY_ROLE_WITH_PERSON = Set.of("idx_fuhito_unit_role_role",
+            "pk_fuhito_employment", "pk_fuhito_person");
 
     // Each read with the indexes of its plan.
     private static final Map<String, Set<String>> READS = new LinkedHashMap<>();
@@ -79,14 +83,24 @@ class UnitRolesPlanIT {
         READS.put("select distinct x.realm_id from fuhito_unit_role x where x.org_unit_id = 'ex-new-unit-7'", BY_UNIT);
         READS.put(COUNT_OF_UNIT + " (r.valid_to is null or r.valid_to > '2026-04-01')", BY_UNIT);
         READS.put(WITH_PERSON + " " + ON + " and r.org_unit_id = 'ex-new-unit-7' order by r.id" + PAGE,
-                Set.of("idx_fuhito_unit_role_org_unit", "pk_fuhito_employment", "pk_fuhito_person"));
+                BY_UNIT_WITH_PERSON);
         READS.put(COUNT_OF_UNIT + " " + ON, BY_UNIT);
+        // searchOn with the role alone, from the start and after an ID, and searchOn and countSearchOn with the role
+        // and the org unit.
+        READS.put(WITH_PERSON + " " + ON + " and r.role_id = 'ex-new-role-2' order by r.id" + PAGE,
+                BY_ROLE_WITH_PERSON);
+        READS.put(WITH_PERSON + " " + ON + " and r.role_id = 'ex-new-role-2' and r.id > 'ex-new-unit-role-3'"
+                + " order by r.id" + PAGE, BY_ROLE_WITH_PERSON);
+        READS.put(WITH_PERSON + " " + ON + " and r.role_id || '' = 'ex-new-role-2' and r.org_unit_id = 'ex-new-unit-7'"
+                + " order by r.id" + PAGE, BY_UNIT_WITH_PERSON);
+        READS.put(COUNT_OF_UNIT + " " + ON + " and r.role_id || '' = 'ex-new-role-2'", BY_UNIT);
     }
 
     // The rows are written once for both statistics, as in AssignmentRowsPlanIT. Each plan is read before the next
     // analyze, and the checks run at the end, so a failure shows every read with both statistics.
     @Test
-    void aReadOfUnitRolesByTheEmploymentOrTheOrgUnitUsesItsIndexWithOldAndWithFreshStatistics() throws Exception {
+    void aReadOfUnitRolesByTheEmploymentTheOrgUnitOrTheRoleUsesItsIndexWithOldAndWithFreshStatistics()
+            throws Exception {
         try (Connection connection = KeycloakEnvironment.connection();
                 Statement statement = connection.createStatement()) {
             connection.setAutoCommit(false);

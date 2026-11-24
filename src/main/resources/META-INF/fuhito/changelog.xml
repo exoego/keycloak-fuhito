@@ -1377,4 +1377,15 @@
             WHERE (daterange(VALID_FROM, VALID_TO) IS NOT NULL)
         </sql>
     </changeSet>
+
+    <!-- A page of the unit roles of one role reads them in the order of the ID. While the statistics did not know a
+         new realm, PostgreSQL found every unit role of the role, looked up the employment and the person of each one,
+         and sorted them all for the page. This index gives them in that order, so the read stops at the end of the
+         page. A read that also names the org unit finds its rows by the unit. -->
+    <changeSet id="0.1.0-unit-role-role-index" author="keycloak-fuhito">
+        <createIndex tableName="FUHITO_UNIT_ROLE" indexName="IDX_FUHITO_UNIT_ROLE_ROLE">
+            <column name="ROLE_ID"/>
+            <column name="ID"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>
