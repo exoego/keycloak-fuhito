@@ -29,8 +29,7 @@ class ReadsByIdPlansIT {
     private static final String ON = "%1$s.valid_from <= '2026-04-01'"
             + " and (%1$s.valid_to is null or %1$s.valid_to > '2026-04-01')";
 
-    // The rows of an assignment take its unique key or the GiST index of their periods. #590 is about the GiST index.
-    private static final String BY_ASSIGNMENT = "uk_fuhito_assignment_from or ex_fuhito_assignment_period";
+    private static final String BY_ASSIGNMENT = "uk_fuhito_assignment_from";
 
     // An employment with a staff number comes by the staff number or by its person.
     private static final String BY_STAFF_NUMBER = "idx_fuhito_employment_staff_number or idx_fuhito_employment_person";
@@ -419,10 +418,7 @@ class ReadsByIdPlansIT {
     }
 
     private static void assertIndexes(Statement statement, String query, String... names) throws Exception {
-        Set<String> found = new TreeSet<>();
-        Set<String> byAssignment = Set.of("uk_fuhito_assignment_from", "ex_fuhito_assignment_period");
-        indexes(statement, query).forEach(name -> found.add(byAssignment.contains(name) ? BY_ASSIGNMENT : name));
-        assertEquals(new TreeSet<>(Set.of(names)), found, query);
+        assertEquals(new TreeSet<>(Set.of(names)), indexes(statement, query), query);
     }
 
     private static Set<String> indexes(Statement statement, String query) throws Exception {

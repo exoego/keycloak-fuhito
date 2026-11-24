@@ -1333,4 +1333,20 @@
             <column name="REALM_ID"/>
         </createIndex>
     </changeSet>
+
+    <!-- The index of the exclusion constraint on the rows of assignments now serves only the constraint, as the one of
+         the links does. With old and with fresh statistics, every lookup of the rows of an assignment by its ID took
+         this index, and the reads were two to five times slower than with UK_FUHITO_ASSIGNMENT_FROM. Like
+         0.1.0-no-overlap, this change set waits for btree_gist. -->
+    <changeSet id="0.1.0-assignment-period-index" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>ALTER TABLE FUHITO_ASSIGNMENT DROP CONSTRAINT EX_FUHITO_ASSIGNMENT_PERIOD</sql>
+        <sql>
+            ALTER TABLE FUHITO_ASSIGNMENT ADD CONSTRAINT EX_FUHITO_ASSIGNMENT_PERIOD
+            EXCLUDE USING gist (ASSIGNMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+            WHERE (daterange(VALID_FROM, VALID_TO) IS NOT NULL)
+        </sql>
+    </changeSet>
 </databaseChangeLog>
