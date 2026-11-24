@@ -52,12 +52,12 @@ class RealmExportPlanIT {
             // would give some rows to every realm that they do not know.
             String hierarchy = "update fuhito_hierarchy set realm_id = '%s', code = '%s' where id = 'ex-new-hierarchy'";
             statement.execute(hierarchy.formatted("ex-old-realm", "moved"));
-            statement.execute("analyze " + MORE_TABLES);
+            statement.execute("analyze %s".formatted(MORE_TABLES));
             statement.execute(hierarchy.formatted("ex-new-realm", "default"));
             moreRows(statement, "ex-new", 3000);
             List<Executable> checks = new ArrayList<>(checks(statement, false));
             freshStatistics(statement);
-            statement.execute("analyze " + MORE_TABLES);
+            statement.execute("analyze %s".formatted(MORE_TABLES));
             checks.addAll(checks(statement, true));
             connection.rollback();
             assertAll(checks);
