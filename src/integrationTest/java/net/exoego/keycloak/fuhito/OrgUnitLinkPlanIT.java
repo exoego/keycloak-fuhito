@@ -4,19 +4,22 @@ import java.sql.Connection;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
+import static net.exoego.keycloak.fuhito.OldStatistics.emptyTables;
 import static net.exoego.keycloak.fuhito.OldStatistics.freshStatistics;
 import static net.exoego.keycloak.fuhito.OldStatistics.plan;
 import static net.exoego.keycloak.fuhito.OldStatistics.realmsWithOldStatistics;
+import static net.exoego.keycloak.fuhito.TreeWalkPlanIT.assertIndexFinds;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // The plans of the reads that look up the links of org units by the hierarchy and the child, other than the walks of
-// TreeWalkPlanIT.
+// TreeWalkPlanIT, and of the read of the links below a unit.
 class OrgUnitLinkPlanIT {
 
     private static final String UNITS = "any('{ex-new-unit-2999,ex-new-unit-777}')";
@@ -48,6 +51,14 @@ class OrgUnitLinkPlanIT {
             explain select * from fuhito_org_unit_link l where l.hierarchy_id = 'ex-new-hierarchy'
             and l.child_id = %s order by l.valid_from""".formatted(UNITS));
 
+    // childLinks of JpaOrgUnitStore.
+    private static final String CHILD_LINKS = """
+            explain select * from fuhito_org_unit_link l where l.realm_id = 'ex-new-realm'
+            and l.hierarchy_id = (select cast('ex-new-hierarchy' as varchar(36))) and l.parent_id = 'ex-new-unit-4'
+            order by l.valid_from, l.child_id""";
+
+    private static final String ANALYZE_LINKS = "analyze fuhito_org_unit, fuhito_org_unit_link";
+
     // The rows are written once for both statistics, as in OrgUnitVersionPlanIT. Each plan is read before the next
     // analyze, and the checks run at the end, so a failure shows every read with both statistics.
     @Test
@@ -74,5 +85,42 @@ class OrgUnitLinkPlanIT {
             });
         }
         return checks;
+    }
+
+    // These rows give each realm a second hierarchy. With only the rows of OldStatistics, the query with the hierarchy
+    // as a value also took the index of the parent while the statistics were old.
+    @Test
+    void aReadOfTheLinksBelowAUnitFindsThemByTheParentWithOldAndWithFreshStatistics() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            emptyTables(statement, "fuhito_org_unit, fuhito_org_unit_link");
+            links(statement, "ex-old", 20);
+            statement.execute(ANALYZE_LINKS);
+            links(statement, "ex-new", 3000);
+            String old = plan(statement, CHILD_LINKS);
+            statement.execute(ANALYZE_LINKS);
+            String fresh = plan(statement, CHILD_LINKS);
+            connection.rollback();
+            assertAll(Stream.of(old, fresh).<Executable>map(plan -> () -> assertIndexFinds(plan,
+                    "idx_fuhito_org_unit_link_parent", "parent_id", "'ex-new-unit-4'", "hierarchy_id")));
+        }
+    }
+
+    private static void links(Statement statement, String prefix, int count) throws Exception {
+        for (String insert : List.of("""
+                insert into fuhito_hierarchy (id, realm_id, code, name) values
+                ('%1$s-hierarchy', '%1$s-realm', 'default', 'Default'),
+                ('%1$s-hierarchy-2', '%1$s-realm', 'other', 'Other')""", """
+                insert into fuhito_org_unit (id, realm_id) select '%1$s-unit-' || i, '%1$s-realm'
+                from generate_series(1, %2$d) i""", """
+                insert into fuhito_org_unit_link (id, realm_id, hierarchy_id, child_id, parent_id, valid_from)
+                select '%1$s-link-' || i, '%1$s-realm', '%1$s-hierarchy', '%1$s-unit-' || i, '%1$s-unit-' || (i / 10),
+                '2026-04-01' from generate_series(10, %2$d) i""", """
+                insert into fuhito_org_unit_link (id, realm_id, hierarchy_id, child_id, parent_id, valid_from)
+                select '%1$s-link-2-' || i, '%1$s-realm', '%1$s-hierarchy-2', '%1$s-unit-' || i,
+                '%1$s-unit-' || (i / 5), '2026-04-01' from generate_series(5, %2$d) i""")) {
+            statement.execute(insert.formatted(prefix, count));
+        }
     }
 }
