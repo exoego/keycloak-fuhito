@@ -90,6 +90,7 @@ class OrgUnitsIT {
         assertEquals(List.of("法人"), Api.names(Api.json(search.get("/org-units?roots=true&legalEntity=true&lateral=false" + on))));
         assertEquals(0, Api.json(search.get("/org-units?roots=true&q=%E7%97%85%E6%A3%9F&unitType=ward" + on)).size());
         assertEquals(3, search.count("/org-units/count?legalEntity=false" + on));
+        assertEquals(1, search.count("/org-units/count?legalEntity=true" + on));
         assertEquals(1, search.count("/org-units/count?roots=true&legalEntity=false" + on));
         assertEquals("org_unit.unit_type_unknown", errorOf(400, search.get("/org-units?unitType=room" + on)));
         assertEquals("org_unit.unit_type_unknown", errorOf(400, search.get("/org-units/count?unitType=room" + on)));

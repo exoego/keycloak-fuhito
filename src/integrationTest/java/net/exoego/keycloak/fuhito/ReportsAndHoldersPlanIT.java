@@ -26,13 +26,12 @@ class ReportsAndHoldersPlanIT {
 
     private static final String MANAGER = "'ex-new-person-20'";
 
-    // The rows of an assignment and the roles over a unit can take the GiST index of their periods. #590 is about it.
-    private static final String BY_ASSIGNMENT = "(uk_fuhito_assignment_from|ex_fuhito_assignment_period)";
+    // The roles over a unit can take the GiST index of their periods. #836 is about it.
     private static final String ROLES_OF_UNIT = "(idx_fuhito_unit_role_org_unit|ex_fuhito_unit_role_period)";
 
     private static final Set<String> REPORTS_INDEXES = Set.of("pk_fuhito_person", "idx_fuhito_employment_person",
             "pk_fuhito_employment", "idx_fuhito_assignment_employment", "idx_fuhito_assignment_org_unit",
-            "uk_fuhito_assignment_from", "ex_fuhito_assignment_period", "uk_fuhito_employment_terms_from",
+            "uk_fuhito_assignment_from", "uk_fuhito_employment_terms_from",
             "uk_fuhito_org_unit_version_from", "idx_fuhito_org_unit_link_parent", "pk_fuhito_ref_item",
             "idx_fuhito_reporting_line_manager_person", "idx_fuhito_reporting_line_assignment");
 
@@ -78,7 +77,7 @@ class ReportsAndHoldersPlanIT {
                     "\\(e(_\\d+)?\\.id\\)"));
             checks.add(() -> assertIndexFinds(plan, "idx_fuhito_reporting_line_manager_person", "manager_person_id",
                     MANAGER));
-            checks.add(() -> assertIndexFinds(plan, BY_ASSIGNMENT, "assignment_id",
+            checks.add(() -> assertIndexFinds(plan, "uk_fuhito_assignment_from", "assignment_id",
                     "\\(l(_\\d+)?\\.assignment_id\\)"));
             // Each step of the walk down, and the members of each unit.
             checks.add(() -> assertIndexOrHashFinds(plan, "idx_fuhito_org_unit_link_parent", "parent_id",

@@ -1333,4 +1333,29 @@
             <column name="REALM_ID"/>
         </createIndex>
     </changeSet>
+
+    <!-- The index of the exclusion constraint on the rows of assignments now serves only the constraint, as the one of
+         the links does. With old and with fresh statistics, every lookup of the rows of an assignment by its ID took
+         this index, and the reads were two to five times slower than with UK_FUHITO_ASSIGNMENT_FROM. Like
+         0.1.0-no-overlap, this change set waits for btree_gist. -->
+    <changeSet id="0.1.0-assignment-period-index" author="keycloak-fuhito" dbms="postgresql">
+        <preConditions onFail="CONTINUE">
+            <sqlCheck expectedResult="1">SELECT count(*) FROM pg_extension WHERE extname = 'btree_gist'</sqlCheck>
+        </preConditions>
+        <sql>ALTER TABLE FUHITO_ASSIGNMENT DROP CONSTRAINT EX_FUHITO_ASSIGNMENT_PERIOD</sql>
+        <sql>
+            ALTER TABLE FUHITO_ASSIGNMENT ADD CONSTRAINT EX_FUHITO_ASSIGNMENT_PERIOD
+            EXCLUDE USING gist (ASSIGNMENT_ID WITH =, daterange(VALID_FROM, VALID_TO) WITH &amp;&amp;)
+            WHERE (daterange(VALID_FROM, VALID_TO) IS NOT NULL)
+        </sql>
+    </changeSet>
+
+    <!-- The search for the legal entities finds their versions by the unit types that mark one. Before, it found every
+         version of the realm on the date and kept those with such a type. While the statistics did not know a new
+         realm, that read took a nested loop over the versions of the realm, and read every org unit for each one. -->
+    <changeSet id="0.1.0-org-unit-version-type-index" author="keycloak-fuhito">
+        <createIndex tableName="FUHITO_ORG_UNIT_VERSION" indexName="IDX_FUHITO_ORG_UNIT_VERSION_TYPE">
+            <column name="UNIT_TYPE_ID"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>

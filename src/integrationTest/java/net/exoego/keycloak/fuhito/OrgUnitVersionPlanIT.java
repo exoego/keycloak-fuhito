@@ -15,7 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// The plans of the reads of JpaOrgUnitStore and JpaResourceRemoval that find the versions of org units by their units.
+// The plans of the reads of JpaOrgUnitStore and JpaResourceRemoval that find the versions of org units by their units,
+// or by their unit types.
 class OrgUnitVersionPlanIT {
 
     // The index of the exclusion constraint, or an index that starts with the realm.
@@ -72,5 +73,46 @@ class OrgUnitVersionPlanIT {
                 order by v.display_order, p.phonetic_name, p.name, v.org_unit_id fetch first 100 rows only"""
                 .formatted(ON_DATE.formatted("v"), ON_DATE.formatted("l")));
         assertFalse(children.contains("ex_fuhito_org_unit_version_period"), children);
+    }
+
+    // The search of JpaOrgUnitStore for legal entities, as a list of employments with no employer runs it. It reads
+    // the unit types that mark one first.
+    @Test
+    void aSearchForTheLegalEntitiesFindsTheirVersionsByTheUnitTypeWithOldAndWithFreshStatistics() throws Exception {
+        try (Connection connection = KeycloakEnvironment.connection();
+                Statement statement = connection.createStatement()) {
+            connection.setAutoCommit(false);
+            realmsWithOldStatistics(statement);
+            statement.execute("""
+                    insert into fuhito_ref_item (id, realm_id, kind, code, attributes, legal_entity) values
+                    ('ex-new-company', 'ex-new-realm', 'UNIT_TYPE', 'company', '{}', true),
+                    ('ex-new-department', 'ex-new-realm', 'UNIT_TYPE', 'department', '{}', false)""");
+            statement.execute("""
+                    update fuhito_org_unit_version set unit_type_id = case when org_unit_id = 'ex-new-unit-3'
+                    then 'ex-new-department' else 'ex-new-company' end
+                    where org_unit_id in ('ex-new-unit-1', 'ex-new-unit-2', 'ex-new-unit-3')""");
+            assertLegalEntities(statement, "old");
+            freshStatistics(statement);
+            assertLegalEntities(statement, "fresh");
+            connection.rollback();
+        }
+    }
+
+    private static void assertLegalEntities(Statement statement, String statistics) throws Exception {
+        String search = """
+                from fuhito_org_unit_version v join fuhito_org_unit u on u.id = v.org_unit_id%s
+                where v.unit_type_id = any('{ex-new-company}') and v.%s""";
+        String page = "explain select u.*, v.*, (select l.parent_id from fuhito_org_unit_link l"
+                + " where l.realm_id = 'ex-new-realm' and l.hierarchy_id = 'ex-new-hierarchy'"
+                + " and l.child_id = v.org_unit_id and l." + ON_DATE.formatted("l") + ") "
+                + search.formatted(" join fuhito_org_unit_version_name p on p.version_id = v.id and p.is_primary",
+                        ON_DATE.formatted("v"))
+                + " order by v.display_order, p.phonetic_name, p.name, v.org_unit_id fetch first 2 rows only";
+        String count = "explain select count(v.id) " + search.formatted("", ON_DATE.formatted("v"));
+        assertAll(Stream.of(page, count).<Executable>map(explain -> () -> {
+            String plan = plan(statement, explain);
+            assertTrue(plan.contains("idx_fuhito_org_unit_version_type"), statistics + "\n" + plan);
+            assertFalse(plan.matches(OTHER_INDEX), statistics + "\n" + plan);
+        }));
     }
 }
