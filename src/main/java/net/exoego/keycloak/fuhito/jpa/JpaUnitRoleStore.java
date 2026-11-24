@@ -26,6 +26,8 @@ public class JpaUnitRoleStore implements UnitRoleStore {
 
     // The database goes up from the unit, so a read does not load the tree. The walk looks up each step as
     // JpaOrgUnitStore.LINE does, and the last row has no unit.
+    // The nearest unit of each role comes from the roles that the read finds. PostgreSQL expects about 100 units in
+    // the walk, so a second read of the roles found them by the role in every realm, or read the whole table.
     private static final String HOLDERS = """
             with Above as (
                 select u.id as id, 0 as depth, u.realmId as realmId
@@ -34,19 +36,24 @@ public class JpaUnitRoleStore implements UnitRoleStore {
                 union all
                 select %1$s as id, a.depth + 1 as depth, a.realmId as realmId
                 from Above a where a.id is not null
+            ),
+            Holders as (
+                select r.id as id, r.employmentId as employmentId, e.personId as personId, p.userId as userId,
+                    r.orgUnitId as orgUnitId, r.roleId as roleId, r.includesDescendants as includesDescendants,
+                    r.validFrom as validFrom, r.validTo as validTo, r.version as version, k.code as code,
+                    a.depth as depth, min(a.depth) over (partition by r.roleId) as nearest
+                from Above a
+                join UnitRoleEntity r on r.orgUnitId = a.id and r.realmId = :realmId and r.%2$s
+                join EmploymentEntity e on e.id = r.employmentId
+                join PersonEntity p on p.id = e.personId
+                join RefItemEntity k on k.id = r.roleId
+                where a.realmId = :realmId and (a.depth = 0 or r.includesDescendants = true)%%s
             )
-            select %%s from Above a
-            join UnitRoleEntity r on r.orgUnitId = a.id and r.realmId = :realmId and r.%2$s
-            join EmploymentEntity e on e.id = r.employmentId
-            join PersonEntity p on p.id = e.personId
-            join RefItemEntity k on k.id = r.roleId
-            where a.realmId = :realmId and (a.depth = 0 or r.includesDescendants = true)%%s%%s"""
+            select %%s from Holders h%%s"""
             .formatted(TreeQuery.parentOf("a.id", "hierarchyId"), TreeQuery.onDate("r"));
 
-    // A role is left out when a nearer unit has a holder of the same role over the unit.
-    private static final String NEAREST = " and not exists (select 1 from Above b"
-            + " join UnitRoleEntity o on o.orgUnitId = b.id and o.realmId = :realmId and o." + TreeQuery.onDate("o")
-            + " where o.roleId = r.roleId and b.depth < a.depth and (b.depth = 0 or o.includesDescendants = true))";
+    private static final String HOLDER = "h.id, h.employmentId, h.personId, h.userId, h.orgUnitId, h.roleId,"
+            + " h.includesDescendants, h.validFrom, h.validTo, h.version";
 
     private final EntityManager em;
     private final String realmId;
@@ -84,23 +91,28 @@ public class JpaUnitRoleStore implements UnitRoleStore {
     @Override
     public List<UnitRole> holdersOn(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
             LocalDate date, int first, int max) {
-        return list(holdersQuery(hierarchyId, orgUnitId, roleId, nearest, date, false, Object[].class)
-                .setFirstResult(first).setMaxResults(max));
+        return holdersQuery(hierarchyId, orgUnitId, roleId, nearest, date, false, Object[].class)
+                .setFirstResult(first)
+                .setMaxResults(max)
+                .getResultStream()
+                .map(row -> new UnitRole((String) row[0], (String) row[1], (String) row[2], (String) row[3],
+                        (String) row[4], (String) row[5], (Boolean) row[6],
+                        new ValidPeriod((LocalDate) row[7], (LocalDate) row[8]), (Long) row[9]))
+                .toList();
     }
 
     @Override
     public long countHoldersOn(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
             LocalDate date) {
-        return holdersQuery(hierarchyId, orgUnitId, roleId, nearest, date, true, Long.class)
-                .setParameter("realmId", realmId)
-                .getSingleResult();
+        return holdersQuery(hierarchyId, orgUnitId, roleId, nearest, date, true, Long.class).getSingleResult();
     }
 
     private <T> TypedQuery<T> holdersQuery(String hierarchyId, String orgUnitId, String roleId, boolean nearest,
             LocalDate date, boolean count, Class<T> type) {
-        TypedQuery<T> query = em.createQuery(HOLDERS.formatted(count ? "count(r)" : "r, e.personId, p.userId",
-                        roleId == null ? "" : " and r.roleId = :roleId", nearest ? NEAREST : "")
-                        + (count ? "" : " order by a.depth, k.code, r.id"), type)
+        TypedQuery<T> query = em.createQuery(HOLDERS.formatted(roleId == null ? "" : " and r.roleId = :roleId",
+                        count ? "count(h.id)" : HOLDER, nearest ? " where h.depth = h.nearest" : "")
+                        + (count ? "" : " order by h.depth, h.code, h.id"), type)
+                .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("orgUnitId", orgUnitId)
                 .setParameter("date", date);
