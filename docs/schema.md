@@ -15,7 +15,7 @@ erDiagram
     FUHITO_ASSIGNMENT {
         varchar(36) ID PK
         varchar(36) REALM_ID
-        varchar(36) ASSIGNMENT_ID
+        varchar(36) ASSIGNMENT_ID FK
         varchar(36) EMPLOYMENT_ID FK
         varchar(36) ORG_UNIT_ID FK
         date VALID_FROM
@@ -31,6 +31,10 @@ erDiagram
         integer DISPLAY_ORDER
         text ATTRIBUTES
         varchar(64) SOURCE
+    }
+    FUHITO_ASSIGNMENT_VERSION {
+        varchar(36) ID PK
+        varchar(36) REALM_ID
         bigint VERSION
     }
     FUHITO_CHANGE_LOG {
@@ -240,6 +244,7 @@ erDiagram
     FUHITO_REF_ITEM |o..o{ FUHITO_ASSIGNMENT : "WORK_LOCATION_ID"
     FUHITO_REF_ITEM |o..o{ FUHITO_ASSIGNMENT : "OCCUPATION_ID"
     FUHITO_ORG_UNIT ||..o{ FUHITO_ASSIGNMENT : "ORG_UNIT_ID"
+    FUHITO_ASSIGNMENT_VERSION ||..o{ FUHITO_ASSIGNMENT : "ASSIGNMENT_ID"
     FUHITO_CHANGE_ORDER |o..o{ FUHITO_CHANGE_LOG : "CHANGE_ORDER_ID"
     FUHITO_EMPLOYMENT |o..o{ FUHITO_EMPLOYMENT : "CONTINUES_EMPLOYMENT_ID"
     FUHITO_ORG_UNIT |o..o{ FUHITO_EMPLOYMENT : "EMPLOYER_ID"

@@ -145,7 +145,8 @@ public interface AssignmentStore {
     }
 
     /**
-     * Stores new rows in their order. A row of an assignment that has rows already takes their version.
+     * Stores new rows in their order. A row of a stored assignment counts up the version of the assignment, once in
+     * the transaction. A new assignment takes the version of its first row.
      *
      * @param rows the rows
      */

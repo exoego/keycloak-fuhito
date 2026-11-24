@@ -42,6 +42,7 @@ class RemovalsIT {
         assertEquals(204, api.deleteWithVersion("/employments/" + employment).statusCode());
         assertEquals(204, api.deleteWithVersion("/org-units/" + unit).statusCode());
         assertEquals(404, api.get("/assignments/" + assignment).statusCode());
+        assertEquals(0, KeycloakEnvironment.versionRows(assignment));
         assertEquals(404, api.get("/employments/" + employment).statusCode());
         assertEquals(404, api.get("/org-units/" + unit).statusCode());
         assertEquals(List.of(), Api.json(api.get("/org-units/" + parent + "/children?asOf=2026-05-01"))

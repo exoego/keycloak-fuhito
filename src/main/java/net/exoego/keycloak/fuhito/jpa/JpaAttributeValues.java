@@ -32,9 +32,8 @@ public class JpaAttributeValues implements AttributeValueStore {
                     PersonEntity.class),
             Target.EMPLOYMENT_TERMS, new Table("FUHITO_EMPLOYMENT_TERMS", "EMPLOYMENT_ID", "FUHITO_EMPLOYMENT", "ID",
                     EmploymentTermsEntity.class, EmploymentEntity.class),
-            // Every row of an assignment holds the version of the assignment.
-            Target.ASSIGNMENT, new Table("FUHITO_ASSIGNMENT", "ASSIGNMENT_ID", "FUHITO_ASSIGNMENT", "ASSIGNMENT_ID",
-                    AssignmentEntity.class, AssignmentEntity.class),
+            Target.ASSIGNMENT, new Table("FUHITO_ASSIGNMENT", "ASSIGNMENT_ID", "FUHITO_ASSIGNMENT_VERSION", "ID",
+                    AssignmentEntity.class, AssignmentVersionEntity.class),
             Target.QUALIFICATION, new Table("FUHITO_QUALIFICATION", "ID", "FUHITO_QUALIFICATION", "ID",
                     QualificationEntity.class, QualificationEntity.class),
             Target.REF_ITEM, new Table("FUHITO_REF_ITEM", "ID", "FUHITO_REF_ITEM", "ID", RefItemEntity.class,

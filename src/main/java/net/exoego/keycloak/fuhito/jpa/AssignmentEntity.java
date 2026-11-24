@@ -8,16 +8,15 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.PostLoad;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 
 /**
- * The placement of an employment in an org unit, as it is for a period.
+ * The placement of an employment in an org unit, as it is for a period. The version of the assignment is in
+ * {@link AssignmentVersionEntity}.
  */
 @Entity
 @Table(name = "FUHITO_ASSIGNMENT")
-public class AssignmentEntity implements VersionedRow {
+public class AssignmentEntity {
 
     @Id
     @Column(name = "ID", length = 36)
@@ -75,27 +74,9 @@ public class AssignmentEntity implements VersionedRow {
     @Column(name = "SOURCE", length = 64)
     String source;
 
-    // The version of the assignment. Every row of it has the same one.
-    @Column(name = "VERSION", nullable = false)
-    long version;
-
-    // True once a write of this session counted up the version. A session of Keycloak has one transaction.
-    @Transient
-    boolean counted;
-
     /**
      * Creates an empty entity for JPA.
      */
     public AssignmentEntity() {
-    }
-
-    @Override
-    public boolean counted() {
-        return counted;
-    }
-
-    @PostLoad
-    void loaded() {
-        counted |= JpaLongWrite.counted(AssignmentEntity.class, id);
     }
 }

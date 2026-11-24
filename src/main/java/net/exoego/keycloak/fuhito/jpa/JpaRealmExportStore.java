@@ -190,15 +190,14 @@ public class JpaRealmExportStore implements RealmExportStore {
     // The rows are found by their assignments alone, for the reason in Rows.inRealm.
     @Override
     public List<Assignment> rowsOf(Collection<String> assignmentIds) {
-        return em.createQuery("""
+        return AssignmentReads.of(em, em.createQuery("""
                         select a from AssignmentEntity a where %s
                         order by a.assignmentId, a.validFrom""".formatted(ManyIds.has("a.assignmentId", "ids")),
                         AssignmentEntity.class)
                 .setParameter("ids", ManyIds.of(assignmentIds))
                 .getResultStream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
-                .map(JpaAssignmentStore::toDomain)
-                .toList();
+                .toList());
     }
 
     @Override

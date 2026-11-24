@@ -368,9 +368,61 @@ What the runs showed.
 
 - The realm is held alone for the whole write. So the other writes of the realm wait up to about 6.5 seconds for a new work location of the whole company, and about 0.1 seconds for one of a team. The team was done before the new unit came. An earlier run of the change gave 87, 5,459, and 3,620 ms.
 - The change from the first date covers every period of every assignment with no work location of its own, also the periods that ended in 2024. The change from today covers the periods of today.
-- The update of the versions of the assignments took 5.2 of the 6.5 seconds, and 3.4 of the 4.2 seconds. The version is on every row of an assignment, so each row gets a new row version. PostgreSQL then checks the two exclusion constraints of the assignments for each one. In a transaction that dropped the two constraints, the same update of 45,000 assignments took 0.5 seconds instead of 3.5. See #792.
+- The update of the versions of the assignments took 5.2 of the 6.5 seconds, and 3.4 of the 4.2 seconds. The version was on every row of an assignment, so each row got a new row version. PostgreSQL then checked the two exclusion constraints of the assignments for each one. In a transaction that dropped the two constraints, the same update of 45,000 assignments took 0.5 seconds instead of 3.5. So the version of an assignment moved to a table of its own, as the next part shows.
 - The walk down from the company over every date took about 8 ms for 5,001 units. The read of the 76,543 rows of assignments that take a value took about 7 ms, and the count up of 7,287 org units about 12 ms. Most of the rest is the 47,373 entries of the change log.
-- A fillfactor of 80 on the table of assignments did not help. Most rows of a page get a new version at once, so few of them fit on the same page.
+- A fillfactor of 80 on the table of assignments did not help. Most rows of a page got a new version at once, so few of them fit on the same page.
+
+### The version of an assignment in a table of its own
+
+The version of an assignment is in `FUHITO_ASSIGNMENT_VERSION`, with one row for each assignment. That table has no exclusion constraint, and the rows of the periods have no version. So the count-up of many assignments is one update of small rows. A read of assignments reads their rows as before, and then the versions of those assignments with one more query.
+
+`main` at commit `7af0d069` and the change at commit `82de94f0` ran one after the other, each with its own fill of the realm, three times each. Run on 2026-11-24 with Keycloak 26.8.2 and PostgreSQL 18, on the same laptop as above. Docker (OrbStack 29.8.2) had 2 CPUs and 8 GB of memory for Keycloak and PostgreSQL together. Other jobs used the machine during the run.
+Each number is the median of the three runs in ms, with the lowest and the highest in parentheses. A write was one request in each run, and a read the best of five.
+
+| Write | Propagated changes | `main` | Change | New unit, `main` | New unit, change |
+|---|---|---|---|---|---|
+| A team with 10 members, from today | 9 | 43 (36–50) | 44 (42–53) | 9 (8–13) | 8 (7–10) |
+| The company, from its first date | 47,844 | 7,502 (7,457–7,780) | 1,204 (1,189–1,425) | 7,317 (7,269–7,586) | 1,018 (997–1,248) |
+| The company, from today | 36,612 | 5,306 (5,234–5,549) | 1,033 (939–1,047) | 5,134 (5,065–5,375) | 843 (773–862) |
+
+The time of the write of the company from its first date in the database, by `pg_stat_statements`, which was reset before the write.
+
+| Part | `main` | Change |
+|---|---|---|
+| The update of the versions of the assignments | 6,425 (6,323–6,648) | 169 (167–180) |
+| The entries of the change log | 428 (423–441) | 412 (397–440) |
+| The other statements | 49 (48–49) | 48 (48–49) |
+| The whole write, by curl | 7,502 (7,457–7,780) | 1,204 (1,189–1,425) |
+
+The reads that read many assignments.
+
+| Read | Path | `main` | Change |
+|---|---|---|---|
+| Members of a team | `/org-units/u-4321/members` | 13 (12–16) | 17 (13–20) |
+| Members below a division, 1,000 people | `/org-units/u-1/members?includeDescendants=true&max=1000` | 62 (61–63) | 68 (68–73) |
+| Members below a division, by cost center | `/org-units/u-1/members?includeDescendants=true&max=1000&costCenter=cc-1` | 62 (61–66) | 66 (62–66) |
+| Members below the company, page 400 | `/org-units/u-0/members?includeDescendants=true&first=40000&max=100` | 281 (280–283) | 279 (276–281) |
+| Assignments, first page | `/assignments?max=100` | 27 (25–28) | 29 (26–29) |
+| Assignments, page of 1,000 | `/assignments?max=1000` | 184 (174–190) | 183 (175–188) |
+
+With 500,000 people and 50,000 org units, as in "A realm ten times as large", each side ran once.
+
+| Write | Propagated changes | `main` | Change | New unit, `main` | New unit, change |
+|---|---|---|---|---|---|
+| A team, from today | 9 | 83 | 85 | 17 | 13 |
+| The company, from its first date | 468,588 | 75,390 | 14,054 | 75,216 | 13,890 |
+| The company, from today | 360,439 | 50,045 | 11,139 | 49,884 | 10,962 |
+
+In the write from the first date, the update of the versions of 432,544 assignments took 64,082 ms on `main` and 1,896 ms with the change. The 468,590 entries of the change log took 5,249 and 5,487 ms.
+
+What the runs showed.
+
+- The other writes of the realm wait about 1 second for a new work location of the whole company, in place of 7.3 seconds. A team still takes about 45 ms.
+- The update of the versions writes one row for each of the 44,200 assignments, with no exclusion constraint to check. It took 0.17 seconds in place of 6.4.
+- The 47,844 entries of the change log took 0.4 seconds. Most of the rest of the write is outside the database.
+- A read of assignments sends one more query for their versions. It took 0.5 ms for a page of 1,000 assignments, and 1.6 ms for the 1,000 members below a division, by `EXPLAIN ANALYZE`. The reads above took at most 6 ms more than on `main`.
+- A read of one person or one assignment did not change.
+- With 500,000 people, the read of 1,000 members below a division took 173 ms in place of 112, in one run of each. Its statements took 61 ms in the database in place of 57. A page of 1,000 assignments took 208 ms in place of 195.
 
 ## A change of the order of the names
 

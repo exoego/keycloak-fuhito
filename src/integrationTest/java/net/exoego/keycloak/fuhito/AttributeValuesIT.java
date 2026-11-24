@@ -142,10 +142,6 @@ class AttributeValuesIT {
                     target);
             assertEquals(404, api.get(delete).statusCode(), target);
         }
-        // Every row of an assignment holds its version, and keeps the same one.
-        String assignment = lookup(api, "ASSIGNMENT", "A");
-        assertEquals(1, count("select count(distinct version) from fuhito_assignment where assignment_id = '"
-                + assignment + "'"));
     }
 
     @Test

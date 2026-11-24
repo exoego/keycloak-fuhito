@@ -253,7 +253,7 @@ class BulkWriteLocksIT {
         CompletableFuture<HttpResponse<String>> write;
         try (Connection first = KeycloakEnvironment.connection()) {
             first.setAutoCommit(false);
-            update(first, "update fuhito_assignment set version = version where assignment_id = ?", assignment);
+            update(first, "update fuhito_assignment_version set version = version where id = ?", assignment);
             // The piece of alice waits for her assignment, and holds the realm meanwhile.
             sync = waitingFor(first, () -> api.post("/attribute-sync/run", ""));
             write = waitingFor(waiterOf(first), () -> api.post("/org-units", UNIT.formatted("B")));

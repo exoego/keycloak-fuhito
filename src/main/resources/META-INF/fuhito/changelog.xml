@@ -444,7 +444,8 @@
             </column>
             <column name="SOURCE" type="VARCHAR(64)"/>
             <column name="CONTINUES_ASSIGNMENT_ID" type="VARCHAR(36)"/>
-            <!-- The version of the assignment. Every row of one assignment has the same one. -->
+            <!-- The version of the assignment. Every row of one assignment has the same one.
+                 0.1.0-assignment-version moves it to a table of its own. -->
             <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
                 <constraints nullable="false"/>
             </column>
@@ -1302,6 +1303,34 @@
         <createIndex tableName="FUHITO_ASSIGNMENT" indexName="IDX_FUHITO_ASSIGNMENT_EMPLOYMENT">
             <column name="EMPLOYMENT_ID"/>
             <column name="VALID_TO"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- An assignment keeps its version in a row of its own, and the rows of its periods have none. A count-up of the
+         versions of many assignments then writes one small row for each, and no row that the exclusion constraints of
+         the periods check. Each assignment takes the version that its rows have. -->
+    <changeSet id="0.1.0-assignment-version" author="keycloak-fuhito">
+        <createTable tableName="FUHITO_ASSIGNMENT_VERSION">
+            <column name="ID" type="VARCHAR(36)">
+                <constraints primaryKey="true" primaryKeyName="PK_FUHITO_ASSIGNMENT_VERSION" nullable="false"/>
+            </column>
+            <column name="REALM_ID" type="VARCHAR(36)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VERSION" type="BIGINT" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            INSERT INTO FUHITO_ASSIGNMENT_VERSION (ID, REALM_ID, VERSION)
+            SELECT ASSIGNMENT_ID, MIN(REALM_ID), MAX(VERSION) FROM FUHITO_ASSIGNMENT GROUP BY ASSIGNMENT_ID
+        </sql>
+        <dropColumn tableName="FUHITO_ASSIGNMENT" columnName="VERSION"/>
+        <addForeignKeyConstraint baseTableName="FUHITO_ASSIGNMENT" baseColumnNames="ASSIGNMENT_ID"
+                                 referencedTableName="FUHITO_ASSIGNMENT_VERSION" referencedColumnNames="ID"
+                                 constraintName="FK_FUHITO_ASSIGNMENT_VERSION"/>
+        <createIndex tableName="FUHITO_ASSIGNMENT_VERSION" indexName="IDX_FUHITO_ASSIGNMENT_VERSION_REALM">
+            <column name="REALM_ID"/>
         </createIndex>
     </changeSet>
 </databaseChangeLog>

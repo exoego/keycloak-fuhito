@@ -294,8 +294,8 @@ class RealmExportIT {
                     + "\", \"primaryLanguage\": \"en\", \"names\": {\"en\": {\"name\": \"" + username + "\"}}}")));
         }
         // A mask needs a person with no open employment.
-        ok(realm.api.post("/staff", "{\"personId\": \"" + people.get("erased") + "\", \"orgUnitId\": \"" + hospital
-                + "\", \"validFrom\": \"2020-04-01\"}"));
+        String assignment = Api.json(realm.api.post("/staff", "{\"personId\": \"" + people.get("erased")
+                + "\", \"orgUnitId\": \"" + hospital + "\", \"validFrom\": \"2020-04-01\"}")).get("assignment").get("id").asText();
         ObjectNode before = export(realm.api);
 
         assertEquals(204, realm.api.deleteWithVersion("/people/" + people.get("erased") + "/data").statusCode());
@@ -303,6 +303,7 @@ class RealmExportIT {
         ok(realm.api.post("/restore?replace=true", JSON.writeValueAsString(before)));
 
         assertEquals(404, realm.api.get("/people/" + people.get("erased")).statusCode());
+        assertEquals(0, KeycloakEnvironment.versionRows(assignment));
         // The mask came after the export, so the person is back as the export has it.
         JsonNode masked = Api.json(realm.api.get("/people/" + people.get("masked")));
         assertEquals("masked", masked.get("name").asText(), masked.toString());
@@ -316,6 +317,7 @@ class RealmExportIT {
         realm.remove();
         ok(target.api.post("/restore", JSON.writeValueAsString(before)));
         assertEquals(404, target.api.get("/people/" + people.get("erased")).statusCode());
+        assertEquals(0, KeycloakEnvironment.versionRows(assignment));
         assertEquals(after.get("erasures"), export(target.api).get("erasures"));
     }
 

@@ -15,7 +15,7 @@ final class OldStatistics {
 
     private static final String TABLES = """
             fuhito_org_unit, fuhito_org_unit_version, fuhito_org_unit_version_name, fuhito_org_unit_link,
-            fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment""";
+            fuhito_person, fuhito_employment, fuhito_employment_terms, fuhito_assignment_version, fuhito_assignment""";
 
     private OldStatistics() {
     }
@@ -115,6 +115,8 @@ final class OldStatistics {
                 insert into fuhito_employment_terms (id, realm_id, employment_id, valid_from, status, attributes)
                 select '%1$s-terms-' || i, '%1$s-realm', '%1$s-employment-' || i, '2026-04-01', 'ACTIVE', '{}'
                 from generate_series(1, %2$d) i""", """
+                insert into fuhito_assignment_version (id, realm_id)
+                select '%1$s-assignment-' || i, '%1$s-realm' from generate_series(1, %2$d) i""", """
                 insert into fuhito_assignment (id, realm_id, assignment_id, employment_id, org_unit_id, valid_from,
                 is_primary, attributes) select '%1$s-row-' || i, '%1$s-realm', '%1$s-assignment-' || i,
                 '%1$s-employment-' || i, '%1$s-unit-' || (i %% 20 + 1), '2026-04-01', true, '{}'

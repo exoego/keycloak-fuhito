@@ -548,6 +548,7 @@ class PeopleIT {
         assertEquals(mask.get("maskedAt").asText(), ok(scratchApi.postWithVersion(people + "/mask", "")).get("maskedAt").asText());
 
         assertEquals(204, scratchApi.deleteWithVersion(people + "/data").statusCode());
+        assertEquals(0, KeycloakEnvironment.versionRows(staff.get("assignment").get("id").asText()));
         assertEquals("person.not_found", errorOf(404, scratchApi.get(people)));
         assertEquals("person.not_found", errorOf(404, scratchApi.deleteWithVersion(people + "/data")));
         assertEquals(404, scratchApi.get("/employments/" + staff.get("employment").get("id").asText()).statusCode());

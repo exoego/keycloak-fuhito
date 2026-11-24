@@ -46,8 +46,7 @@ public final class RowLocks {
         ROWS.put("qualifications", new Rows(QualificationEntity.class, "id"));
         ROWS.put("employments", new Rows(EmploymentEntity.class, "id"));
         ROWS.put("unit-roles", new Rows(UnitRoleEntity.class, "id"));
-        // An assignment has no row of its own, only one row for each of its periods.
-        ROWS.put("assignments", new Rows(AssignmentEntity.class, "assignmentId"));
+        ROWS.put("assignments", new Rows(AssignmentVersionEntity.class, "id"));
         ROWS.put("reporting-lines", new Rows(ReportingLineEntity.class, "id"));
     }
 
