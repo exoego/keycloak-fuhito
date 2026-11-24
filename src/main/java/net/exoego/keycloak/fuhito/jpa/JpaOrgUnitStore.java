@@ -315,15 +315,22 @@ public class JpaOrgUnitStore implements OrgUnitStore {
              and (v.displayOrder > :afterOrder or v.displayOrder = :afterOrder and p.phoneticName is null
             and (p.name > :afterName or p.name = :afterName and v.orgUnitId > :afterId))""";
 
+    // The unit types are of the realm, so the versions are found by them alone. With the realm of the versions,
+    // PostgreSQL took the index of the realm while the statistics did not know a new realm. With a join to the types,
+    // it read every version before the join. So the query takes the IDs of the types as values.
+    private static final String OF_LEGAL_ENTITY_TYPE = ManyIds.has("v.unitTypeId", "legalEntityTypes");
+
     // Each piece is a fixed text. The values of the search go in as parameters.
     private static String searchText(OrgUnitStore.Search search, OrgUnitVersion after, boolean count) {
+        boolean legalEntities = Boolean.TRUE.equals(search.legalEntity());
         StringBuilder text = new StringBuilder(count ? "select count(v)" : """
                 select u, v, (select l.parentId from OrgUnitLinkEntity l where l.realmId = :realmId
                     and l.hierarchyId = :hierarchyId and l.childId = v.orgUnitId and l.%s)""".formatted(
                 TreeQuery.onDate("l")));
         text.append(" from OrgUnitVersionEntity v join OrgUnitEntity u on u.id = v.orgUnitId")
                 .append(count ? "" : OrgUnitNames.JOIN_PRIMARY)
-                .append(" where v.realmId = :realmId and v.").append(TreeQuery.onDate("v"));
+                .append(" where ").append(legalEntities ? OF_LEGAL_ENTITY_TYPE : "v.realmId = :realmId")
+                .append(" and v.").append(TreeQuery.onDate("v"));
         if (search.text() != null) {
             text.append("""
                      and exists (select 1 from OrgUnitVersionNameEntity n where n.versionId = v.id
@@ -338,7 +345,9 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         }
         text.append(nature(search.lateral()));
         text.append(marked("rollupUnit", search.rollup()));
-        text.append(marked("legalEntity", search.legalEntity()));
+        if (!legalEntities) {
+            text.append(marked("legalEntity", search.legalEntity()));
+        }
         if (search.roots() != null) {
             text.append(" and ").append(search.roots() == OrgUnitStore.Roots.LINKED ? LINKED_ROOT : DEFAULT_ROOT);
         }
@@ -354,8 +363,11 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     private <T> TypedQuery<T> searchQuery(String hierarchyId, OrgUnitStore.Search search, LocalDate date,
             OrgUnitVersion after, boolean count, Class<T> type) {
         TypedQuery<T> query = em.createQuery(searchText(search, after, count), type)
-                .setParameter("realmId", realmId)
                 .setParameter("date", date);
+        // A count of legal entities can leave the realm out.
+        if (query.getParameters().stream().anyMatch(parameter -> "realmId".equals(parameter.getName()))) {
+            query.setParameter("realmId", realmId);
+        }
         if (!count || search.roots() != null) {
             query.setParameter("hierarchyId", hierarchyId);
         }
@@ -369,6 +381,13 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         }
         if (search.unitTypeId() != null) {
             query.setParameter("unitTypeId", search.unitTypeId());
+        }
+        if (Boolean.TRUE.equals(search.legalEntity())) {
+            query.setParameter("legalEntityTypes", ManyIds.of(em.createQuery("""
+                            select g.id from RefItemEntity g where g.realmId = :realmId and g.legalEntity = true""",
+                            String.class)
+                    .setParameter("realmId", realmId)
+                    .getResultList()));
         }
         if (after != null) {
             OrgUnitName names = after.names().primary();
