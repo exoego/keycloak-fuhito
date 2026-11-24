@@ -715,12 +715,14 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return found;
     }
 
+    // The hierarchy comes from a sub-select, for the reason in CHILDREN. This one reads no table, so with fresh
+    // statistics the read takes no more time than with the hierarchy as a value.
     @Override
     public List<OrgUnitLink> childLinks(String hierarchyId, String parentId) {
         return em.createQuery("""
                         select l from OrgUnitLinkEntity l where l.realmId = :realmId
-                        and l.hierarchyId = :hierarchyId and l.parentId = :parentId order by l.validFrom, l.childId""",
-                        OrgUnitLinkEntity.class)
+                        and l.hierarchyId = (select :hierarchyId) and l.parentId = :parentId
+                        order by l.validFrom, l.childId""", OrgUnitLinkEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("parentId", parentId)
