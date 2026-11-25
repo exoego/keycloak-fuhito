@@ -62,7 +62,7 @@ jobs:
           node-version: '26'
 
       # renovate: datasource=npm depName=@redocly/cli
-      - run: npx --yes @redocly/cli@2.79.0 lint
+      - run: npx --yes @redocly/cli@2.80.0 lint
 
   codeql:
     name: CodeQL (${{ matrix.language }})
