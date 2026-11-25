@@ -548,6 +548,12 @@ This copies a realm to a test environment, moves it to another Keycloak, or brin
 
 - `GET /export/{list}` reads one list in pages, ordered by ID. Follow the `Link` header to the end. The lists are `ref-kinds`, `ref-items`, `attribute-definitions`, `hierarchies`, `org-units`, `people`, `employments`, `assignments`, `reporting-lines`, `unit-roles`, `qualifications`, `external-ids`, `change-orders`, and `erasures`.
 - Put the lists together under their names in camel case, such as `refKinds`, with `"format": "fuhito.export.v1"`. `POST /restore` takes that document.
+- A restore takes the whole document in one request, and runs in one transaction. Keycloak refuses a body of more than 10 MiB with 413 and an empty body. An export of about 5,000 rows of each list is that large. A larger export needs three settings of Keycloak. Each has a margin of about 50% over what was measured.
+  - The raw Quarkus property `quarkus.http.limits.max-body-size` in `conf/quarkus.properties` must be 1.5 times the size of the document. It holds for every request to Keycloak, also for those with no login. So raise it only for the restore if you can.
+  - The restore holds the whole document in memory until it ends. Keycloak needs about 150 MB plus 7 times the size of the document of heap, beyond what it uses otherwise.
+  - `transaction-default-timeout` is 5 minutes by default. It must be 1.5 times the time of the restore.
+
+  For example, an export of 50,000 rows of each list was 105 MB. Its restore took up to 268 s on a test machine with 2 CPUs. It needs `quarkus.http.limits.max-body-size=160M`, about 900 MB of heap, and `--transaction-default-timeout=7m`.
 - A reference item has every period of its names in `versions`, each with `primaryLanguage` and `names`. A restore needs them.
 - An employment has `employerId`, the ID of its legal entity, or `externalEmployerId`, the ID of the reference item of its external employer. A row with both fails with 400 and `restore.bad_value`, as the rules below say.
 - A restore keeps every ID, so products that stored IDs find the same resources. It writes all or nothing. The default hierarchy of the export takes the place of the one of the empty realm, with its ID and its name.
