@@ -359,7 +359,7 @@ public class FuhitoResource {
                 new JpaAssignmentStore(entityManager, realmId), new JpaReportingLineStore(entityManager, realmId),
                 new JpaUnitRoleStore(entityManager, realmId), new JpaQualificationStore(entityManager, realmId),
                 new JpaExternalIdStore(entityManager, realmId), new JpaChangeOrderStore(entityManager, realmId),
-                users, organizations));
+                users, organizations), new JpaLongWrite(entityManager));
     }
 
     private WriteScopes writeScopes() {

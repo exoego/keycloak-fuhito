@@ -52,6 +52,7 @@ import net.exoego.keycloak.fuhito.store.ChangeOrderStore;
 import net.exoego.keycloak.fuhito.store.EmploymentStore;
 import net.exoego.keycloak.fuhito.store.ExternalIdStore;
 import net.exoego.keycloak.fuhito.store.HierarchyStore;
+import net.exoego.keycloak.fuhito.store.LongWrite;
 import net.exoego.keycloak.fuhito.store.OrgUnitStore;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.PersonStore;
@@ -107,14 +108,17 @@ public class RealmExportService {
     }
 
     private final Stores stores;
+    private final LongWrite longWrite;
 
     /**
      * Creates the service.
      *
      * @param stores the stores of the realm
+     * @param longWrite tells the storage when each row of a restore is done
      */
-    public RealmExportService(Stores stores) {
+    public RealmExportService(Stores stores, LongWrite longWrite) {
         this.stores = stores;
+        this.longWrite = longWrite;
     }
 
     /**
@@ -301,6 +305,10 @@ public class RealmExportService {
      *         a username has no user, or the realm has no organization with an alias
      */
     public Map<String, Integer> restore(RealmExport document, boolean replace, Consumer<String> linking) {
+        return longWrite.run(() -> restoreLists(document, replace, linking));
+    }
+
+    private Map<String, Integer> restoreLists(RealmExport document, boolean replace, Consumer<String> linking) {
         Checks.required("body", document);
         if (!RealmExport.FORMAT.equals(document.format())) {
             throw FuhitoException.invalid("restore.format", Map.of("format", String.valueOf(document.format())));
@@ -457,20 +465,25 @@ public class RealmExportService {
     private void restoreOrgUnits(List<RealmExport.Unit> units, Map<String, String> hierarchyIds,
             Map<String, String> organizations, Map<String, Integer> counts) {
         OrgUnitStore store = stores.orgUnits();
-        units.forEach(u -> store.insertUnit(new OrgUnit(u.id(), u.source(),
-                u.organizationAlias() == null ? null : organizations.get(u.organizationAlias()), u.timeZone(),
-                u.dayStart(), version(u.version()))));
+        for (RealmExport.Unit u : units) {
+            store.insertUnit(new OrgUnit(u.id(), u.source(),
+                    u.organizationAlias() == null ? null : organizations.get(u.organizationAlias()), u.timeZone(),
+                    u.dayStart(), version(u.version())));
+            longWrite.rowDone();
+        }
         for (RealmExport.Unit u : units) {
             u.versions().forEach(v -> store.insertVersion(new OrgUnitVersion(v.id(), u.id(), period(v.validFrom(),
                     v.validTo()), v.code(), Localized.check(v.primaryLanguage(), v.names(),
                     (field, name) -> name.checked(field)), v.unitTypeId(),
                     v.workLocationId(), v.costCenterId(), v.displayOrder(), v.attributes())));
+            longWrite.rowDone();
         }
         for (RealmExport.Unit u : units) {
             u.parents().forEach(p -> store.insertLink(new OrgUnitLink(p.id(), hierarchyIds.get(p.hierarchy()),
                     u.id(), p.parentId(), period(p.validFrom(), p.validTo()))));
             u.successors().forEach(s -> store.insertSuccession(new OrgUnitSuccession(s.id(), u.id(),
                     s.successorId(), LocalDate.parse(s.effectiveDate()))));
+            longWrite.rowDone();
         }
         counts.put("org-units", units.size());
     }
@@ -489,6 +502,7 @@ public class RealmExportService {
                     period(t.validFrom(), t.validTo()), t.employmentTypeId(), t.gradeId(),
                     EmploymentStatus.valueOf(t.status()), t.leaveReasonId(), t.workPercent(),
                     date(t.contractEndDate()), t.attributes())));
+            longWrite.rowDone();
         }
         counts.put("employments", rows.size());
     }
@@ -499,17 +513,23 @@ public class RealmExportService {
         rows.sort(Comparator.comparing(RealmExport.Period::validFrom));
         Map<String, AssignmentRows> assignmentOfRow = new HashMap<>();
         assignments.forEach(a -> a.periods().forEach(r -> assignmentOfRow.put(r.rowId(), a)));
-        rows.forEach(r -> stores.assignments().insert(new Assignment(r.rowId(),
-                assignmentOfRow.get(r.rowId()).assignmentId(), r.employmentId(), r.orgUnitId(),
-                period(r.validFrom(), r.validTo()), r.jobTitleId(), r.occupationId(), r.kindId(), r.workLocationId(),
-                r.costCenterId(), r.head(), r.primary(), r.allocationPercent(), r.displayOrder(), r.attributes(),
-                r.source(), version(assignmentOfRow.get(r.rowId()).version()))));
+        for (RealmExport.Period r : rows) {
+            stores.assignments().insert(new Assignment(r.rowId(),
+                    assignmentOfRow.get(r.rowId()).assignmentId(), r.employmentId(), r.orgUnitId(),
+                    period(r.validFrom(), r.validTo()), r.jobTitleId(), r.occupationId(), r.kindId(),
+                    r.workLocationId(), r.costCenterId(), r.head(), r.primary(), r.allocationPercent(),
+                    r.displayOrder(), r.attributes(), r.source(), version(assignmentOfRow.get(r.rowId()).version())));
+            longWrite.rowDone();
+        }
         counts.put("assignments", assignments.size());
     }
 
-    private static <T> int each(String list, List<T> rows, Consumer<T> write) {
+    private <T> int each(String list, List<T> rows, Consumer<T> write) {
         List<T> all = rows == null ? List.of() : rows;
-        rows(list, () -> all.forEach(write));
+        rows(list, () -> all.forEach(row -> {
+            write.accept(row);
+            longWrite.rowDone();
+        }));
         return all.size();
     }
 
