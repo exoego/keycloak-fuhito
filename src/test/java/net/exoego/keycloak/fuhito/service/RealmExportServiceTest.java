@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.FuhitoException;
+import net.exoego.keycloak.fuhito.store.LongWrite;
 import net.exoego.keycloak.fuhito.store.RealmExportStore;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +30,7 @@ class RealmExportServiceTest {
                     return (RealmExportStore.Page<?>) (afterId, max) -> List.of();
                 });
         RealmExportService service = new RealmExportService(new RealmExportService.Stores(store, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null));
+                null, null, null, null, null, null, null, null, null, null, null, null), LongWrite.NONE);
 
         for (String list : RealmExport.LISTS) {
             int before = read.size();
