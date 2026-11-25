@@ -72,7 +72,7 @@ public final class GroupTrees {
                 .setParameter("realmId", realmId)
                 .setParameter("startId", startId)
                 .setParameter("attribute", attribute)
-                .getResultStream()
+                .getResultList().stream()
                 .forEach(row -> byId.putIfAbsent((String) row[0], new Group((String) row[0], (String) row[1],
                         startId.equals(row[2]) ? null : (String) row[2], (String) row[3])));
         Map<String, List<Group>> children = new HashMap<>();

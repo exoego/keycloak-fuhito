@@ -32,7 +32,7 @@ public class JpaJobRunStore implements JobRunStore {
                         JobRunEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("job", job)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst();
     }
 

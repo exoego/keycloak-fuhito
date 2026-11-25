@@ -39,7 +39,7 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
                         ChangeOrderEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("number", number)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst()
                 .map(JpaChangeOrderStore::toDomain);
     }
@@ -50,7 +50,7 @@ public class JpaChangeOrderStore implements ChangeOrderStore {
                         ChangeOrderEntity.class)
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaChangeOrderStore::toDomain)
                 .toList();
     }

@@ -190,7 +190,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
         return em.createQuery("select u from OrgUnitEntity u where %s".formatted(ManyIds.has("u.id", "ids")),
                         OrgUnitEntity.class)
                 .setParameter("ids", ManyIds.of(ids))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, u -> u.realmId))
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();
@@ -205,7 +205,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("realmId", realmId)
                 .setParameter("code", code)
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst()
                 .map(JpaOrgUnitStore::toDomain);
     }
@@ -231,7 +231,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         and u.keycloakOrganizationId = :organizationId""", OrgUnitEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("organizationId", organizationId)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst()
                 .map(JpaOrgUnitStore::toDomain);
     }
@@ -249,7 +249,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     public List<OrgUnit> units() {
         return em.createQuery("select u from OrgUnitEntity u where u.realmId = :realmId", OrgUnitEntity.class)
                 .setParameter("realmId", realmId)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();
     }
@@ -275,7 +275,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();
     }
@@ -443,7 +443,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     private long countInRealm(TypedQuery<Object[]> counts) {
-        return counts.getResultStream()
+        return counts.getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                 .mapToLong(row -> (Long) row[1])
                 .sum();
@@ -471,7 +471,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .forEach(row -> result.computeIfAbsent((String) row[0], id -> new HashSet<>()).add((String) row[1]));
         return result;
     }
@@ -484,7 +484,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("hierarchyId", defaultHierarchyId())
                 .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(row -> row[1] != null || row[2] != null)
                 .forEach(row -> result.merge((String) row[0], new UnitDefaults((String) row[1], (String) row[2]),
                         (near, far) -> new UnitDefaults(
@@ -504,7 +504,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("hierarchyId", defaultHierarchyId())
                 .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .forEach(row -> result.put((String) row[0], (String) row[1]));
         return result;
     }
@@ -520,7 +520,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         select v.realmId, v.orgUnitId, v.validFrom, v.validTo from OrgUnitVersionEntity v
                         where %s order by v.validFrom""".formatted(ManyIds.has("v.orgUnitId", "ids")), Object[].class)
                 .setParameter("ids", ManyIds.of(ids))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                 .forEach(row -> lives.merge((String) row[1], new ValidPeriod((LocalDate) row[2], (LocalDate) row[3]),
                         (first, later) -> new ValidPeriod(first.from(), later.to())));
@@ -549,7 +549,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         select u from OrgUnitEntity u where u.realmId = :realmId
                         and (u.timeZone is not null or u.dayStart is not null)""", OrgUnitEntity.class)
                 .setParameter("realmId", realmId)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();
     }
@@ -574,7 +574,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("ids", ManyIds.of(ids))
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> ((OrgUnitVersionEntity) row[1]).realmId))
                 .toList(), row -> (String) row[2]);
     }
@@ -634,7 +634,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         select v from OrgUnitVersionEntity v where v.orgUnitId = :orgUnitId
                         order by v.validFrom""", OrgUnitVersionEntity.class)
                 .setParameter("orgUnitId", orgUnitId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, v -> v.realmId))
                 .toList());
     }
@@ -648,7 +648,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         order by v.validFrom""".formatted(ManyIds.has("v.orgUnitId", "ids")),
                         OrgUnitVersionEntity.class)
                 .setParameter("ids", ManyIds.of(orgUnitIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, v -> v.realmId))
                 .toList())
                 .forEach(version -> found.computeIfAbsent(version.orgUnitId(), id -> new ArrayList<>()).add(version));
@@ -697,7 +697,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("childId", childId)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();
     }
@@ -711,7 +711,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         order by l.validFrom""".formatted(ManyIds.has("l.childId", "ids")), OrgUnitLinkEntity.class)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("ids", ManyIds.of(childIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, l -> l.realmId))
                 .map(JpaOrgUnitStore::toDomain)
                 .forEach(link -> found.computeIfAbsent(link.childId(), id -> new ArrayList<>()).add(link));
@@ -729,7 +729,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("realmId", realmId)
                 .setParameter("hierarchyId", hierarchyId)
                 .setParameter("parentId", parentId)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();
     }
@@ -741,7 +741,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         and l.childId = :childId order by l.validFrom, l.hierarchyId""", OrgUnitLinkEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("childId", childId)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();
     }
@@ -809,7 +809,7 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                         order by s.effectiveDate, s.predecessorId, s.successorId""", OrgUnitSuccessionEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("id", orgUnitId)
-                .getResultStream()
+                .getResultList().stream()
                 .map(e -> new OrgUnitSuccession(e.id, e.predecessorId, e.successorId, e.effectiveDate))
                 .toList();
     }

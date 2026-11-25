@@ -48,7 +48,7 @@ public class JpaHierarchyStore implements HierarchyStore {
                 .setParameter("realmId", realmId)
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaHierarchyStore::toDomain)
                 .toList();
     }
@@ -74,7 +74,7 @@ public class JpaHierarchyStore implements HierarchyStore {
                         HierarchyEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("code", code)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst()
                 .map(JpaHierarchyStore::toDomain);
     }

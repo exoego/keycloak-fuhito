@@ -68,7 +68,7 @@ public class JpaRealmExportStore implements RealmExportStore {
             query.where(builder.equal(builder.concat(row.get("realmId"), builder.literal("")), realmId),
                     builder.greaterThan(row.get("id"), afterId == null ? "" : afterId));
             query.orderBy(builder.asc(row.get("id")));
-            return em.createQuery(query).setMaxResults(max).getResultStream().map(toDomain).toList();
+            return em.createQuery(query).setMaxResults(max).getResultList().stream().map(toDomain).toList();
         };
     }
 
@@ -112,7 +112,7 @@ public class JpaRealmExportStore implements RealmExportStore {
                         order by v.orgUnitId, v.validFrom""".formatted(ManyIds.has("v.orgUnitId", "ids")),
                         OrgUnitVersionEntity.class)
                 .setParameter("ids", ManyIds.of(orgUnitIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, v -> v.realmId))
                 .toList());
     }
@@ -125,7 +125,7 @@ public class JpaRealmExportStore implements RealmExportStore {
                         OrgUnitLinkEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(orgUnitIds))
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaOrgUnitStore::toDomain)
                 .toList();
     }
@@ -138,7 +138,7 @@ public class JpaRealmExportStore implements RealmExportStore {
                         OrgUnitSuccessionEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(orgUnitIds))
-                .getResultStream()
+                .getResultList().stream()
                 .map(e -> new OrgUnitSuccession(e.id, e.predecessorId, e.successorId, e.effectiveDate))
                 .toList();
     }
@@ -157,7 +157,7 @@ public class JpaRealmExportStore implements RealmExportStore {
                         .formatted(ManyIds.has("m.personId", "ids")), UserMaskEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(personIds))
-                .getResultStream()
+                .getResultList().stream()
                 .forEach(mask -> result.put(mask.personId, mask.maskedAt));
         return result;
     }
@@ -193,7 +193,7 @@ public class JpaRealmExportStore implements RealmExportStore {
                         order by a.assignmentId, a.validFrom""".formatted(ManyIds.has("a.assignmentId", "ids")),
                         AssignmentEntity.class)
                 .setParameter("ids", ManyIds.of(assignmentIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
                 .toList());
     }
@@ -293,7 +293,7 @@ public class JpaRealmExportStore implements RealmExportStore {
                         ManyIds.has(id, "ids")), String.class)
                 .setParameter("ids", ManyIds.of(ids))
                 .setMaxResults(1)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst();
     }
 
@@ -343,7 +343,7 @@ public class JpaRealmExportStore implements RealmExportStore {
                 .setParameter("realmId", realmId)
                 .setParameter("after", afterId == null ? "" : afterId)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(e -> new Erasure(e.personId, e.erasedAt))
                 .toList();
     }

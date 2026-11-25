@@ -35,7 +35,7 @@ public class JpaAttributeDefinitionStore implements AttributeDefinitionStore {
                 .setParameter("realmId", realmId)
                 .setParameter("target", target == null ? "" : target.name())
                 .setParameter("all", target == null)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaAttributeDefinitionStore::toDomain)
                 .toList();
     }

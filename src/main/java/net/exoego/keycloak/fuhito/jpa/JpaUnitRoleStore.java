@@ -99,7 +99,7 @@ public class JpaUnitRoleStore implements UnitRoleStore {
         return holdersQuery(hierarchyId, orgUnitId, roleId, nearest, date, false, Object[].class)
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(row -> new UnitRole((String) row[0], (String) row[1], (String) row[2], (String) row[3],
                         (String) row[4], (String) row[5], (Boolean) row[6],
                         new ValidPeriod((LocalDate) row[7], (LocalDate) row[8]), (Long) row[9]))
@@ -151,7 +151,7 @@ public class JpaUnitRoleStore implements UnitRoleStore {
 
     private List<UnitRole> list(TypedQuery<Object[]> query) {
         return query.setParameter("realmId", realmId)
-                .getResultStream()
+                .getResultList().stream()
                 .map(row -> {
                     UnitRoleEntity e = (UnitRoleEntity) row[0];
                     return new UnitRole(e.id, e.employmentId, (String) row[1], (String) row[2], e.orgUnitId, e.roleId,

@@ -66,7 +66,7 @@ public class JpaPlaceStore implements PlaceStore {
         if (ends) {
             query.setParameter("to", period.to());
         }
-        return query.getResultStream()
+        return query.getResultList().stream()
                 .map(row -> new PlaceSpan((String) row[0], new ValidPeriod((LocalDate) row[1], (LocalDate) row[2]),
                         (String) row[3], (String) row[4]))
                 .toList();
@@ -88,7 +88,7 @@ public class JpaPlaceStore implements PlaceStore {
         if (period.to() != null) {
             query.setParameter("to", period.to());
         }
-        return query.getResultStream()
+        return query.getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                 .map(row -> new PlaceRow((String) row[1], (String) row[2],
                         new ValidPeriod((LocalDate) row[3], (LocalDate) row[4])))

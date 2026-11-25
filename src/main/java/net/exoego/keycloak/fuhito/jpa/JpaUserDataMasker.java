@@ -38,7 +38,7 @@ public class JpaUserDataMasker implements UserDataMasker {
                         and m.personId = :personId""", Instant.class)
                 .setParameter("realmId", realmId)
                 .setParameter("personId", personId)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst();
     }
 
@@ -47,7 +47,7 @@ public class JpaUserDataMasker implements UserDataMasker {
     public void mask(String personId, Instant now) {
         List<EmploymentEntity> employments = em.createQuery("""
                         select e from EmploymentEntity e where e.personId = :personId""", EmploymentEntity.class)
-                .setParameter("personId", personId).getResultStream()
+                .setParameter("personId", personId).getResultList().stream()
                 .filter(Rows.inRealm(realmId, e -> e.realmId)).toList();
         List<String> employmentIds = new ArrayList<>();
         for (EmploymentEntity employment : employments) {
@@ -59,7 +59,7 @@ public class JpaUserDataMasker implements UserDataMasker {
         if (!employmentIds.isEmpty()) {
             em.createQuery("select t from EmploymentTermsEntity t where %s"
                             .formatted(ManyIds.has("t.employmentId", "ids")), EmploymentTermsEntity.class)
-                    .setParameter("ids", ManyIds.of(employmentIds)).getResultStream()
+                    .setParameter("ids", ManyIds.of(employmentIds)).getResultList().stream()
                     .filter(Rows.inRealm(realmId, t -> t.realmId))
                     .forEach(terms -> {
                         terms.attributes = new LinkedHashMap<>();
@@ -67,7 +67,7 @@ public class JpaUserDataMasker implements UserDataMasker {
                     });
             em.createQuery("select a from AssignmentEntity a where %s"
                             .formatted(ManyIds.has("a.employmentId", "ids")), AssignmentEntity.class)
-                    .setParameter("ids", ManyIds.of(employmentIds)).getResultStream()
+                    .setParameter("ids", ManyIds.of(employmentIds)).getResultList().stream()
                     .filter(Rows.inRealm(realmId, a -> a.realmId))
                     .forEach(row -> {
                         assignmentIds.add(row.assignmentId);
@@ -78,7 +78,7 @@ public class JpaUserDataMasker implements UserDataMasker {
         List<String> qualificationIds = new ArrayList<>();
         for (QualificationEntity qualification : em.createQuery("""
                         select q from QualificationEntity q where q.personId = :personId""", QualificationEntity.class)
-                .setParameter("personId", personId).getResultStream()
+                .setParameter("personId", personId).getResultList().stream()
                 .filter(Rows.inRealm(realmId, q -> q.realmId)).toList()) {
             qualificationIds.add(qualification.id);
             qualification.number = null;
@@ -116,13 +116,13 @@ public class JpaUserDataMasker implements UserDataMasker {
         em.createQuery("""
                         select l.realmId, l.id from ReportingLineEntity l where l.managerPersonId = :personId""",
                         Object[].class)
-                .setParameter("personId", personId).getResultStream()
+                .setParameter("personId", personId).getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                 .forEach(row -> ids.add((String) row[1]));
         if (!assignmentIds.isEmpty()) {
             em.createQuery("select l.realmId, l.id from ReportingLineEntity l where %s"
                             .formatted(ManyIds.has("l.assignmentId", "ids")), Object[].class)
-                    .setParameter("ids", ManyIds.of(assignmentIds)).getResultStream()
+                    .setParameter("ids", ManyIds.of(assignmentIds)).getResultList().stream()
                     .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                     .forEach(row -> ids.add((String) row[1]));
         }

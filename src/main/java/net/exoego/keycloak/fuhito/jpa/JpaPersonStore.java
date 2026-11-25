@@ -62,7 +62,7 @@ public class JpaPersonStore implements PersonStore {
         return ids.isEmpty() ? List.of() : withNames(em, realmId, em.createQuery("select p from PersonEntity p where %s"
                         .formatted(ManyIds.has("p.id", "ids")), PersonEntity.class)
                 .setParameter("ids", ManyIds.of(ids))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, p -> p.realmId))
                 .toList());
     }
@@ -197,7 +197,7 @@ public class JpaPersonStore implements PersonStore {
             Set<String> assignmentIds = em.createQuery("""
                             select a.realmId, a.assignmentId from AssignmentEntity a where %s"""
                             .formatted(ManyIds.has("a.employmentId", "ids")), Object[].class)
-                    .setParameter("ids", ManyIds.of(employmentIds)).getResultStream()
+                    .setParameter("ids", ManyIds.of(employmentIds)).getResultList().stream()
                     .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                     .map(row -> (String) row[1])
                     .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -231,7 +231,7 @@ public class JpaPersonStore implements PersonStore {
     private <T> List<T> ofPerson(String query, Class<T> type, String personId, Function<T, String> realmOf) {
         return em.createQuery(query, type)
                 .setParameter("personId", personId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, realmOf))
                 .toList();
     }
