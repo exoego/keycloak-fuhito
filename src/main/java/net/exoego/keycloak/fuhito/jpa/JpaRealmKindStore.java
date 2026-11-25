@@ -56,7 +56,7 @@ public class JpaRealmKindStore implements RealmKindStore {
                         String.class)
                 .setParameter("realmId", realmId)
                 .setParameter("id", id)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst();
     }
 

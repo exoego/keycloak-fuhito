@@ -63,7 +63,7 @@ public class JpaEffectiveChangeStore implements EffectiveChangeStore {
         return inRange(QUERY, from, to, Object[].class)
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(row -> new EffectiveChange((LocalDate) row[0], Kind.valueOf((String) row[1]), (String) row[2]))
                 .toList();
     }

@@ -58,7 +58,7 @@ final class AssignmentReads {
         em.createQuery("select i.id, (select v.version from AssignmentVersionEntity v where v.id = i.id) from %s i"
                         .formatted(ManyIds.rows("ids")), Object[].class)
                 .setParameter("ids", ManyIds.of(rows.stream().map(row -> row.assignmentId).distinct().toList()))
-                .getResultStream()
+                .getResultList().stream()
                 .forEach(row -> versions.put((String) row[0], (Long) row[1]));
         return versions;
     }

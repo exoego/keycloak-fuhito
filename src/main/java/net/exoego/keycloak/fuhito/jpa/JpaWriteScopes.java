@@ -72,7 +72,7 @@ public class JpaWriteScopes implements WriteScopes {
                         and p.userId is not null""", String.class)
                 .setParameter("realmId", realmId)
                 .setParameter("id", personId)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst();
     }
 
@@ -126,7 +126,7 @@ public class JpaWriteScopes implements WriteScopes {
         }
         return em.createQuery(query, Object[].class)
                 .setParameter("id", id)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                 .map(row -> (String) row[1])
                 .collect(Collectors.toCollection(HashSet::new));

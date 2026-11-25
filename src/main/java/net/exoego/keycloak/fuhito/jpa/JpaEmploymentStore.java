@@ -48,7 +48,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         and e.staffNumber = :staffNumber order by e.validFrom""", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("staffNumber", staffNumber)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
@@ -64,7 +64,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("staffNumbers", ManyIds.of(staffNumbers))
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
@@ -77,7 +77,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         and p.userId = :userId order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -90,7 +90,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         select e from EmploymentEntity e join fetch e.person where e.employerId = :employerId
                         order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("employerId", employerId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -102,7 +102,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         select e from EmploymentEntity e where e.personId = :personId
                         order by e.validFrom, e.id""", EmploymentEntity.class)
                 .setParameter("personId", personId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -119,7 +119,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         order by e.validFrom, e.id""".formatted(ManyIds.has("e.personId", "ids")),
                         EmploymentEntity.class)
                 .setParameter("ids", ManyIds.of(personIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -138,7 +138,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         EmploymentEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("ids", ManyIds.of(userIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -154,7 +154,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         select e from EmploymentEntity e join fetch e.person where %s"""
                         .formatted(ManyIds.has("e.id", "ids")), EmploymentEntity.class)
                 .setParameter("ids", ManyIds.of(ids))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -232,7 +232,7 @@ public class JpaEmploymentStore implements EmploymentStore {
     public List<Employment> search(EmploymentStore.Search search, String afterId, int first, int max) {
         return searchQuery(search, afterId, false, EmploymentEntity.class)
                 .setFirstResult(first).setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
     }
@@ -252,7 +252,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         order by t.employmentId, t.validFrom""".formatted(ManyIds.has("t.employmentId", "ids")),
                         EmploymentTermsEntity.class)
                 .setParameter("ids", ManyIds.of(employmentIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, t -> t.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -270,7 +270,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         EmploymentTermsEntity.class)
                 .setParameter("employmentIds", ManyIds.of(employmentIds))
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, t -> t.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
@@ -339,7 +339,7 @@ public class JpaEmploymentStore implements EmploymentStore {
                         select t from EmploymentTermsEntity t where t.employmentId = :employmentId
                         order by t.validFrom""", EmploymentTermsEntity.class)
                 .setParameter("employmentId", employmentId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, t -> t.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();

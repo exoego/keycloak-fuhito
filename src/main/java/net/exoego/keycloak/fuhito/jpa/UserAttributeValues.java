@@ -55,7 +55,7 @@ public final class UserAttributeValues {
                         and a.name in :names order by a.user.id, a.id""", Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("names", names)
-                .getResultStream()
+                .getResultList().stream()
                 .forEach(row -> result.computeIfAbsent((String) row[0], id -> new LinkedHashMap<>())
                         .putIfAbsent((String) row[1], (String) row[2]));
         return result;

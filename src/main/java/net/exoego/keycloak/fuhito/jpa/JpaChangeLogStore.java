@@ -149,7 +149,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
                         .orderBy(builder.asc(entry.get("sequence"))))
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaChangeLogStore::toDomain)
                 .toList();
     }
@@ -187,7 +187,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
                         select c.lastSequence, c.expiredSequence from ChangeLogCounterEntity c
                         where c.realmId = :realmId""", Object[].class)
                 .setParameter("realmId", realmId)
-                .getResultStream()
+                .getResultList().stream()
                 .map(row -> new Bounds((Long) row[0], (Long) row[1]))
                 .findFirst()
                 .orElse(new Bounds(0, 0));
@@ -229,7 +229,7 @@ public class JpaChangeLogStore implements ChangeLogStore {
                 .setParameter("changeOrderId", changeOrderId)
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaChangeLogStore::toDomain)
                 .toList();
     }

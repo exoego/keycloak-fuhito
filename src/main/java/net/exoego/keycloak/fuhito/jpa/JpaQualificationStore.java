@@ -41,7 +41,7 @@ public class JpaQualificationStore implements QualificationStore {
                         and p.userId = :userId order by q.validFrom, q.id""", QualificationEntity.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, q -> q.realmId))
                 .map(JpaQualificationStore::toDomain)
                 .toList();
@@ -81,7 +81,7 @@ public class JpaQualificationStore implements QualificationStore {
     public List<Qualification> search(QualificationStore.Search search, String afterId, int first, int max) {
         return searchQuery(search, afterId, false, QualificationEntity.class)
                 .setFirstResult(first).setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaQualificationStore::toDomain)
                 .toList();
     }
@@ -98,7 +98,7 @@ public class JpaQualificationStore implements QualificationStore {
                         select q from QualificationEntity q where q.personId = :personId
                         order by q.validFrom, q.id""", QualificationEntity.class)
                 .setParameter("personId", personId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, q -> q.realmId))
                 .map(JpaQualificationStore::toDomain)
                 .toList();

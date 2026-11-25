@@ -45,6 +45,16 @@ class ArchitectureTest {
                 .check(CLASSES);
     }
 
+    // Hibernate closes the result set of a stream that is not closed only when the transaction ends. An import or a
+    // restore writes all of its rows in one transaction, so the result sets of all of its queries would stay open.
+    @Test
+    void noQueryReadsItsRowsAsAStream() {
+        noClasses().should().callMethodWhere(describe("reads the rows of a query as a stream",
+                        call -> call.getName().equals("getResultStream")))
+                .because("getResultList closes the result set once the rows are read")
+                .check(CLASSES);
+    }
+
     // The rows of the periods of an assignment have no version. A read that made assignments of them alone would
     // give a wrong version with no error.
     @Test

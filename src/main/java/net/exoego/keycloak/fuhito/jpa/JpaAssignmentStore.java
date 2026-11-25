@@ -42,7 +42,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                         select a from AssignmentEntity a where a.assignmentId = :assignmentId
                         order by a.validFrom""", AssignmentEntity.class)
                 .setParameter("assignmentId", assignmentId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
                 .toList());
     }
@@ -57,7 +57,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                         order by a.assignmentId, a.validFrom"""
                         .formatted(ManyIds.has("a.assignmentId", "assignmentIds")), AssignmentEntity.class)
                 .setParameter("assignmentIds", ManyIds.of(assignmentIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
                 .toList());
     }
@@ -74,7 +74,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                         order by a.employmentId, a.validFrom, a.id"""
                         .formatted(ManyIds.has("a.employmentId", "employmentIds")), AssignmentEntity.class)
                 .setParameter("employmentIds", ManyIds.of(employmentIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
                 .toList());
     }
@@ -100,7 +100,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                         order by x.assignmentId, y.assignmentId"""
                         .formatted(ManyIds.has("x.assignmentId", "assignmentIds")), Object[].class)
                 .setParameter("assignmentIds", ManyIds.of(assignmentIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[1]))
                 .toList(), 2);
     }
@@ -120,7 +120,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                         order by e.id, x.assignmentId"""
                         .formatted(ManyIds.has("e.id", "employmentIds")), Object[].class)
                 .setParameter("employmentIds", ManyIds.of(employmentIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> ((AssignmentEntity) row[1]).realmId))
                 .toList(), 1);
     }
@@ -138,7 +138,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                         group by a.realmId""", Object[].class)
                 .setParameter("orgUnitId", orgUnitId)
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                 .mapToLong(row -> (Long) row[1])
                 .sum();
@@ -153,7 +153,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                         AssignmentEntity.class)
                 .setParameter("orgUnitIds", ManyIds.of(orgUnitIds))
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, a -> a.realmId))
                 .toList());
     }
@@ -171,7 +171,7 @@ public class JpaAssignmentStore implements AssignmentStore {
                         Object[].class)
                 .setParameter("orgUnitIds", ManyIds.of(orgUnitIds))
                 .setParameter("date", date)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                 .forEach(row -> result.computeIfAbsent((String) row[1], id -> new LinkedHashSet<>())
                         .add((String) row[2]));

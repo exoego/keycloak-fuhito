@@ -185,7 +185,7 @@ public final class RealmData {
                         select distinct a.realmId, a.assignmentId from AssignmentEntity a
                         where a.employmentId in (%s)""".formatted(EMPLOYMENTS), Object[].class)
                 .setParameter("personId", personId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                 .map(row -> (String) row[1])
                 .toList();
@@ -246,7 +246,7 @@ public final class RealmData {
                         String.class)
                 .setParameter("realmId", realmId)
                 .setParameter("userId", userId)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst();
     }
 

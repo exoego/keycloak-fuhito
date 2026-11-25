@@ -103,7 +103,7 @@ final class Versions {
         em.createQuery("select v from AssignmentVersionEntity v where %s".formatted(ManyIds.has("v.id", "ids")),
                         AssignmentVersionEntity.class)
                 .setParameter("ids", ManyIds.of(assignmentIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> row.realmId))
                 .forEach(row -> versions.put(row.id, row.countUp()));
         return versions;

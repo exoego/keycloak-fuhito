@@ -65,7 +65,7 @@ public class JpaExternalIdStore implements ExternalIdStore {
     public Optional<ExternalId.Origin> originOf(ExternalId.Kind kind, String resourceId) {
         return em.createQuery(originQuery(kind), Object[].class)
                 .setParameter("id", resourceId)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, row -> (String) row[0]))
                 .findFirst()
                 .map(row -> new ExternalId.Origin(keepsSource(kind) ? (String) row[1] : null));
@@ -79,7 +79,7 @@ public class JpaExternalIdStore implements ExternalIdStore {
                 .setParameter("realmId", realmId)
                 .setParameter("kind", kind.name())
                 .setParameter("resourceId", resourceId)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaExternalIdStore::toDomain)
                 .toList();
     }
@@ -95,7 +95,7 @@ public class JpaExternalIdStore implements ExternalIdStore {
                 .setParameter("realmId", realmId)
                 .setParameter("kind", kind.name())
                 .setParameter("ids", ManyIds.of(resourceIds))
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaExternalIdStore::toDomain)
                 .toList();
     }
@@ -108,7 +108,7 @@ public class JpaExternalIdStore implements ExternalIdStore {
                 .setParameter("realmId", realmId)
                 .setParameter("after", afterId == null ? "" : afterId)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaExternalIdStore::toDomain)
                 .toList();
     }
@@ -122,7 +122,7 @@ public class JpaExternalIdStore implements ExternalIdStore {
                 .setParameter("kind", kind.name())
                 .setParameter("source", source)
                 .setParameter("externalId", externalId)
-                .getResultStream()
+                .getResultList().stream()
                 .findFirst()
                 .map(JpaExternalIdStore::toDomain);
     }
@@ -140,7 +140,7 @@ public class JpaExternalIdStore implements ExternalIdStore {
                 .setParameter("kind", kind.name())
                 .setParameter("source", source)
                 .setParameter("values", ManyIds.of(externalIds))
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaExternalIdStore::toDomain)
                 .toList();
     }

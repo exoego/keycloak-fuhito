@@ -162,7 +162,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
                         order by l.validFrom, l.id""".formatted(ManyIds.has("l.assignmentId", "ids")),
                         ReportingLineEntity.class)
                 .setParameter("ids", ManyIds.of(assignmentIds))
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, l -> l.realmId))
                 .map(JpaReportingLineStore::toDomain)
                 .toList();
@@ -178,7 +178,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
     private List<ReportingLine> list(String query, String value) {
         return em.createQuery(query, ReportingLineEntity.class)
                 .setParameter("value", value)
-                .getResultStream()
+                .getResultList().stream()
                 .filter(Rows.inRealm(realmId, l -> l.realmId))
                 .map(JpaReportingLineStore::toDomain)
                 .toList();
@@ -194,7 +194,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
                 .setParameter("date", date)
                 .setParameter("after", afterId == null ? "" : afterId)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(JpaReportingLineStore::toDomain)
                 .toList();
     }
@@ -252,7 +252,7 @@ public class JpaReportingLineStore implements ReportingLineStore {
         return reportsQuery(REPORTS, hierarchyId, managerPersonId, date, Object[].class)
                 .setFirstResult(first)
                 .setMaxResults(max)
-                .getResultStream()
+                .getResultList().stream()
                 .map(row -> new DirectReport((String) row[6], (String) row[7],
                         ReportingLine.Kind.valueOf((String) row[5]), ((Number) row[0]).intValue() == 1,
                         (String) row[4], (String) row[3], (String) row[2]))

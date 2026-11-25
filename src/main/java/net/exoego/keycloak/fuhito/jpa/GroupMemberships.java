@@ -31,7 +31,7 @@ public final class GroupMemberships {
         em.createQuery("select m.groupId, m.user.id from UserGroupMembershipEntity m where %s"
                         .formatted(ManyIds.has("m.groupId", "groupIds")), Object[].class)
                 .setParameter("groupIds", ManyIds.of(groupIds))
-                .getResultStream()
+                .getResultList().stream()
                 .forEach(row -> result.computeIfAbsent((String) row[0], id -> new HashSet<>()).add((String) row[1]));
         return result;
     }
