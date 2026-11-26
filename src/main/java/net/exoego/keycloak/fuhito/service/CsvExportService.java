@@ -37,6 +37,7 @@ import net.exoego.keycloak.fuhito.domain.RefKind;
 import net.exoego.keycloak.fuhito.domain.RefKindName;
 import net.exoego.keycloak.fuhito.domain.ReportingLine;
 import net.exoego.keycloak.fuhito.domain.UnitRole;
+import net.exoego.keycloak.fuhito.store.LongRead;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 
 /**
@@ -69,6 +70,7 @@ public class CsvExportService {
     private final ExternalIdService externalIds;
     private final ChangeOrderService changeOrders;
     private final Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions;
+    private final LongRead pages;
 
     /**
      * Creates the service.
@@ -88,13 +90,15 @@ public class CsvExportService {
      * @param externalIds the operations on the IDs of other systems of the realm
      * @param changeOrders the operations on the change orders of the realm
      * @param definitions the definitions of free attributes of the realm, by the resource that has them
+     * @param pages lets go of what the storage keeps for a page once its rows are written
      */
     public CsvExportService(RefItemService refItems, Supplier<List<RealmKindService.View>> kinds,
             OrgUnitService orgUnits,
             PersonService people, EmploymentService employments, AssignmentService assignments, Today today,
             HierarchyService hierarchies, OrganizationDirectory organizations, ReportingLineService reportingLines,
             UnitRoleService unitRoles, QualificationService qualifications, ExternalIdService externalIds,
-            ChangeOrderService changeOrders, Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions) {
+            ChangeOrderService changeOrders,
+            Function<AttributeDefinition.Target, List<AttributeDefinition>> definitions, LongRead pages) {
         this.changeOrders = changeOrders;
         this.externalIds = externalIds;
         this.unitRoles = unitRoles;
@@ -110,6 +114,7 @@ public class CsvExportService {
         this.assignments = assignments;
         this.today = today;
         this.definitions = definitions;
+        this.pages = pages;
     }
 
     /**
@@ -366,6 +371,7 @@ public class CsvExportService {
                         .map(values -> values.get(attribute)).orElse(null))));
                 line(csv, cells);
             }
+            pages.pageDone();
             if (page.size() < ROWS_AT_A_TIME) {
                 return csv.toString();
             }
@@ -410,6 +416,7 @@ public class CsvExportService {
                         .map(values -> values.get(attribute)).orElse(null))));
                 line(csv, cells);
             }
+            pages.pageDone();
             if (page.size() < ROWS_AT_A_TIME) {
                 return csv.toString();
             }
@@ -433,6 +440,7 @@ public class CsvExportService {
                     page.stream().map(ReportingLine::id).toList());
             page.forEach(l -> line(csv, withIds(ids, l.id(), l.assignmentId(), l.managerPersonId(),
                     l.kind().name(), l.period().from().toString(), text(l.period().to()))));
+            pages.pageDone();
             if (page.size() < ROWS_AT_A_TIME) {
                 return csv.toString();
             }
@@ -456,6 +464,7 @@ public class CsvExportService {
             page.forEach(order -> line(csv, withIds(ids, order.id(), text(order.number()), text(order.kind()),
                     order.title(), text(order.note()), text(order.orderDate()), order.effectiveDate().toString(),
                     text(order.approverUserId()), text(order.requesterUserId()), text(order.externalReference()))));
+            pages.pageDone();
             if (page.size() < ROWS_AT_A_TIME) {
                 return csv.toString();
             }
@@ -475,6 +484,7 @@ public class CsvExportService {
             List<ExternalIdService.View> page = externalIds.list(after, ROWS_AT_A_TIME);
             page.forEach(view -> line(csv, List.of(view.kind().name(), view.resourceId(), view.source(),
                     view.externalId())));
+            pages.pageDone();
             if (page.size() < ROWS_AT_A_TIME) {
                 return csv.toString();
             }
@@ -510,6 +520,7 @@ public class CsvExportService {
                         .map(values -> values.get(attribute)).orElse(null))));
                 line(csv, cells);
             }
+            pages.pageDone();
             if (page.size() < ROWS_AT_A_TIME) {
                 return csv.toString();
             }
@@ -537,6 +548,7 @@ public class CsvExportService {
                         Boolean.toString(role.includesDescendants()), role.period().from().toString(),
                         text(role.period().to())));
             }
+            pages.pageDone();
             if (page.size() < ROWS_AT_A_TIME) {
                 return csv.toString();
             }
@@ -549,6 +561,7 @@ public class CsvExportService {
         while (true) {
             List<PersonView> page = people.list(null, null, ROWS_AT_A_TIME, after);
             each.accept(page.stream().map(PersonView::person).toList());
+            pages.pageDone();
             if (page.size() < ROWS_AT_A_TIME) {
                 return;
             }
@@ -562,6 +575,7 @@ public class CsvExportService {
             List<OrgUnitState> page = orgUnits.list(OrgUnitService.Search.all(asOf), Page.of(first, ROWS_AT_A_TIME),
                     null);
             units.addAll(page);
+            pages.pageDone();
             if (page.size() < ROWS_AT_A_TIME) {
                 break;
             }
