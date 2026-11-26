@@ -59,6 +59,25 @@ final class OrgUnitTree {
         children.values().forEach(list -> list.sort(SIBLING_ORDER));
     }
 
+    /**
+     * Reads one unit and everything below it in the default hierarchy on a date, each parent before its children,
+     * and no other unit of the realm.
+     *
+     * @param store the org units
+     * @param refItems the reference items, for the unit types
+     * @param rootId the ID of the unit to start from
+     * @param date the date
+     * @return the units, or none when the unit does not exist on the date
+     */
+    static List<OrgUnitState> subtreeOn(OrgUnitStore store, RefItemStore refItems, String rootId, LocalDate date) {
+        Map<String, RefItem> unitTypes = refItems.list(RefKind.UNIT_TYPE, true).stream()
+                .collect(Collectors.toMap(RefItem::id, Function.identity()));
+        return store.treeOn(store.defaultHierarchyId(), rootId, null, date, 0, Integer.MAX_VALUE).stream()
+                .map(placed -> OrgUnitState.of(placed.unit(), placed.version(),
+                        unitTypes.get(placed.version().unitTypeId()), placed.parentId()))
+                .toList();
+    }
+
     boolean exists(String id) {
         return states.containsKey(id);
     }
