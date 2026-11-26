@@ -25,6 +25,7 @@ import net.exoego.keycloak.fuhito.jpa.JpaEmploymentStore;
 import net.exoego.keycloak.fuhito.jpa.JpaExternalIdStore;
 import net.exoego.keycloak.fuhito.jpa.JpaHierarchyStore;
 import net.exoego.keycloak.fuhito.jpa.JpaJobRunStore;
+import net.exoego.keycloak.fuhito.jpa.JpaLongRead;
 import net.exoego.keycloak.fuhito.jpa.JpaLongWrite;
 import net.exoego.keycloak.fuhito.jpa.JpaOrgUnitStore;
 import net.exoego.keycloak.fuhito.jpa.JpaPersonStore;
@@ -530,7 +531,7 @@ public class FuhitoResource {
                         employmentService(), assignmentService(), today(),
                         new HierarchyService(new JpaHierarchyStore(entityManager, realmId)), organizations,
                         reportingLineService(), unitRoleService(), qualificationService(), externalIdService(),
-                        changeOrderService(), definitions::list), externalIdService());
+                        changeOrderService(), definitions::list, new JpaLongRead(entityManager)), externalIdService());
     }
 
     private OrgUnitService orgUnitService() {

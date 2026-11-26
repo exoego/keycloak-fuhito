@@ -62,8 +62,18 @@ public final class JpaLongWrite implements LongWrite {
 
     @Override
     public void rowDone() {
-        detach(em, entity -> entity.getClass().getPackageName().equals(JpaLongWrite.class.getPackageName())
-                || USERS.contains(entity.getClass()));
+        detach(em, JpaLongWrite::leavesAfterEachRow);
+    }
+
+    /**
+     * Tells whether an entity leaves the session after each row of a long write.
+     *
+     * @param entity an entity of the session
+     * @return true for an entity of the extension or a user of Keycloak
+     */
+    static boolean leavesAfterEachRow(Object entity) {
+        return entity.getClass().getPackageName().equals(JpaLongWrite.class.getPackageName())
+                || USERS.contains(entity.getClass());
     }
 
     /**
