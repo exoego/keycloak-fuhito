@@ -260,9 +260,8 @@ public class ProjectionService {
         if (!piece(parts -> parts.keycloak().organizationsAvailable())) {
             return Set.of();
         }
-        Set<String> result = piece(parts -> parts.orgUnits().units().stream()
+        Set<String> result = piece(parts -> parts.orgUnits().unitsWithOrganization().stream()
                 .map(OrgUnit::keycloakOrganizationId)
-                .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(TreeSet::new)));
         Set<String> recorded = Set.copyOf(piece(parts -> parts.projectedMembers().organizations()));
         for (String organizationId : piece(parts -> parts.keycloak().organizations())) {
@@ -280,8 +279,7 @@ public class ProjectionService {
             throw FuhitoException.conflict("projection.disabled", Map.of());
         }
         // Each linked unit is mirrored as it is on its own date.
-        List<Linked> linked = piece(parts -> parts.orgUnits().units().stream()
-                .filter(unit -> unit.keycloakOrganizationId() != null)
+        List<Linked> linked = piece(parts -> parts.orgUnits().unitsWithOrganization().stream()
                 .map(unit -> new Linked(unit, parts.today().ofUnit(unit.id())))
                 .toList());
         boolean available = piece(parts -> {
@@ -338,12 +336,11 @@ public class ProjectionService {
     private boolean project(OrgUnit root, LocalDate today) {
         Target target = new Target(root.keycloakOrganizationId(), true);
         Plan plan = piece(parts -> {
-            OrgUnitTree tree = new OrgUnitTree(parts.orgUnits(), parts.refItems(), today);
+            List<OrgUnitState> subtree = OrgUnitTree.subtreeOn(parts.orgUnits(), parts.refItems(), root.id(), today);
             // A linked unit that does not exist today has nothing to mirror.
-            if (!tree.exists(root.id())) {
+            if (subtree.isEmpty()) {
                 return null;
             }
-            List<OrgUnitState> subtree = tree.subtree(root.id());
             List<OrgUnitState> below = List.copyOf(subtree.subList(1, subtree.size()));
             requireUniqueNames(below);
             return new Plan(below, target.groups(parts.keycloak()));

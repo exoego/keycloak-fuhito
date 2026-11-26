@@ -91,6 +91,15 @@ public interface OrgUnitStore {
     List<OrgUnit> units();
 
     /**
+     * Lists the org units of the realm that link a Keycloak organization.
+     *
+     * @return the units
+     */
+    default List<OrgUnit> unitsWithOrganization() {
+        return units().stream().filter(unit -> unit.keycloakOrganizationId() != null).toList();
+    }
+
+    /**
      * Lists the versions of all org units that are valid on a date.
      *
      * @param date the date

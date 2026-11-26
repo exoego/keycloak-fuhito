@@ -123,7 +123,9 @@ final class MemoryOrgUnitStore implements OrgUnitStore {
     @Override
     public List<PlacedOrgUnit> treeOn(String hierarchyId, String rootId, Boolean lateral, LocalDate date, int first,
             int max) {
-        return placed(of(lateral, new OrgUnitTree(this, refItems, date, hierarchyId).subtree(rootId)), first, max);
+        OrgUnitTree tree = new OrgUnitTree(this, refItems, date, hierarchyId);
+        // As in the database, a unit that does not exist on the date has no tree.
+        return tree.exists(rootId) ? placed(of(lateral, tree.subtree(rootId)), first, max) : List.of();
     }
 
     @Override

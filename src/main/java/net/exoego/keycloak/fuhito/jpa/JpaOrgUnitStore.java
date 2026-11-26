@@ -255,6 +255,17 @@ public class JpaOrgUnitStore implements OrgUnitStore {
     }
 
     @Override
+    public List<OrgUnit> unitsWithOrganization() {
+        return em.createQuery("""
+                        select u from OrgUnitEntity u where u.realmId = :realmId
+                        and u.keycloakOrganizationId is not null""", OrgUnitEntity.class)
+                .setParameter("realmId", realmId)
+                .getResultList().stream()
+                .map(JpaOrgUnitStore::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<OrgUnitVersion> versionsOn(LocalDate date) {
         return withNames(em.createQuery("""
                         select v from OrgUnitVersionEntity v where v.realmId = :realmId
