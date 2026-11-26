@@ -570,18 +570,8 @@ public class CsvExportService {
     }
 
     private String orgUnits(String asOf, boolean japanese) {
-        List<OrgUnitState> units = new ArrayList<>();
-        for (int first = 0;; first += ROWS_AT_A_TIME) {
-            List<OrgUnitState> page = orgUnits.list(OrgUnitService.Search.all(asOf), Page.of(first, ROWS_AT_A_TIME),
-                    null);
-            units.addAll(page);
-            pages.pageDone();
-            if (page.size() < ROWS_AT_A_TIME) {
-                break;
-            }
-        }
-        SortedSet<String> languages = new TreeSet<>();
-        units.forEach(unit -> addOtherLanguages(unit.version().names(), languages));
+        // The header comes before the first row, so the languages of all units are read first.
+        SortedSet<String> languages = new TreeSet<>(orgUnits.otherLanguages(asOf));
         List<String> nameFields = List.of("name", "shortName", "phoneticName");
         List<String> attributes = definitions.apply(AttributeDefinition.Target.ORG_UNIT).stream()
                 .map(AttributeDefinition::name)
@@ -602,35 +592,63 @@ public class CsvExportService {
 
         StringBuilder csv = new StringBuilder(BYTE_ORDER_MARK);
         line(csv, header);
-        ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
-                units.stream().map(unit -> unit.unit().id()).toList());
-        for (OrgUnitState unit : units) {
-            OrgUnitVersion version = unit.version();
-            List<String> cells = new ArrayList<>(List.of(unit.unit().id(),
-                    text(ids.externalIdOf(unit.unit().id(), unit.unit().source())), text(unit.unit().source()),
-                    text(version.code()), version.names().primaryLanguage()));
-            cells.addAll(nameCells(version.names().primary()));
-            languages.forEach(language -> cells.addAll(nameCells(otherLanguage(version.names(), language))));
-            cells.add(text(unit.unitType()));
-            cells.add(text(unit.places().workLocation()));
-            cells.add(text(unit.places().costCenter()));
-            cells.add(text(unit.parentId()));
-            cells.add(Integer.toString(version.displayOrder()));
-            // Only a unit whose details of the date end can end. The others need no more reads.
-            Optional<LocalDate> end = version.period().to() == null ? Optional.empty()
-                    : orgUnits.endOf(unit.unit().id());
-            cells.add(text(end.orElse(null)));
-            cells.add(end.isEmpty() ? "" : ListCell.write(orgUnits.successions(unit.unit().id()).successors()
-                    .stream().map(OrgUnitSuccession::successorId).toList()));
-            cells.add(text(Optional.ofNullable(unit.unit().keycloakOrganizationId())
-                    .flatMap(organizations::aliasOf).orElse(null)));
-            cells.add(text(unit.unit().timeZone()));
-            cells.add(text(unit.unit().dayStart()));
-            attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(version.attributes())
-                    .map(values -> values.get(attribute)).orElse(null))));
-            line(csv, cells);
+        String after = null;
+        while (true) {
+            List<OrgUnitState> page = orgUnits.list(OrgUnitService.Search.all(asOf), Page.of(0, ROWS_AT_A_TIME),
+                    after);
+            ExternalIdLists ids = externalIds.lists(ExternalId.Kind.ORG_UNIT,
+                    page.stream().map(unit -> unit.unit().id()).toList());
+            for (OrgUnitState unit : page) {
+                OrgUnitVersion version = unit.version();
+                requireInHeader(unit.unit().id(), version.names(), languages);
+                List<String> cells = new ArrayList<>(List.of(unit.unit().id(),
+                        text(ids.externalIdOf(unit.unit().id(), unit.unit().source())), text(unit.unit().source()),
+                        text(version.code()), version.names().primaryLanguage()));
+                cells.addAll(nameCells(version.names().primary()));
+                languages.forEach(language -> cells.addAll(nameCells(otherLanguage(version.names(), language))));
+                cells.add(text(unit.unitType()));
+                cells.add(text(unit.places().workLocation()));
+                cells.add(text(unit.places().costCenter()));
+                cells.add(text(unit.parentId()));
+                cells.add(Integer.toString(version.displayOrder()));
+                // Only a unit whose details of the date end can end. The others need no more reads.
+                Optional<LocalDate> end = version.period().to() == null ? Optional.empty()
+                        : orgUnits.endOf(unit.unit().id());
+                cells.add(text(end.orElse(null)));
+                cells.add(end.isEmpty() ? "" : ListCell.write(orgUnits.successions(unit.unit().id()).successors()
+                        .stream().map(OrgUnitSuccession::successorId).toList()));
+                cells.add(text(Optional.ofNullable(unit.unit().keycloakOrganizationId())
+                        .flatMap(organizations::aliasOf).orElse(null)));
+                cells.add(text(unit.unit().timeZone()));
+                cells.add(text(unit.unit().dayStart()));
+                attributes.forEach(attribute -> cells.add(text(Optional.ofNullable(version.attributes())
+                        .map(values -> values.get(attribute)).orElse(null))));
+                line(csv, cells);
+            }
+            pages.pageDone();
+            if (page.size() < ROWS_AT_A_TIME) {
+                return csv.toString();
+            }
+            after = Cursor.encode(Cursor.ORG_UNITS, page.getLast().unit().id());
         }
-        return csv.toString();
+    }
+
+    /**
+     * Requires that the header has every other language of the names of a unit.
+     *
+     * @param unitId the ID of the unit
+     * @param names the names of the unit on the date of the file
+     * @param languages the other languages that the header has
+     * @throws FuhitoException when another write gave the unit a name in a new language after the header was written,
+     *         as the row would leave that name out
+     */
+    static void requireInHeader(String unitId, Localized<?> names, Set<String> languages) {
+        names.byLanguage().keySet().stream()
+                .filter(language -> !language.equals(names.primaryLanguage()) && !languages.contains(language))
+                .findFirst()
+                .ifPresent(language -> {
+                    throw FuhitoException.conflict("csv.export_changed", Map.of("id", unitId, "language", language));
+                });
     }
 
     // These kinds keep no system that made them, so a row has the first of their IDs by system. Any ID of the

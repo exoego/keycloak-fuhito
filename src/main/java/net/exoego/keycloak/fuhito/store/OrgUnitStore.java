@@ -2,6 +2,7 @@ package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -96,6 +97,20 @@ public interface OrgUnitStore {
      * @return one version for each unit that exists on the date
      */
     List<OrgUnitVersion> versionsOn(LocalDate date);
+
+    /**
+     * Lists the languages of the names of the org units on a date, other than the primary language of each unit.
+     *
+     * @param date the date
+     * @return the languages
+     */
+    default Set<String> otherLanguagesOn(LocalDate date) {
+        Set<String> languages = new HashSet<>();
+        versionsOn(date).forEach(version -> version.names().byLanguage().keySet().stream()
+                .filter(language -> !language.equals(version.names().primaryLanguage()))
+                .forEach(languages::add));
+        return languages;
+    }
 
     /**
      * Lists the parent links of a hierarchy that are valid on a date.

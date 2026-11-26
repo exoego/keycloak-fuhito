@@ -80,7 +80,9 @@ public class ImportsResource {
                     + "by the name of the system. "
                     + "The kinds, the definitions of attributes, the hierarchies, the people, the IDs of other "
                     + "systems, and the change orders have no date, so they take no `asOf`. "
-                    + "The reference items have the names of the date.")
+                    + "The reference items have the names of the date. An export of `org-units` fails with 409 and "
+                    + "`csv.export_changed` when another write gives a unit a name in a new language while the file "
+                    + "is written. Export it again.")
     @APIResponse(responseCode = "200", description = "The CSV, in UTF-8 with a byte order mark.")
     @BadRequest
     @ApiErrors
