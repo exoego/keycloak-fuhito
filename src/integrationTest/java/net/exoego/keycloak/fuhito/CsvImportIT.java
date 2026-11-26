@@ -1032,11 +1032,12 @@ class CsvImportIT {
                 UT-region,UNIT_TYPE,region,ja,地域,はい
                 UT-branch,UNIT_TYPE,branch,ja,支店,
                 """);
+        // Only the rollup unit has a name in Korean, and the file needs its columns all the same.
         load(api, "org-units", "effectiveDate=2026-04-01&source=sheet", """
-                外部ID,主言語,名称,組織種別,親の外部ID
-                K,ja,関東,region,
-                H,ja,本社,,
-                B,ja,東京支店,branch,H
+                外部ID,主言語,名称,名称:ko,組織種別,親の外部ID
+                K,ja,関東,관동,region,
+                H,ja,本社,,,
+                B,ja,東京支店,,branch,H
                 """);
         assertEquals("org_unit.rollup_has_parent", failure(api, "org-units", "effectiveDate=2026-04-01&source=sheet",
                 "外部ID,主言語,名称,組織種別,親の外部ID\nW,ja,関西,region,H\n"));
@@ -1048,6 +1049,11 @@ class CsvImportIT {
         // The exports load again with no change.
         for (String list : List.of("ref-items", "org-units")) {
             String exported = api.get("/imports/csv/" + list + "?asOf=2026-05-01&header=ja").body();
+            if (list.equals("org-units")) {
+                assertTrue(exported.lines().findFirst().orElseThrow().contains(",名称:ko,略称:ko,よみがな:ko,"),
+                        exported);
+                assertTrue(exported.contains(",ja,関東,,,관동,,,region,"), exported);
+            }
             JsonNode again = load(api, list, "effectiveDate=2026-05-01", exported);
             JsonNode counts = again.get("counts").get(list.equals("org-units") ? "orgUnits" : "refItems");
             assertEquals(0, counts.get("created").asInt() + counts.get("changed").asInt(), again.toString());

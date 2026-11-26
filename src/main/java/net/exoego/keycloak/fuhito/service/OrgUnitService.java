@@ -1000,6 +1000,17 @@ public class OrgUnitService {
     }
 
     /**
+     * Lists the languages of the names of the org units on a date, other than the primary language of each unit.
+     *
+     * @param asOf the date as {@code YYYY-MM-DD}, or null for today
+     * @return the languages
+     * @throws FuhitoException when the date is bad
+     */
+    public Set<String> otherLanguages(String asOf) {
+        return store.otherLanguagesOn(dateOrToday(asOf, null));
+    }
+
+    /**
      * Counts the org units of a date that match a search.
      *
      * @param search what to keep, the hierarchy, and the date

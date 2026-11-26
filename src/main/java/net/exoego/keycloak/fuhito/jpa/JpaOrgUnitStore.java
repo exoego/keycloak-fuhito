@@ -265,6 +265,19 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .getResultList());
     }
 
+    // One row of a version is primary, the one of its primary language. So the other rows have the other languages.
+    @Override
+    public Set<String> otherLanguagesOn(LocalDate date) {
+        return Set.copyOf(em.createQuery("""
+                        select distinct n.language from OrgUnitVersionNameEntity n
+                        join OrgUnitVersionEntity v on v.id = n.versionId
+                        where v.realmId = :realmId and n.primary = false and v.""" + TreeQuery.onDate("v"),
+                        String.class)
+                .setParameter("realmId", realmId)
+                .setParameter("date", date)
+                .getResultList());
+    }
+
     @Override
     public List<OrgUnitLink> linksOn(String hierarchyId, LocalDate date) {
         return em.createQuery("""
