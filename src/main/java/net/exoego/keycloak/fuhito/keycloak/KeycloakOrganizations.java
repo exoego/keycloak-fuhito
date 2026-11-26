@@ -15,6 +15,7 @@ import net.exoego.keycloak.fuhito.domain.FuhitoException;
 import net.exoego.keycloak.fuhito.jpa.GroupMemberships;
 import net.exoego.keycloak.fuhito.jpa.GroupTrees;
 import net.exoego.keycloak.fuhito.jpa.OneFlush;
+import net.exoego.keycloak.fuhito.jpa.OrganizationOfGroup;
 import net.exoego.keycloak.fuhito.store.OrganizationDirectory;
 import net.exoego.keycloak.fuhito.store.OrganizationGroups;
 import org.jboss.logging.Logger;
@@ -115,8 +116,12 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
     @Override
     public String createGroup(String organizationId, String name, String parentId, String orgUnitId) {
         OrganizationModel organization = provider().getById(organizationId);
+        // A group at the top of an organization sits below the hidden group of the organization.
+        GroupModel parent = parentId == null ? provider().getOrganizationGroup(organization)
+                : groupOf(organization, parentId);
         return within(organization, () -> {
-            GroupModel group = provider().createGroup(organization, name, parentId == null ? null : group(parentId));
+            GroupModel group = session.groups().createGroup(realm, null, GroupModel.Type.ORGANIZATION, name, parent);
+            OrganizationOfGroup.setOwningSide(entityManager(), group.getId(), organizationId);
             group.setSingleAttribute(ORG_UNIT_ATTRIBUTE, orgUnitId);
             return group.getId();
         });
@@ -262,6 +267,17 @@ final class KeycloakOrganizations implements OrganizationDirectory, Organization
         AtomicReference<T> result = new AtomicReference<>();
         EntityManagers.runInBatch(session, () -> result.set(OneFlush.run(entityManager(), work)), false);
         return result.get();
+    }
+
+    // The organization provider of Keycloak checks the same when it makes a group.
+    private GroupModel groupOf(OrganizationModel organization, String groupId) {
+        GroupModel group = group(groupId);
+        if (group.getType() != GroupModel.Type.ORGANIZATION || group.getOrganization() == null
+                || !group.getOrganization().getId().equals(organization.getId())) {
+            throw new IllegalStateException("The group " + groupId + " is not of the organization "
+                    + organization.getId());
+        }
+        return group;
     }
 
     private GroupModel group(String groupId) {
