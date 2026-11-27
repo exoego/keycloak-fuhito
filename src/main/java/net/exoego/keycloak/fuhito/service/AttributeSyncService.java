@@ -98,6 +98,17 @@ public class AttributeSyncService {
         <T> T inNewTransaction(Function<Parts, T> piece);
 
         /**
+         * Runs one piece that writes nothing in a transaction of its own.
+         *
+         * @param <T> the type of the result
+         * @param piece the piece
+         * @return the result of the piece
+         */
+        default <T> T readInNewTransaction(Function<Parts, T> piece) {
+            return inNewTransaction(piece);
+        }
+
+        /**
          * Runs a whole run, unless another run for the realm is going on.
          *
          * @param <T> the type of the result
@@ -197,12 +208,18 @@ public class AttributeSyncService {
     }
 
     private <T> T piece(Supplier<T> body) {
-        return work.inNewTransaction(parts -> {
-            from = parts.from();
-            today = parts.today();
-            record = parts.record();
-            return body.get();
-        });
+        return work.inNewTransaction(parts -> inPiece(parts, body));
+    }
+
+    private <T> T readPiece(Supplier<T> body) {
+        return work.readInNewTransaction(parts -> inPiece(parts, body));
+    }
+
+    private <T> T inPiece(Parts parts, Supplier<T> body) {
+        from = parts.from();
+        today = parts.today();
+        record = parts.record();
+        return body.get();
     }
 
     /**
@@ -219,7 +236,7 @@ public class AttributeSyncService {
     }
 
     private SyncReport runAlone() {
-        Plan plan = piece(this::plan);
+        Plan plan = readPiece(this::plan);
         eachUser(plan.users(), Values::userId, some -> {
             readAhead(some, plan.owned());
             for (Values user : some) {

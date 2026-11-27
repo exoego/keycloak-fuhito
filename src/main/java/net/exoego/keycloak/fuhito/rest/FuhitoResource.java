@@ -480,6 +480,15 @@ public class FuhitoResource {
             }
 
             @Override
+            public <T> T readInNewTransaction(Function<AttributeSyncService.Parts, T> piece) {
+                return pieces.inNewTransaction(dryRun, resource -> {
+                    // It shares the realm only so that it never reads during a bulk write.
+                    RowLocks.lockRealm(resource.entityManager, realmId, false);
+                    return piece.apply(resource.syncParts());
+                });
+            }
+
+            @Override
             public <T> T alone(Supplier<T> run) {
                 return pieces.alone("sync", !dryRun, run);
             }
