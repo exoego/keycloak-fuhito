@@ -2,7 +2,9 @@ package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.Employment;
@@ -62,6 +64,20 @@ public interface EmploymentStore {
      * @return the employments that exist in the realm
      */
     List<Employment> findAll(Collection<String> ids);
+
+    /**
+     * Gives the user of each employment with the given IDs.
+     *
+     * @param ids the IDs of the employments
+     * @return the ID of the user by the ID of the employment. An employment whose person has no user is left out.
+     */
+    default Map<String, String> usersOfEmployments(Collection<String> ids) {
+        Map<String, String> result = new HashMap<>();
+        findAll(ids).stream()
+                .filter(employment -> employment.userId() != null)
+                .forEach(employment -> result.put(employment.id(), employment.userId()));
+        return result;
+    }
 
     /**
      * Lists every employment that names an org unit as its employer, oldest first. An employment with an external

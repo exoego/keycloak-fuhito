@@ -108,6 +108,28 @@ public interface OrgUnitStore {
     List<OrgUnitVersion> versionsOn(LocalDate date);
 
     /**
+     * The ID, the code and the primary name of an org unit on a date.
+     *
+     * @param id the ID of the unit
+     * @param code the code, or null
+     * @param name the primary name
+     */
+    record CodeAndName(String id, String code, String name) {
+    }
+
+    /**
+     * Lists the ID, the code and the primary name of each org unit that is valid on a date.
+     *
+     * @param date the date
+     * @return one for each unit
+     */
+    default List<CodeAndName> codesAndNamesOn(LocalDate date) {
+        return versionsOn(date).stream()
+                .map(version -> new CodeAndName(version.orgUnitId(), version.code(), version.names().primary().name()))
+                .toList();
+    }
+
+    /**
      * Lists the languages of the names of the org units on a date, other than the primary language of each unit.
      *
      * @param date the date

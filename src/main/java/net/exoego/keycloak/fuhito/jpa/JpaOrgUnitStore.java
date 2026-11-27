@@ -276,6 +276,18 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .getResultList());
     }
 
+    @Override
+    public List<CodeAndName> codesAndNamesOn(LocalDate date) {
+        return em.createQuery("select v.orgUnitId, v.code, p.name from OrgUnitVersionEntity v"
+                        + OrgUnitNames.JOIN_PRIMARY + " where v.realmId = :realmId and v." + TreeQuery.onDate("v"),
+                        Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("date", date)
+                .getResultList().stream()
+                .map(row -> new CodeAndName((String) row[0], (String) row[1], (String) row[2]))
+                .toList();
+    }
+
     // One row of a version is primary, the one of its primary language. So the other rows have the other languages.
     @Override
     public Set<String> otherLanguagesOn(LocalDate date) {

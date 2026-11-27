@@ -248,12 +248,13 @@ public class JpaAssignmentStore implements AssignmentStore {
         return searchQuery(search, null, true, Long.class).getSingleResult();
     }
 
+    // The rows come as values, so that a read of every row of a source keeps no entity in the session.
     @Override
     public List<Assignment> rowsBySourceOn(String source, LocalDate date) {
-        return AssignmentReads.of(em, em.createQuery("""
-                        select a from AssignmentEntity a where a.realmId = :realmId and a.source = :source
+        return AssignmentReads.ofValues(em.createQuery("select " + AssignmentReads.VALUES + """
+                         from AssignmentEntity a where a.realmId = :realmId and a.source = :source
                         and a.validFrom <= :date and (a.validTo is null or a.validTo > :date) order by a.id""",
-                        AssignmentEntity.class)
+                        Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("source", source)
                 .setParameter("date", date)
