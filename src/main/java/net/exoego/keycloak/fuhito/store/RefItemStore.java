@@ -1,7 +1,10 @@
 package net.exoego.keycloak.fuhito.store;
 
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -77,6 +80,18 @@ public interface RefItemStore {
      * @return the item, or empty when the realm has no such item
      */
     Optional<RefItem> find(String id);
+
+    /**
+     * Gives the code of each item with the given IDs, with one read.
+     *
+     * @param ids the IDs of the items
+     * @return the code by the ID of the item. An item that the realm does not have is left out.
+     */
+    default Map<String, String> codesOf(Collection<String> ids) {
+        Map<String, String> codes = new HashMap<>();
+        ids.forEach(id -> find(id).ifPresent(item -> codes.put(id, item.code())));
+        return codes;
+    }
 
     /**
      * Finds an item by ID, with the names of a date.
