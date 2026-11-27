@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -172,10 +173,9 @@ public class QualificationService {
         if (!users.isKnown(userId)) {
             throw FuhitoException.notFound("user.not_found", Map.of("userId", userId));
         }
-        return store.findByUser(userId).stream()
+        return views(store.findByUser(userId).stream()
                 .filter(qualification -> all || qualification.period().contains(date))
-                .map(this::view)
-                .toList();
+                .toList());
     }
 
     /**
@@ -189,10 +189,9 @@ public class QualificationService {
      */
     public List<QualificationView> ofPerson(String personId, String asOf, boolean all) {
         LocalDate date = dateOrToday(asOf, all);
-        return store.findByPerson(personId).stream()
+        return views(store.findByPerson(personId).stream()
                 .filter(qualification -> all || qualification.period().contains(date))
-                .map(this::view)
-                .toList();
+                .toList());
     }
 
     // With all, every date counts, so a date of the request would be dropped.
@@ -232,9 +231,7 @@ public class QualificationService {
      */
     public List<QualificationView> list(String kind, String asOf, Page page, String after) {
         String afterId = after == null ? null : Cursor.decode(Cursor.QUALIFICATIONS, after).getFirst();
-        return store.search(search(kind, asOf), afterId, page.first(), page.max()).stream()
-                .map(this::view)
-                .toList();
+        return views(store.search(search(kind, asOf), afterId, page.first(), page.max()));
     }
 
     /**
@@ -258,7 +255,15 @@ public class QualificationService {
     }
 
     private QualificationView view(Qualification qualification) {
-        return new QualificationView(qualification,
-                refItems.find(qualification.kindId()).map(RefItem::code).orElse(null));
+        return views(List.of(qualification)).getFirst();
+    }
+
+    private List<QualificationView> views(List<Qualification> qualifications) {
+        Map<String, String> codes = refItems.codesOf(qualifications.stream()
+                .map(Qualification::kindId)
+                .collect(Collectors.toSet()));
+        return qualifications.stream()
+                .map(qualification -> new QualificationView(qualification, codes.get(qualification.kindId())))
+                .toList();
     }
 }

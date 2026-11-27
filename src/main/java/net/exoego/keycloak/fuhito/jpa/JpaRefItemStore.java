@@ -113,6 +113,22 @@ public class JpaRefItemStore implements RefItemStore {
     }
 
     @Override
+    public Map<String, String> codesOf(Collection<String> ids) {
+        Map<String, String> codes = new HashMap<>();
+        if (ids.isEmpty()) {
+            return codes;
+        }
+        em.createQuery("""
+                        select r.id, r.code from RefItemEntity r
+                        where r.realmId = :realmId and %s""".formatted(ManyIds.has("r.id", "ids")), Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("ids", ManyIds.of(ids))
+                .getResultList()
+                .forEach(row -> codes.put((String) row[0], (String) row[1]));
+        return codes;
+    }
+
+    @Override
     public Optional<RefItem> find(String id, LocalDate date) {
         return first(onDate(ITEMS + " and r.id = :id", date).setParameter("id", id));
     }
