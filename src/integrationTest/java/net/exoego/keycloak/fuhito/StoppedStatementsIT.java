@@ -341,14 +341,18 @@ class StoppedStatementsIT {
         assertEquals("0", sql("select count(*) from fuhito_projected_member where realm_id = '" + realmId + "'"));
     }
 
-    // Each piece of the sync takes the lock of the realm alone. The record of the run only shares it.
+    // The plan of the sync reads the assignments. The record of the run does not, so it does not wait.
     @Test
     void aSyncThatPostgreSqlStopsKeepsTheCodeOfItsErrorAsTheLastRun() throws Exception {
         TestRealm realm = syncRealm("stopped-sync-run");
         int log = logLength();
 
         HttpResponse<String> response;
-        try (Connection holder = holdingRealm(realm.id(), false)) {
+        try (Connection holder = connection()) {
+            holder.setAutoCommit(false);
+            try (Statement statement = holder.createStatement()) {
+                statement.execute("lock table fuhito_assignment in access exclusive mode");
+            }
             CompletableFuture<HttpResponse<String>> sync = waitingFor(holder,
                     () -> realm.api.post("/attribute-sync/run", ""));
             cancelWaiterOf(holder);
