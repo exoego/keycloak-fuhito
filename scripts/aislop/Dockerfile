@@ -3,7 +3,7 @@
 
 FROM node:26-slim@sha256:0c6375bcc1ee170c22bd04e11b7c1ff9afc3bb16a865a2629308ceb4b72380ff
 # renovate: datasource=npm depName=aislop
-ARG AISLOP_VERSION=0.22.1
+ARG AISLOP_VERSION=0.22.2
 RUN npm install --prefix /opt/aislop --ignore-scripts --no-audit --no-fund --loglevel=error \
         "aislop@${AISLOP_VERSION}" \
     && npm cache clean --force
