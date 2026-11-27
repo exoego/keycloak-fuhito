@@ -59,8 +59,9 @@ public final class RowLocks {
     /**
      * Locks the row of the realm for writes until the end of the transaction. A bulk write, such as an import,
      * locks it alone, and every other write shares it. So the other writes of the realm wait while a bulk write
-     * runs, and a bulk write waits for the writes that run. A write calls it once, before it locks or reads
-     * anything that it changes. Only the row of a Keycloak user that {@link #lockUser} locks comes before it.
+     * runs, and a bulk write waits for the writes that run. A read that must not run during a bulk write shares it
+     * too, such as the plan of the attribute sync. A write calls it once, before it locks or reads anything that it
+     * changes. Only the row of a Keycloak user that {@link #lockUser} locks comes before it.
      * The first write of a realm adds the row.
      * The removal of the realm makes a write wait too. The write then finds the realm gone, and fails.
      *

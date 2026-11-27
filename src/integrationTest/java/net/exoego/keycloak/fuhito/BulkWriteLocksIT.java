@@ -88,7 +88,7 @@ class BulkWriteLocksIT {
 
     @Test
     void everyBulkWriteWaitsForAWriteThatRuns() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("bulk-after-write", Map.of("fuhito.sync.enabled", "true"));
+        TestRealm realm = TestRealm.withEmployer("bulk-after-write");
         Api api = realm.api;
         String unit = id(api.post("/org-units", UNIT.formatted("A")));
         realm.refItem("WORK_LOCATION", "tokyo", "東京");
@@ -110,7 +110,6 @@ class BulkWriteLocksIT {
                          "hierarchies": [{"externalId": "q", "code": "q", "name": "Q"}]}""")),
                 new Bulk("csv", () -> api.postBytes("/imports/csv/hierarchies?effectiveDate=2026-04-01",
                         "text/csv; charset=UTF-8", "externalId,code,name\r\nr,r,R\r\n".getBytes(StandardCharsets.UTF_8))),
-                new Bulk("sync", () -> api.post("/attribute-sync/run", "")),
                 new Bulk("fill", () -> api.post("/attribute-definitions", "{\"target\": \"PERSON\", "
                         + "\"name\": \"shift\", \"type\": \"STRING\", \"required\": true, \"fillValue\": \"day\"}")),
                 new Bulk("clear", () -> api.deleteWithVersion("/attribute-definitions/" + definition
@@ -223,29 +222,53 @@ class BulkWriteLocksIT {
         }
     }
 
-    @Test
-    void aPieceOfTheSyncKeepsTheOtherWritesOfTheRealmWaiting() throws Exception {
-        TestRealm realm = TestRealm.withEmployer("bulk-sync", Map.of("fuhito.sync.enabled", "true"));
-        Api api = realm.api;
+    // A user whose department is the org unit with the code naika.
+    private static String userInNaika(TestRealm realm) throws Exception {
         Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
         // Without this, the user profile of Keycloak drops attributes that it does not know.
         UPConfig profile = admin.realm(realm.name).users().userProfile().getConfiguration();
         profile.setUnmanagedAttributePolicy(UPConfig.UnmanagedAttributePolicy.ENABLED);
         admin.realm(realm.name).users().userProfile().update(profile);
-        ok(api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"内科\"}}, "
+        ok(realm.api.post("/org-units", "{\"primaryLanguage\": \"ja\", \"names\": {\"ja\": {\"name\": \"内科\"}}, "
                 + "\"code\": \"naika\", \"validFrom\": \"2020-04-01\"}"));
         var user = new UserRepresentation();
         user.setUsername("alice");
         user.setEnabled(true);
         user.singleAttribute("department", "naika");
-        String alice;
         try (Response response = admin.realm(realm.name).users().create(user)) {
-            alice = CreatedResponseUtil.getCreatedId(response);
+            return CreatedResponseUtil.getCreatedId(response);
         }
+    }
+
+    @Test
+    void thePlanOfTheSyncRunsPastAWriteThatRunsButAPieceWaitsForIt() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("bulk-sync-plan", Map.of("fuhito.sync.enabled", "true"));
+        Api api = realm.api;
+        try (Connection write = holdingRealm(realm.id(), false)) {
+            // With no user, the run is only its plan.
+            assertEquals(0, ok(soon(() -> api.post("/attribute-sync/run", ""))).get("users").asInt());
+            write.commit();
+        }
+        userInNaika(realm);
+
+        CompletableFuture<HttpResponse<String>> sync;
+        try (Connection write = holdingRealm(realm.id(), false)) {
+            sync = waitingFor(write, () -> api.post("/attribute-sync/run", ""));
+            write.commit();
+        }
+        assertEquals(1, ok(sync.get()).get("assignmentsAdded").asInt());
+    }
+
+    @Test
+    void aPieceOfTheSyncKeepsTheOtherWritesOfTheRealmWaiting() throws Exception {
+        TestRealm realm = TestRealm.withEmployer("bulk-sync", Map.of("fuhito.sync.enabled", "true"));
+        Api api = realm.api;
+        Keycloak admin = KEYCLOAK.getKeycloakAdminClient();
+        String alice = userInNaika(realm);
         ok(api.post("/attribute-sync/run", ""));
         String assignment = ok(api.get("/users/" + alice + "/assignments")).get(0).get("assignmentId").asText();
         realm.refItem("JOB_TITLE", "head", "院長");
-        user = admin.realm(realm.name).users().get(alice).toRepresentation();
+        UserRepresentation user = admin.realm(realm.name).users().get(alice).toRepresentation();
         user.singleAttribute("title", "院長");
         admin.realm(realm.name).users().get(alice).update(user);
 
