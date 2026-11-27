@@ -344,9 +344,7 @@ public class AttributeSyncService {
         List<Assignment> rows = List.copyOf(byAssignment.values());
         // A person with no Keycloak user has no attributes to follow, so the sync leaves their rows alone.
         Map<String, String> userByEmployment = from.employments()
-                .findAll(rows.stream().map(Assignment::employmentId).distinct().toList()).stream()
-                .filter(employment -> employment.userId() != null)
-                .collect(Collectors.toMap(Employment::id, Employment::userId));
+                .usersOfEmployments(rows.stream().map(Assignment::employmentId).distinct().toList());
         Map<String, Assignment> result = new HashMap<>();
         rows.stream()
                 .filter(row -> userByEmployment.containsKey(row.employmentId()))
@@ -549,12 +547,11 @@ public class AttributeSyncService {
 
         Matcher(LocalDate today) {
             matchedOn = today;
-            for (OrgUnitState unit : new OrgUnitTree(from.orgUnits(), from.refItems(), today).all()) {
-                if (unit.version().code() != null) {
-                    unitByCode.put(unit.version().code(), unit.unit().id());
+            for (OrgUnitStore.CodeAndName unit : from.orgUnits().codesAndNamesOn(today)) {
+                if (unit.code() != null) {
+                    unitByCode.put(unit.code(), unit.id());
                 }
-                unitsByName.computeIfAbsent(unit.version().names().primary().name(), name -> new ArrayList<>())
-                        .add(unit.unit().id());
+                unitsByName.computeIfAbsent(unit.name(), name -> new ArrayList<>()).add(unit.id());
             }
             // The code wins over the name, and an active title wins over a deactivated one.
             List<RefItem> all = from.refItems().list(RefKind.JOB_TITLE, true, today);

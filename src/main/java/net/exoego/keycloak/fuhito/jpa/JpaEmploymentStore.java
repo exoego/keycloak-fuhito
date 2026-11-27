@@ -3,7 +3,9 @@ package net.exoego.keycloak.fuhito.jpa;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
@@ -158,6 +160,23 @@ public class JpaEmploymentStore implements EmploymentStore {
                 .filter(Rows.inRealm(realmId, e -> e.realmId))
                 .map(JpaEmploymentStore::toDomain)
                 .toList();
+    }
+
+    // The IDs come from rows of the realm, so the query finds them by their IDs alone, as findAll does.
+    @Override
+    public Map<String, String> usersOfEmployments(Collection<String> ids) {
+        Map<String, String> result = new HashMap<>();
+        if (ids.isEmpty()) {
+            return result;
+        }
+        em.createQuery("""
+                        select e.id, e.realmId, p.userId from EmploymentEntity e join e.person p
+                        where p.userId is not null and %s""".formatted(ManyIds.has("e.id", "ids")), Object[].class)
+                .setParameter("ids", ManyIds.of(ids))
+                .getResultList().stream()
+                .filter(row -> realmId.equals(row[1]))
+                .forEach(row -> result.put((String) row[0], (String) row[2]));
+        return result;
     }
 
     // Each piece is a fixed text. The values of the search go in as parameters. A read by an employer takes the realm

@@ -126,6 +126,10 @@ public class JpaOrgUnitStore implements OrgUnitStore {
             select a.id from Above a where a.realmId = :realmId and a.id is not null order by a.depth"""
             .formatted(TreeQuery.parentOf("a.id", "hierarchyId"));
 
+    private static final String CODES_AND_NAMES = """
+            select v.orgUnitId, v.code, p.name from OrgUnitVersionEntity v%s
+            where v.realmId = :realmId and v.%s""".formatted(OrgUnitNames.JOIN_PRIMARY, TreeQuery.onDate("v"));
+
     // The condition that keeps only the units whose unit type has a mark, only the others, or both, for the
     // version v. The mark is a field name in the code, never a value of a request.
     private static String marked(String mark, Boolean wanted) {
@@ -274,6 +278,16 @@ public class JpaOrgUnitStore implements OrgUnitStore {
                 .setParameter("realmId", realmId)
                 .setParameter("date", date)
                 .getResultList());
+    }
+
+    @Override
+    public List<CodeAndName> codesAndNamesOn(LocalDate date) {
+        return em.createQuery(CODES_AND_NAMES, Object[].class)
+                .setParameter("realmId", realmId)
+                .setParameter("date", date)
+                .getResultList().stream()
+                .map(row -> new CodeAndName((String) row[0], (String) row[1], (String) row[2]))
+                .toList();
     }
 
     // One row of a version is primary, the one of its primary language. So the other rows have the other languages.

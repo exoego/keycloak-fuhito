@@ -1,5 +1,7 @@
 package net.exoego.keycloak.fuhito.jpa;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +47,32 @@ final class AssignmentReads {
         rows.forEach(row -> found.computeIfAbsent((String) row[0], key -> new ArrayList<>())
                 .add(assignment((AssignmentEntity) row[column], versions)));
         return found;
+    }
+
+    /**
+     * The values of a row of an assignment with the version of the assignment, for a query that names the row
+     * {@code a}. A query that selects them keeps no entity in the session.
+     */
+    static final String VALUES = """
+            a.id, a.assignmentId, a.employmentId, a.orgUnitId, a.validFrom, a.validTo, a.jobTitleId, a.occupationId,
+            a.kindId, a.workLocationId, a.costCenterId, a.head, a.primary, a.allocationPercent, a.displayOrder,
+            a.attributes, a.source, (select v.version from AssignmentVersionEntity v where v.id = a.assignmentId)""";
+
+    /**
+     * Makes the assignments of rows of {@link #VALUES}.
+     *
+     * @param rows the rows of the query
+     * @return the assignments, in the order of the rows
+     */
+    @SuppressWarnings("unchecked")
+    static List<Assignment> ofValues(List<Object[]> rows) {
+        return rows.stream()
+                .map(row -> new Assignment((String) row[0], (String) row[1], (String) row[2], (String) row[3],
+                        new ValidPeriod((LocalDate) row[4], (LocalDate) row[5]), (String) row[6], (String) row[7],
+                        (String) row[8], (String) row[9], (String) row[10], (Boolean) row[11], (Boolean) row[12],
+                        (BigDecimal) row[13], (Integer) row[14], (Map<String, Object>) row[15], (String) row[16],
+                        (Long) row[17]))
+                .toList();
     }
 
     // The IDs come from rows of the realm, so the query finds the versions by their IDs alone, for the reason in
