@@ -22,6 +22,12 @@ import net.exoego.keycloak.fuhito.store.AssignmentStore;
  */
 public class JpaAssignmentStore implements AssignmentStore {
 
+    // The rows come as values, so that a read of every row of a source keeps no entity in the session.
+    private static final String ROWS_BY_SOURCE = """
+            select %s from AssignmentEntity a where a.realmId = :realmId and a.source = :source
+            and a.validFrom <= :date and (a.validTo is null or a.validTo > :date) order by a.id"""
+            .formatted(AssignmentReads.VALUES);
+
     private final EntityManager em;
     private final String realmId;
 
@@ -248,13 +254,9 @@ public class JpaAssignmentStore implements AssignmentStore {
         return searchQuery(search, null, true, Long.class).getSingleResult();
     }
 
-    // The rows come as values, so that a read of every row of a source keeps no entity in the session.
     @Override
     public List<Assignment> rowsBySourceOn(String source, LocalDate date) {
-        return AssignmentReads.ofValues(em.createQuery("select " + AssignmentReads.VALUES + """
-                         from AssignmentEntity a where a.realmId = :realmId and a.source = :source
-                        and a.validFrom <= :date and (a.validTo is null or a.validTo > :date) order by a.id""",
-                        Object[].class)
+        return AssignmentReads.ofValues(em.createQuery(ROWS_BY_SOURCE, Object[].class)
                 .setParameter("realmId", realmId)
                 .setParameter("source", source)
                 .setParameter("date", date)
