@@ -16,6 +16,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
@@ -529,9 +530,11 @@ public class AssignmentService {
         Map<String, String> userIds = new HashMap<>();
         employments.findAll(rowsById.values().stream().map(rows -> rows.getFirst().employmentId()).toList())
                 .forEach(employment -> userIds.put(employment.id(), employment.userId()));
-        Function<String, String> code = UnitPlaces.codes(refItems);
         List<Assignment> all = ids.stream().flatMap(id -> rowsById.get(id).stream()).toList();
-        List<LocationAndCost> places = UnitPlaces.ofRows(all, row -> dates.get(row.assignmentId()), orgUnits, code);
+        Function<String, String> code = UnitPlaces.codes(refItems, all.stream()
+                .flatMap(row -> Stream.of(row.jobTitleId(), row.occupationId(), row.kindId())));
+        List<LocationAndCost> places = UnitPlaces.ofRows(all, row -> dates.get(row.assignmentId()), orgUnits,
+                refItems);
         Map<String, List<Assignment>> ended = store.endedOnStart(ids);
         List<AssignmentView> views = new ArrayList<>();
         int at = 0;
@@ -584,7 +587,10 @@ public class AssignmentService {
         Map<String, Employment> employmentsById = employments.findAll(rowsById.values().stream()
                         .map(rows -> rows.getFirst().employmentId()).distinct().toList()).stream()
                 .collect(Collectors.toMap(Employment::id, Function.identity()));
-        Function<String, String> code = UnitPlaces.codes(refItems);
+        Function<String, String> code = UnitPlaces.codes(refItems, rowsById.values().stream()
+                .flatMap(List::stream)
+                .flatMap(row -> Stream.of(row.jobTitleId(), row.occupationId(), row.kindId(), row.workLocationId(),
+                        row.costCenterId())));
         return ids.stream().map(id -> {
             List<Assignment> rows = rowsById.get(id);
             Employment employment = employmentsById.get(rows.getFirst().employmentId());

@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.Assignment;
 import net.exoego.keycloak.fuhito.domain.Checks;
@@ -276,9 +277,13 @@ public class MembershipService {
                 .collect(Collectors.toMap(EmploymentTerms::employmentId, Function.identity()));
         Map<String, String> legalEntities = orgUnits.legalEntitiesOn(
                 rows.stream().map(Assignment::orgUnitId).distinct().toList(), date);
-        Function<String, String> code = UnitPlaces.codes(refItems);
+        Function<String, String> code = UnitPlaces.codes(refItems, Stream.of(
+                rows.stream().flatMap(row -> Stream.of(row.jobTitleId(), row.occupationId(), row.kindId())),
+                employmentsById.values().stream().map(employment -> employment.employer().externalEmployerId()),
+                termsByEmployment.values().stream().flatMap(terms -> Stream.of(terms.employmentTypeId(),
+                        terms.gradeId()))).flatMap(Function.identity()));
         // The rows hold on the date, so this is one read of the units for all of them.
-        List<LocationAndCost> places = UnitPlaces.ofRows(rows, row -> date, orgUnits, code);
+        List<LocationAndCost> places = UnitPlaces.ofRows(rows, row -> date, orgUnits, refItems);
         List<Member> members = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             Assignment row = rows.get(i);
