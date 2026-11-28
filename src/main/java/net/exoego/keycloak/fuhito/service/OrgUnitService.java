@@ -20,6 +20,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import net.exoego.keycloak.fuhito.domain.AttributeDefinition;
 import net.exoego.keycloak.fuhito.domain.BusinessDay;
@@ -469,7 +470,8 @@ public class OrgUnitService {
     public boolean changesPlaces(String id, String validFrom, String workLocation, String costCenter) {
         try {
             OrgUnitVersion current = versionOn(id, Checks.date("validFrom", validFrom));
-            Function<String, String> code = UnitPlaces.codes(refItems);
+            Function<String, String> code = UnitPlaces.codes(refItems,
+                    Stream.of(current.workLocationId(), current.costCenterId()));
             return !Objects.equals(code.apply(current.workLocationId()), workLocation)
                     || !Objects.equals(code.apply(current.costCenterId()), costCenter);
         } catch (FuhitoException e) {
@@ -1179,10 +1181,12 @@ public class OrgUnitService {
                 .filter(link -> link.period().intersection(replaced).isPresent())
                 .map(OrgUnitLink::parentId)
                 .collect(Collectors.toUnmodifiableSet());
-        Function<String, String> code = UnitPlaces.codes(refItems);
+        Collection<UnitDefaults> applyingOnDates = UnitPlaces.applying(store, id, replaced).values();
+        Function<String, String> code = UnitPlaces.codes(refItems, applyingOnDates.stream()
+                .flatMap(applying -> Stream.of(applying.workLocationId(), applying.costCenterId())));
         Set<String> workLocations = new HashSet<>();
         Set<String> costCenters = new HashSet<>();
-        for (UnitDefaults applying : UnitPlaces.applying(store, id, replaced).values()) {
+        for (UnitDefaults applying : applyingOnDates) {
             Optional.ofNullable(code.apply(applying.workLocationId())).ifPresent(workLocations::add);
             Optional.ofNullable(code.apply(applying.costCenterId())).ifPresent(costCenters::add);
         }
